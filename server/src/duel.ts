@@ -9,10 +9,12 @@ import {
   type OcgCoreSync,
   type OcgLocPos,
   type OcgMessage,
+  type OcgResponse,
 } from "@n1xx1/ocgcore-wasm";
 import { cardName, readCard, readScript } from "./cards.ts";
 import { KAIBA, YUGI } from "./decks.ts";
 import { respond } from "./respond.ts";
+import { hideCards, visibleTo } from "./visibility.ts";
 
 // Goat format (2005): Master Rule 1 plus the pre-2008 rulings, the closest the engine gets to 2002.
 export const RULES = OcgDuelMode.MODE_GOAT;
@@ -145,7 +147,11 @@ export async function openDuel(seed: Seed, decks: readonly number[][], onError: 
   return { lib, handle };
 }
 
-export async function runDuel(seed: Seed, maxTurns: number): Promise<DuelState> {
+// Answers from what its seat may see: the question through hideCards, the messages so far through visibleTo.
+export type Player = (question: OcgMessage, log: readonly OcgMessage[]) => OcgResponse;
+const firstOption: Player = (question) => respond(question);
+
+export async function runDuel(seed: Seed, maxTurns: number, players: readonly Player[] = [firstOption, firstOption]): Promise<DuelState> {
   const state: DuelState = { turns: 0, lp: [STARTING_LP, STARTING_LP], winner: null, log: [], errors: [], scripts: [] };
   const { lib, handle } = await openDuel(seed, [YUGI, KAIBA], (text) => state.errors.push(text), (name) => state.scripts.push(name));
 
@@ -154,10 +160,13 @@ export async function runDuel(seed: Seed, maxTurns: number): Promise<DuelState> 
     return card?.code ? cardName(card.code) : "?";
   };
 
+  const logs: OcgMessage[][] = [[], []];
   let question: OcgMessage | undefined;
   for (let step = 0; step < MAX_STEPS; step++) {
     const status = lib.duelProcess(handle);
     const messages = lib.duelGetMessage(handle);
+    const events = status === OcgProcessResult.WAITING ? messages.slice(0, -1) : messages;
+    for (const [seat, log] of logs.entries()) log.push(...events.flatMap((msg) => visibleTo(msg, seat) ?? []));
     for (const msg of messages) {
       if (msg.type === OcgMessageType.RETRY) throw new Error(`réponse refusée par le moteur : ${JSON.stringify(question, (_k, v) => (typeof v === "bigint" ? String(v) : v))}`);
       track(state, msg);
@@ -169,7 +178,9 @@ export async function runDuel(seed: Seed, maxTurns: number): Promise<DuelState> 
       return state;
     }
     question = messages.at(-1);
-    if (status === OcgProcessResult.WAITING && question) lib.duelSetResponse(handle, respond(question));
+    if (status === OcgProcessResult.WAITING && question && "player" in question) {
+      lib.duelSetResponse(handle, players[question.player](hideCards(question, question.player), logs[question.player]));
+    }
   }
   throw new Error(`duel bloqué après ${MAX_STEPS} étapes`);
 }

@@ -10,6 +10,8 @@ export type ClientMessage =
   | { type: "auth"; token: string }
   | { type: "pseudo"; pseudo: string }
   | { type: "create" }
+  // A room against the bot, which takes seat 1.
+  | { type: "bot" }
   | { type: "join"; room: string }
   | { type: "respond"; response: OcgResponse };
 

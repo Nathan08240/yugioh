@@ -6,16 +6,18 @@ import { OcgMessageType, OcgProcessResult, OcgResponseType, type OcgMessage, typ
 import postgres from "postgres";
 import { WebSocketServer, type WebSocket } from "ws";
 import { verifySession } from "./auth.ts";
+import { Bot } from "./bot.ts";
 import { cardInfo } from "./cards.ts";
 import { createProfile, findProfile, openDb, type Db, type Profile } from "./db.ts";
 import { KAIBA, YUGI } from "./decks.ts";
 import { openDuel, STARTING_LP, type Seed } from "./duel.ts";
 import { POOL } from "./pool.ts";
 import type { CardInfo, ClientMessage, Seat, ServerMessage } from "./protocol.ts";
+import { respond } from "./respond.ts";
 import { hideCards, visibleTo } from "./visibility.ts";
 
 type Question = Extract<OcgMessage, { player: number }>;
-type Player = { id: string; socket?: WebSocket; log: OcgMessage[] };
+type Player = { id: string; socket?: WebSocket; log: OcgMessage[]; bot?: Bot };
 export type Room = {
   code: string;
   players: Player[];
@@ -48,6 +50,8 @@ const PSEUDO = /^[A-Za-z0-9_-]{3,20}$/;
 const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 // An empty room is kept this long so a player can come back to it.
 const ROOM_TTL = 10 * 60_000;
+// Pause before each answer of the bot, so the human can follow its moves.
+const BOT_DELAY = 700;
 
 // Response type the engine expects for each of its questions.
 const ANSWERS = new Map<OcgMessageType, OcgResponseType>([
@@ -116,6 +120,7 @@ function parse(data: string): ClientMessage | undefined {
     (msg.type === "auth" && typeof msg.token === "string" && msg.token.length <= 4096) ||
     (msg.type === "pseudo" && typeof msg.pseudo === "string") ||
     msg.type === "create" ||
+    msg.type === "bot" ||
     (msg.type === "join" && typeof msg.room === "string") ||
     (msg.type === "respond" && typeof msg.response === "object" && msg.response !== null);
   return valid ? (msg as ClientMessage) : undefined;
@@ -123,7 +128,26 @@ function parse(data: string): ClientMessage | undefined {
 
 function ask(room: Room, retry: boolean) {
   const question = room.question;
-  if (question) send(room.players[question.player]?.socket, { type: "question", question: hideCards(question, question.player), retry });
+  if (!question) return;
+  const player = room.players[question.player];
+  const hidden = hideCards(question, question.player);
+  if (player?.bot) play(room, player, hidden, retry);
+  else send(player?.socket, { type: "question", question: hidden, retry });
+}
+
+// A response the engine refused is replaced by the first valid option, so the bot never blocks the duel.
+function play(room: Room, player: Player, question: OcgMessage, retry: boolean) {
+  const { bot } = player;
+  const asked = room.question;
+  if (!bot || !asked) return;
+  setTimeout(() => {
+    if (room.question !== asked) return;
+    try {
+      answer(room, asked.player as Seat, retry ? respond(question) : bot.answer(question, player.log));
+    } catch (error) {
+      fail(room, `bot sans réponse : ${error}`);
+    }
+  }, bot.delay).unref();
 }
 
 function broadcast(room: Room, messages: OcgMessage[]) {
@@ -141,6 +165,12 @@ function endDuel(room: Room) {
   room.question = undefined;
 }
 
+function fail(room: Room, error: string) {
+  console.error(`[salle ${room.code}] ${error}`);
+  room.players.forEach((player) => send(player.socket, { type: "duel_error", error: "le moteur a rencontré une erreur, salle fermée" }));
+  endDuel(room);
+}
+
 // Runs the engine until it asks a question or the duel ends. A crash inside the engine closes only this room.
 export function advance(room: Room) {
   if (!room.duel) return;
@@ -152,9 +182,7 @@ export function advance(room: Room) {
       status = lib.duelProcess(handle);
       messages = lib.duelGetMessage(handle);
     } catch (error) {
-      console.error(`[salle ${room.code}] erreur moteur : ${error}`);
-      room.players.forEach((player) => send(player.socket, { type: "duel_error", error: "le moteur a rencontré une erreur, salle fermée" }));
-      endDuel(room);
+      fail(room, `erreur moteur : ${error}`);
       return;
     }
     if (messages.some((msg) => msg.type === OcgMessageType.RETRY)) {
@@ -206,8 +234,8 @@ function newCode(rooms: Map<string, Room>): string {
   return code;
 }
 
-// ponytail: every duel is Yugi (host) vs Kaiba until the deck builder exists.
-export function startServer(port: number, accounts: Accounts, newSeed = randomSeed): WebSocketServer {
+// ponytail: every duel is Yugi (host) vs Kaiba until the deck builder exists. The bot takes seat 1, Kaiba.
+export function startServer(port: number, accounts: Accounts, newSeed = randomSeed, botDelay = BOT_DELAY): WebSocketServer {
   const rooms = new Map<string, Room>();
   const http = createServer(serveHttp);
   const wss = new WebSocketServer({ server: http, maxPayload: 64 * 1024 });
@@ -226,6 +254,11 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
     if (room.question?.player === seat) ask(room, false);
     if (known === -1 && seat === 1) start(room, newSeed()).catch((error: unknown) => console.error(error));
     return seat;
+  }
+
+  function addBot(room: Room) {
+    room.players.push({ id: "bot", log: [], bot: new Bot(1, STARTING_LP, [YUGI.length, KAIBA.length], botDelay) });
+    start(room, newSeed()).catch((error: unknown) => console.error(error));
   }
 
   function leave(room: Room, socket: WebSocket) {
@@ -271,12 +304,13 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
       if (!user.pseudo) return "pseudo à choisir d'abord";
       if (msg.type === "respond") return seat ? answer(seat.room, seat.index, msg.response) : "pas dans une salle";
       if (seat) return "déjà dans une salle";
-      const room = msg.type === "create" ? { code: newCode(rooms), players: [] } : rooms.get(msg.room.toUpperCase());
+      const room = msg.type === "join" ? rooms.get(msg.room.toUpperCase()) : { code: newCode(rooms), players: [] };
       if (!room) return "salle introuvable";
       rooms.set(room.code, room);
       const index = sit(room, user.id, socket);
       if (index === undefined) return "salle complète";
       seat = { room, index };
+      if (msg.type === "bot") addBot(room);
       return undefined;
     }
 

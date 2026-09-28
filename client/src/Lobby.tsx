@@ -115,6 +115,9 @@ function RoomChoice({ pseudo, send }: Readonly<{ pseudo: string; send: Send }>) 
       <button type="button" onClick={() => send({ type: "create" })}>
         Créer une salle
       </button>
+      <button type="button" onClick={() => send({ type: "bot" })}>
+        Jouer contre le bot
+      </button>
       <p className="divider">ou</p>
       <form className="row" onSubmit={(event) => send({ type: "join", room: field(event, "room").toUpperCase() })}>
         <input name="room" required maxLength={5} placeholder="Code de la salle" aria-label="Code de la salle" className="code-input" />
