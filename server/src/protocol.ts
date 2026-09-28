@@ -1,5 +1,6 @@
 import type { OcgMessage, OcgResponse } from "@n1xx1/ocgcore-wasm";
 import type { DeckDraft } from "./deckcheck.ts";
+import type { Printing } from "./pool.ts";
 
 // WebSocket protocol, shared with the client. Payloads are JSON: bigint fields travel as strings.
 export type Wire<T> = T extends bigint ? string : T extends object ? { [K in keyof T]: Wire<T[K]> } : T;
@@ -19,7 +20,10 @@ export type ClientMessage =
   | { type: "decks" }
   | { type: "save_deck"; deck: DeckDraft }
   | { type: "delete_deck"; id: number }
-  | { type: "active_deck"; id: number };
+  | { type: "active_deck"; id: number }
+  // Boosters: `booster_state` is answered with `booster_state`, `open_booster` with `booster_opened` or an error.
+  | { type: "booster_state" }
+  | { type: "open_booster"; set: string };
 
 export type Deck = { id: number; name: string; main: number[]; extra: number[] };
 
@@ -37,7 +41,9 @@ export type ServerMessage =
   | { type: "collection"; cards: [number, number][] }
   // `saved` is the deck a `save_deck` just stored.
   | { type: "decks"; decks: Deck[]; active: number | null; saved?: number }
-  | { type: "duel_error"; error: string };
+  | { type: "duel_error"; error: string }
+  | { type: "booster_state"; nextFreeAt: string; pending: number }
+  | { type: "booster_opened"; set: string; cards: Printing[] };
 
 // GET /api/cards: every card of the pool by passcode, from BabelCDB. `strings` are the effect descriptions (str1 to str16).
 export type CardInfo = {

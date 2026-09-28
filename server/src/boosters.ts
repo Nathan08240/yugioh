@@ -3,6 +3,8 @@ import type { Db } from "./db.ts";
 import { type CardSet, type Printing, SETS, type Slot } from "./pool.ts";
 
 export const FREE_BOOSTER_HOURS = 12;
+// Won by the victor of an online duel between two players (not a bot duel).
+export const WIN_BOOSTER_REWARD = 1;
 export const BOOSTERS: ReadonlyMap<string, CardSet> = new Map(SETS.filter((set) => set.slots).map((set) => [set.code, set]));
 
 type Group = { chance?: number; cards: Printing[] };
@@ -42,6 +44,13 @@ export function drawPack(set: CardSet): Printing[] {
     for (let i = 0; i < (slot.qty ?? 1); i++) pack.add(drawCard(set, slot, pack));
   }
   return [...pack];
+}
+
+// Date of the next free booster and the number of earned boosters still waiting to be opened.
+export async function boosterState(db: Db, userId: string): Promise<{ nextFreeAt: string; pending: number }> {
+  const [row] = await db<{ nextFreeAt: Date; pending: number }[]>`
+    select next_free_at as "nextFreeAt", pending from yugioh.booster_state where user_id = ${userId}`;
+  return row ? { nextFreeAt: row.nextFreeAt.toISOString(), pending: row.pending } : { nextFreeAt: new Date().toISOString(), pending: 0 };
 }
 
 // Boosters won in duels or Story mode, opened later in the set of the player's choice.

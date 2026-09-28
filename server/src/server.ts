@@ -6,11 +6,12 @@ import { OcgMessageType, OcgProcessResult, OcgResponseType, type OcgMessage, typ
 import postgres from "postgres";
 import { WebSocketServer, type WebSocket } from "ws";
 import { verifySession } from "./auth.ts";
+import { boosterState, BOOSTERS, creditBoosters, openBooster, WIN_BOOSTER_REWARD } from "./boosters.ts";
 import { cardInfo } from "./cards.ts";
 import { dbDeckStore, deckReply, isDeckMessage, validDeckMessage, type DeckMessage, type DeckStore } from "./collection.ts";
 import { activeDeck, createProfile, findProfile, openDb, type Db, type Profile } from "./db.ts";
 import { openDuel, STARTING_LP, type Seed } from "./duel.ts";
-import { isAllowed, POOL } from "./pool.ts";
+import { isAllowed, POOL, type Printing } from "./pool.ts";
 import type { CardInfo, ClientMessage, Seat, ServerMessage } from "./protocol.ts";
 import { chooseStarter, starterCards, type Starter } from "./starter.ts";
 import { hideCards, visibleTo } from "./visibility.ts";
@@ -23,6 +24,8 @@ export type Room = {
   duel?: Awaited<ReturnType<typeof openDuel>>;
   question?: Question;
   timer?: NodeJS.Timeout;
+  // Set by the bot matchmaking (F-bot): a bot duel's winner earns no booster.
+  bot?: boolean;
 };
 
 // Identity, profile and deck storage, faked in tests.
@@ -34,6 +37,10 @@ export type Accounts = DeckStore & {
   activeDeck: (userId: string) => Promise<number[] | undefined>;
   // Resolves to false when the player already has an active deck.
   chooseStarter: (userId: string, starter: Starter) => Promise<boolean>;
+  boosterState: (userId: string) => Promise<{ nextFreeAt: string; pending: number }>;
+  // Rejects with a clear message: no right to open, or an unknown set.
+  openBooster: (userId: string, setCode: string) => Promise<Printing[]>;
+  creditBoosters: (userId: string, count: number) => Promise<void>;
 };
 
 export function dbAccounts(db: Db): Accounts {
@@ -47,6 +54,9 @@ export function dbAccounts(db: Db): Accounts {
       }),
     activeDeck: (userId) => activeDeck(db, userId),
     chooseStarter: (userId, starter) => chooseStarter(db, userId, starter),
+    boosterState: (userId) => boosterState(db, userId),
+    openBooster: (userId, setCode) => openBooster(db, userId, setCode),
+    creditBoosters: (userId, count) => creditBoosters(db, userId, count),
     ...dbDeckStore(db),
   };
 }
@@ -101,6 +111,11 @@ function serveHttp(req: IncomingMessage, res: ServerResponse) {
     res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify(body));
     return;
   }
+  if (req.method === "GET" && req.url === "/api/boosters") {
+    const body = [...BOOSTERS.values()].map(({ code, name, date }) => ({ code, name, date }));
+    res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify(body));
+    return;
+  }
   const code = Number(IMAGE_URL.exec(req.url ?? "")?.[1]);
   if (req.method === "GET" && POOL.has(code) && existsSync(imageFile(code))) {
     res.writeHead(200, { "content-type": "image/jpeg", "cache-control": "max-age=86400" });
@@ -131,6 +146,8 @@ function parse(data: string): ClientMessage | undefined {
     msg.type === "create" ||
     (msg.type === "join" && typeof msg.room === "string") ||
     (msg.type === "respond" && typeof msg.response === "object" && msg.response !== null) ||
+    msg.type === "booster_state" ||
+    (msg.type === "open_booster" && typeof msg.set === "string") ||
     validDeckMessage(msg);
   return valid ? (msg as ClientMessage) : undefined;
 }
@@ -155,8 +172,14 @@ function endDuel(room: Room) {
   room.question = undefined;
 }
 
+// Credits the winner of an online duel between two players with a booster; a bot duel earns nothing (F-bot).
+export function creditWinner(room: Room, seat: Seat, accounts: Pick<Accounts, "creditBoosters">) {
+  const winnerId = room.players[seat]?.id;
+  if (winnerId && !room.bot) accounts.creditBoosters(winnerId, WIN_BOOSTER_REWARD).catch((error: unknown) => console.error(error));
+}
+
 // Runs the engine until it asks a question or the duel ends. A crash inside the engine closes only this room.
-export function advance(room: Room) {
+export function advance(room: Room, onWin: (room: Room, seat: Seat) => void = () => {}) {
   if (!room.duel) return;
   const { lib, handle } = room.duel;
   for (;;) {
@@ -179,6 +202,10 @@ export function advance(room: Room) {
     // The engine keeps sending WIN without ever reaching END: the first one closes the duel.
     const win = events.findIndex((msg) => msg.type === OcgMessageType.WIN);
     broadcast(room, win === -1 ? events : events.slice(0, win + 1));
+    if (win !== -1) {
+      const winMsg = events[win];
+      if (winMsg.type === OcgMessageType.WIN) onWin(room, winMsg.player as Seat);
+    }
     if (win !== -1 || status === OcgProcessResult.END) {
       endDuel(room);
       return;
@@ -193,7 +220,7 @@ export function advance(room: Room) {
 }
 
 // Returns an error for the sender, if any. A response the engine cannot take is asked again.
-function answer(room: Room, seat: Seat, response: OcgResponse): string | undefined {
+function answer(room: Room, seat: Seat, response: OcgResponse, accounts: Accounts): string | undefined {
   const question = room.question;
   if (!room.duel || question?.player !== seat) return "aucune question en attente";
   try {
@@ -203,14 +230,14 @@ function answer(room: Room, seat: Seat, response: OcgResponse): string | undefin
     ask(room, true);
     return undefined;
   }
-  advance(room);
+  advance(room, (r, seatWon) => creditWinner(r, seatWon, accounts));
   return undefined;
 }
 
-async function start(room: Room, seed: Seed) {
+async function start(room: Room, seed: Seed, accounts: Accounts) {
   const decks = room.players.map((player) => player.deck);
   room.duel = await openDuel(seed, decks, (text) => console.error(`[salle ${room.code}] ${text}`));
-  advance(room);
+  advance(room, (r, seatWon) => creditWinner(r, seatWon, accounts));
 }
 
 function newCode(rooms: Map<string, Room>): string {
@@ -248,7 +275,7 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
       send(host.socket, { type: "joined", room: room.code, seat: 0, lp: STARTING_LP, decks, log: host.log });
     }
     if (room.question?.player === seat) ask(room, false);
-    if (isNew && seat === 1) start(room, newSeed()).catch((error: unknown) => console.error(error));
+    if (isNew && seat === 1) start(room, newSeed(), accounts).catch((error: unknown) => console.error(error));
     return seat;
   }
 
@@ -315,6 +342,20 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
       return undefined;
     }
 
+    async function sendBoosterState(player: { id: string }): Promise<string | undefined> {
+      send(socket, { type: "booster_state", ...(await accounts.boosterState(player.id)) });
+      return undefined;
+    }
+
+    async function openBoosterFor(player: { id: string }, set: string): Promise<string | undefined> {
+      try {
+        send(socket, { type: "booster_opened", set, cards: await accounts.openBooster(player.id, set) });
+        return undefined;
+      } catch (error) {
+        return error instanceof Error ? error.message : "erreur inattendue";
+      }
+    }
+
     // Returns an error for the sender, if any.
     function handle(msg: ClientMessage): string | undefined | Promise<string | undefined> {
       if (msg.type === "auth") return identify(msg.token);
@@ -323,7 +364,9 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
       if (!user.pseudo) return "pseudo à choisir d'abord";
       if (msg.type === "starter") return pickStarter(user, msg.starter);
       if (isDeckMessage(msg)) return manageDecks(user, msg);
-      if (msg.type === "respond") return seat ? answer(seat.room, seat.index, msg.response) : "pas dans une salle";
+      if (msg.type === "booster_state") return sendBoosterState(user);
+      if (msg.type === "open_booster") return openBoosterFor(user, msg.set);
+      if (msg.type === "respond") return seat ? answer(seat.room, seat.index, msg.response, accounts) : "pas dans une salle";
       if (seat) return "déjà dans une salle";
       return enterRoom(user, msg);
     }

@@ -1,6 +1,7 @@
 import type { OcgResponse } from "@n1xx1/ocgcore-wasm";
 import { useEffect, useMemo, useReducer, useRef, useState, type FormEvent } from "react";
 import type { ClientMessage } from "../../server/src/protocol.ts";
+import { Boosters } from "./Boosters.tsx";
 import { CardView } from "./Card.tsx";
 import { DuelView, useCards } from "./cards.ts";
 import { DeckBuilder } from "./DeckBuilder.tsx";
@@ -155,7 +156,7 @@ function StarterOption({ name, codes, onChoose }: Readonly<{ name: string; codes
   );
 }
 
-type Tab = "play" | "collection";
+type Tab = "play" | "collection" | "boosters";
 
 // Menu after login. Boosters get their own tab with the opening screen.
 function Home({ pseudo, state, send }: Readonly<{ pseudo: string; state: LobbyState; send: Send }>) {
@@ -170,11 +171,13 @@ function Home({ pseudo, state, send }: Readonly<{ pseudo: string; state: LobbySt
         <button type="button" aria-current={current("collection")} onClick={() => setTab("collection")}>
           Collection et decks
         </button>
-        <button type="button" disabled title="Bientôt disponible">
+        <button type="button" aria-current={current("boosters")} onClick={() => setTab("boosters")}>
           Boosters
         </button>
       </nav>
-      {tab === "play" ? <RoomChoice pseudo={pseudo} send={send} /> : <DeckBuilder collection={state.collection} decks={state.decks} send={send} />}
+      {tab === "play" && <RoomChoice pseudo={pseudo} send={send} />}
+      {tab === "collection" && <DeckBuilder collection={state.collection} decks={state.decks} send={send} />}
+      {tab === "boosters" && <Boosters state={state} send={send} />}
     </>
   );
 }

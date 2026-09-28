@@ -7,7 +7,7 @@ import { KAIBA, YUGI } from "../src/decks.ts";
 import { POOL } from "../src/pool.ts";
 import type { CardInfo, ClientMessage, ServerMessage, Wire } from "../src/protocol.ts";
 import { respond } from "../src/respond.ts";
-import { advance, startServer, type Accounts, type Room } from "../src/server.ts";
+import { advance, creditWinner, startServer, type Accounts, type Room } from "../src/server.ts";
 
 type Received = Wire<ServerMessage>;
 type Answer = (question: OcgMessage, retry: boolean) => OcgResponse | undefined;
@@ -31,6 +31,14 @@ const accounts: Accounts = {
   saveDeck: async () => ({ error: "non simulé" }),
   deleteDeck: async () => false,
   activateDeck: async () => false,
+  boosterState: async () => ({ nextFreeAt: new Date(0).toISOString(), pending: 0 }),
+  // "sansdroit" a un profil mais aucun droit d'ouverture ; le set "ZZZ" n'existe pas.
+  openBooster: async (userId, set) => {
+    if (set === "ZZZ") throw new Error(`booster inconnu : ${set}`);
+    if (userId === "sansdroit") throw new Error("aucun booster disponible");
+    return [{ code: 1, rarity: "common" }];
+  },
+  creditBoosters: async () => {},
 };
 const wss = startServer(0, accounts, () => [1n, 2n, 3n, 4n]);
 await once(wss, "listening");
@@ -237,5 +245,57 @@ describe("serveur de partie", () => {
       { type: "error", error: "déjà authentifié" },
       { type: "profile", pseudo: "Nouveau_1", needsStarter: false },
     ]);
+  });
+
+  it("renvoie l'état des boosters et les cartes d'une ouverture réussie", async () => {
+    const p = await connect("carol");
+    p.send({ type: "booster_state" });
+    p.send({ type: "open_booster", set: "LOB" });
+    await vi.waitFor(() => expect(p.received.length).toBeGreaterThanOrEqual(3));
+    expect(p.received).toContainEqual({ type: "booster_state", nextFreeAt: new Date(0).toISOString(), pending: 0 });
+    expect(p.received).toContainEqual({ type: "booster_opened", set: "LOB", cards: [{ code: 1, rarity: "common" }] });
+  });
+
+  it("refuse l'ouverture d'un booster sans droit ou d'un set inconnu", async () => {
+    const p = await connect("sansdroit");
+    p.send({ type: "open_booster", set: "LOB" });
+    p.send({ type: "open_booster", set: "ZZZ" });
+    await vi.waitFor(() => expect(p.received.length).toBeGreaterThanOrEqual(3));
+    expect(p.received).toContainEqual({ type: "error", error: "aucun booster disponible" });
+    expect(p.received).toContainEqual({ type: "error", error: "booster inconnu : ZZZ" });
+  });
+});
+
+describe("récompense de boosters à la fin d'un duel", () => {
+  it("crédite le vainqueur d'un duel en ligne, pas celui d'un duel contre le bot", () => {
+    const credited: [string, number][] = [];
+    const fakeAccounts: Pick<Accounts, "creditBoosters"> = {
+      creditBoosters: async (userId, count) => {
+        credited.push([userId, count]);
+      },
+    };
+    const room = (bot?: boolean): Room => ({ code: "X", players: [{ id: "p0", log: [], deck: [] }, { id: "p1", log: [], deck: [] }], bot });
+
+    creditWinner(room(), 1, fakeAccounts);
+    creditWinner(room(true), 0, fakeAccounts);
+
+    expect(credited).toEqual([["p1", 1]]);
+  });
+
+  it("advance() signale le vainqueur à onWin quand le moteur envoie WIN", () => {
+    const socket = () => ({ send: vi.fn() }) as unknown as WebSocket;
+    const fakeDuel = (messages: OcgMessage[]) =>
+      ({ lib: { duelProcess: () => OcgProcessResult.END, duelGetMessage: () => messages, destroyDuel: vi.fn() }, handle: 1 }) as unknown as NonNullable<Room["duel"]>;
+    const room: Room = {
+      code: "WIN",
+      players: [{ id: "p0", socket: socket(), log: [], deck: [] }, { id: "p1", socket: socket(), log: [], deck: [] }],
+      duel: fakeDuel([{ type: OcgMessageType.WIN, player: 1, type_win: 0 } as unknown as OcgMessage]),
+    };
+    const onWin = vi.fn();
+
+    advance(room, onWin);
+
+    expect(onWin).toHaveBeenCalledWith(room, 1);
+    expect(room.duel).toBeUndefined();
   });
 });
