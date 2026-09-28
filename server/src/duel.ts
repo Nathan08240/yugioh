@@ -129,13 +129,14 @@ function describe(msg: OcgMessage, state: DuelState, nameAt: (loc: OcgLocPos) =>
 
 let core: Promise<OcgCoreSync> | undefined;
 
-// Creates a started duel, each deck shuffled by the seed (deck 0 goes to player 0).
+// Creates a started duel, each deck shuffled by the seed (deck 0 goes to player 0). `extras` are the extra decks, in the same order.
 export async function openDuel(
   seed: Seed,
   decks: readonly (readonly number[])[],
   onError: (text: string) => void,
   onScript = (_name: string) => {},
   rules = STANDARD_RULES,
+  extras: readonly (readonly number[])[] = [],
 ) {
   const lib = await (core ??= createCore({ sync: true }));
   const settings = { startingLP: rules.lp, startingDrawCount: rules.hand, drawCountPerTurn: 1 };
@@ -161,6 +162,12 @@ export async function openDuel(
       lib.duelNewCard(handle, { team, duelist: 0, code, controller: team, location: OcgLocation.DECK, sequence: 0, position: OcgPosition.FACEDOWN_DEFENSE });
     }
   });
+  extras.forEach((extra, owner) => {
+    const team = owner as 0 | 1;
+    for (const code of extra) {
+      lib.duelNewCard(handle, { team, duelist: 0, code, controller: team, location: OcgLocation.EXTRA, sequence: 0, position: OcgPosition.FACEDOWN_DEFENSE });
+    }
+  });
   lib.startDuel(handle);
   return { lib, handle };
 }
@@ -175,9 +182,10 @@ export async function runDuel(
   players: readonly Player[] = [firstOption, firstOption],
   decks: readonly (readonly number[])[] = [YUGI, KAIBA],
   rules = STANDARD_RULES,
+  extras: readonly (readonly number[])[] = [],
 ): Promise<DuelState> {
   const state: DuelState = { turns: 0, lp: [rules.lp, rules.lp], winner: null, log: [], errors: [], scripts: [] };
-  const { lib, handle } = await openDuel(seed, decks, (text) => state.errors.push(text), (name) => state.scripts.push(name), rules);
+  const { lib, handle } = await openDuel(seed, decks, (text) => state.errors.push(text), (name) => state.scripts.push(name), rules, extras);
 
   const nameAt = (loc: OcgLocPos) => {
     const card = lib.duelQuery(handle, { flags: OcgQueryFlags.CODE, controller: loc.controller, location: loc.location, sequence: loc.sequence, overlaySequence: 0 });

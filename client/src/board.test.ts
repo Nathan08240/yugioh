@@ -22,6 +22,17 @@ const summoned = playAll(start, [
 ]);
 
 describe("plateau reconstruit à partir des messages du moteur", () => {
+  it("affiche la taille de l'extra deck et l'invoque par fusion vers le terrain", () => {
+    const FLAME_SWORDSMAN = 45231177;
+    const board = playAll(newBoard(4000, [40, 40], [2, 0]), [
+      { type: OcgMessageType.MOVE, card: FLAME_SWORDSMAN, from: { controller: 0, location: OcgLocation.EXTRA, sequence: 0, position: FACEDOWN }, to: { controller: 0, location: MZONE, sequence: 1, position: FACEUP_ATTACK } },
+      { type: OcgMessageType.SPSUMMONING, code: FLAME_SWORDSMAN, controller: 0, location: MZONE, sequence: 1, position: FACEUP_ATTACK },
+    ]);
+    expect(board.players.map((side) => side.extra)).toEqual([1, 0]);
+    expect(board.players[0].monsters[1]).toEqual({ code: FLAME_SWORDSMAN, position: FACEUP_ATTACK });
+    expect(newBoard(4000, [40, 40]).players.map((side) => side.extra)).toEqual([0, 0]);
+  });
+
   it("pioche la main de départ, cachée pour l'adversaire", () => {
     expect(start.players[0]).toMatchObject({ deck: 35, lp: 4000 });
     expect(start.players[0].hand.map((card) => card.code)).toEqual([1, 2, DARK_MAGICIAN, 3, 4]);

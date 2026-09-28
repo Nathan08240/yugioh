@@ -28,10 +28,10 @@ export type Board = {
   log: LogEntry[];
 };
 
-const side = (lp: number, deck: number): Side => ({
+const side = (lp: number, deck: number, extra: number): Side => ({
   lp,
   deck,
-  extra: 0,
+  extra,
   hand: [],
   monsters: new Array(7).fill(null),
   spells: new Array(8).fill(null),
@@ -39,9 +39,8 @@ const side = (lp: number, deck: number): Side => ({
   banished: [],
 });
 
-// ponytail: the extra deck starts empty, the current decks have no Fusion monster.
-export const newBoard = (lp: number, decks: readonly number[]): Board => ({
-  players: [side(lp, decks[0]), side(lp, decks[1])],
+export const newBoard = (lp: number, decks: readonly number[], extras: readonly number[] = [0, 0]): Board => ({
+  players: [side(lp, decks[0], extras[0]), side(lp, decks[1], extras[1])],
   turn: 0,
   turnPlayer: 0,
   phase: 0,

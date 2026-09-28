@@ -10,18 +10,25 @@ import type { CardInfo, ClientMessage, ServerMessage, Wire } from "../src/protoc
 import { respond } from "../src/respond.ts";
 import { advance, creditWinner, startServer, type Accounts, type Room } from "../src/server.ts";
 
+const FLAME_SWORDSMAN = 45231177;
+
 type Received = Wire<ServerMessage>;
 type Answer = (question: OcgMessage, retry: boolean) => OcgResponse | undefined;
 
 // Active decks, keyed by user id: preset for the usual test users, "sansdeck" never gets one.
 const decks = new Map<string, number[]>([["alice", YUGI], ["bob", KAIBA], ["carol", YUGI], ["dave", YUGI], ["eve", YUGI]]);
+// Extra decks, empty unless a test sets one.
+const extras = new Map<string, number[]>();
 
 // Token "jeton-<id>" identifies user <id>; "nouveau" has no profile yet and "pris" is a taken pseudo.
 const accounts: Accounts = {
   verify: async (token) => (token.startsWith("jeton-") ? token.slice(6) : null),
   findProfile: async (userId) => (userId === "nouveau" ? undefined : { userId, pseudo: userId, activeDeckId: decks.has(userId) ? 1 : null }),
   createProfile: async (userId, pseudo) => (pseudo === "pris" ? undefined : { userId, pseudo, activeDeckId: null }),
-  activeDeck: async (userId) => decks.get(userId),
+  activeDeck: async (userId) => {
+    const main = decks.get(userId);
+    return main && { main, extra: extras.get(userId) ?? [] };
+  },
   chooseStarter: async (userId, starter) => {
     if (decks.has(userId)) return false;
     decks.set(userId, starter === "yugi" ? YUGI : KAIBA);
@@ -110,7 +117,7 @@ describe("serveur de partie", () => {
     const b2 = await connect("bob");
     b2.send({ type: "join", room });
     await vi.waitFor(() => expect(b2.messages().length).toBeGreaterThan(0));
-    expect(joined(b2.received)).toEqual({ type: "joined", room, seat: 1, lp: 4000, decks: [40, 40], log: b.messages() });
+    expect(joined(b2.received)).toEqual({ type: "joined", room, seat: 1, lp: 4000, decks: [40, 40], extras: [0, 0], log: b.messages() });
     expect(b2.received).toContainEqual({ type: "question", question: held, retry: false });
   });
 
@@ -198,6 +205,40 @@ describe("serveur de partie", () => {
     await vi.waitFor(() => expect(joined(guest.received)).toBeDefined());
     expect(joined(guest.received)).toMatchObject({ seat: 1, decks: [45, 50] });
     await vi.waitFor(() => expect(host.messages().length).toBeGreaterThan(0));
+  });
+
+  it("annonce la taille de l'extra deck de chaque joueur et le charge dans le duel", async () => {
+    decks.set("hote2", YUGI);
+    decks.set("invite2", KAIBA);
+    extras.set("hote2", [FLAME_SWORDSMAN, FLAME_SWORDSMAN]);
+    extras.set("invite2", [FLAME_SWORDSMAN]);
+
+    const host = await connect("hote2");
+    host.send({ type: "create" });
+    await vi.waitFor(() => expect(joined(host.received)).toBeDefined());
+    expect(joined(host.received)).toMatchObject({ seat: 0, decks: [40, 0], extras: [2, 0] });
+    const guest = await connect("invite2");
+    guest.send({ type: "join", room: joined(host.received)?.room ?? "" });
+    await vi.waitFor(() => expect(joined(guest.received)).toMatchObject({ seat: 1, decks: [40, 40], extras: [2, 1] }));
+    await vi.waitFor(() => expect(host.received.filter((msg) => msg.type === "joined").at(-1)).toMatchObject({ extras: [2, 1] }));
+  });
+
+  it("refuse un deck actif dont l'extra deck a plus de 15 cartes ou une carte qui n'est pas une fusion", async () => {
+    decks.set("trop", YUGI);
+    extras.set("trop", Array<number>(16).fill(FLAME_SWORDSMAN));
+    decks.set("intrus", YUGI);
+    extras.set("intrus", [46986414]); // Dark Magician
+    const errors: Received[] = [];
+    for (const user of ["trop", "intrus"]) {
+      const p = await connect(user);
+      p.send({ type: "create" });
+      await vi.waitFor(() => expect(p.received).toHaveLength(2));
+      errors.push(p.received[1]);
+    }
+    expect(errors).toEqual([
+      { type: "error", error: "deck actif invalide" },
+      { type: "error", error: "deck actif invalide" },
+    ]);
   });
 
   it("refuse de créer ou rejoindre une salle sans deck actif", async () => {

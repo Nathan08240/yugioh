@@ -60,7 +60,7 @@ export function reduce(state: LobbyState, action: Action): LobbyState {
         ...state,
         room: action.room,
         seat: action.seat,
-        board: playAll(newBoard(action.lp, action.decks), action.log),
+        board: playAll(newBoard(action.lp, action.decks, action.extras), action.log),
         started: action.log.length > 0,
         question: undefined,
         error: undefined,

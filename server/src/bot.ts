@@ -95,9 +95,9 @@ export class Bot {
   private target: Place | null | undefined;
   private activations = 0;
 
-  constructor(seat: Seat, lp: number, decks: readonly number[], delay: number) {
+  constructor(seat: Seat, lp: number, decks: readonly number[], delay: number, extras?: readonly number[]) {
     this.seat = seat;
-    this.board = newBoard(lp, decks);
+    this.board = newBoard(lp, decks, extras);
     this.delay = delay;
   }
 

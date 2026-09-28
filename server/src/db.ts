@@ -24,11 +24,13 @@ export async function createProfile(db: Db, userId: string, pseudo: string): Pro
   return profile;
 }
 
-// The active deck's main deck, or undefined if the player has none yet.
-export async function activeDeck(db: Db, userId: string): Promise<number[] | undefined> {
-  const [row] = await db<{ mainDeck: number[] }[]>`
-    select d.main_deck as "mainDeck" from yugioh.profiles p
+export type ActiveDeck = { main: number[]; extra: number[] };
+
+// The active deck, or undefined if the player has none yet.
+export async function activeDeck(db: Db, userId: string): Promise<ActiveDeck | undefined> {
+  const [row] = await db<ActiveDeck[]>`
+    select d.main_deck as main, d.extra_deck as extra from yugioh.profiles p
     join yugioh.decks d on d.id = p.active_deck_id
     where p.user_id = ${userId}`;
-  return row?.mainDeck;
+  return row;
 }
