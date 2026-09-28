@@ -4,11 +4,16 @@
   "type": "module",
   "scripts": {
     "test": "vitest run",
-    "typecheck": "tsc"
+    "typecheck": "tsc",
+    "vendor": "node scripts/vendor.ts",
+    "duel": "node src/duel.ts"
   },
   "devDependencies": {
     "@types/node": "^24.19.0",
     "typescript": "^7.0.2",
     "vitest": "^5.0.2"
+  },
+  "dependencies": {
+    "@n1xx1/ocgcore-wasm": "jsr:^0.1.4"
   }
 }

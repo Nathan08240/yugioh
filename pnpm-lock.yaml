@@ -9,6 +9,10 @@ importers:
   .: {}
 
   server:
+    dependencies:
+      '@n1xx1/ocgcore-wasm':
+        specifier: jsr:^0.1.4
+        version: '@jsr/n1xx1__ocgcore-wasm@0.1.4'
     devDependencies:
       '@types/node':
         specifier: ^24.19.0
@@ -31,6 +35,9 @@ packages:
 
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
+
+  '@jsr/n1xx1__ocgcore-wasm@0.1.4':
+    resolution: {integrity: sha512-zwBpgVtjEAJPH1VoMt6/alEpB92c3eoCUbsU0CnVEnf2kovMTtTJ8ViQRW7eifrk+/4u6Hep8xrdA0TqWk0JFQ==, tarball: https://npm.jsr.io/~/11/@jsr/n1xx1__ocgcore-wasm/0.1.4.tgz}
 
   '@oxc-project/types@0.151.0':
     resolution: {integrity: sha512-J1yXrIlNDZVzE3ada310xeAw7nH8yCAyLPuUIsjKatFPmfn5bS1oW+cM+QsGOtVWd5nhSpbwZWx/rue+r5Z+PA==}
@@ -544,6 +551,8 @@ snapshots:
     dependencies:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.6.0
+
+  '@jsr/n1xx1__ocgcore-wasm@0.1.4': {}
 
   '@oxc-project/types@0.151.0': {}
 
