@@ -14,6 +14,7 @@
     "vitest": "^5.0.2"
   },
   "dependencies": {
-    "@n1xx1/ocgcore-wasm": "jsr:^0.1.4"
+    "@n1xx1/ocgcore-wasm": "jsr:^0.1.4",
+    "postgres": "^3.4.9"
   }
 }
