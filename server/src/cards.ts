@@ -73,6 +73,17 @@ export function cardInfo(code: number): Omit<CardInfo, "image" | "attributeName"
 type French = { name: string; desc?: string };
 let french: ReadonlyMap<number, French> | undefined;
 
+// Extra Rules cards of the story (see EXTRA_RULES), which YGOJSON does not have.
+export const RULE_CARDS: ReadonlyMap<number, French> = new Map([
+  [
+    511002621,
+    {
+      name: "Règles du Royaume des Duellistes",
+      desc: "Pas d'attaque directe.\n● Invocation Normale possible en Position de Défense face recto.\n● Les monstres de Niveau 5 ou plus s'invoquent ou se posent sans Tribut.\n● Un monstre détruit par un effet inflige à son contrôleur la moitié de son ATK en dégâts.\n● Un seul monstre peut déclarer une attaque par tour.\n● Qui n'invoque aucun monstre lors d'un tour où il n'en contrôle pas perd le duel à la fin de ce tour.",
+    },
+  ],
+]);
+
 // Written by `pnpm vendor` from YGOJSON.
 function frenchText(code: number): French | undefined {
   if (!french) {
@@ -81,7 +92,7 @@ function frenchText(code: number): French | undefined {
     const texts: Record<string, French> = JSON.parse(readFileSync(file, "utf-8"));
     french = new Map(Object.entries(texts).map(([passcode, text]) => [Number(passcode), text]));
   }
-  return french.get(code);
+  return RULE_CARDS.get(code) ?? french.get(code);
 }
 
 // The card as the client shows it: French name and text, English from BabelCDB for a card YGOJSON does not translate

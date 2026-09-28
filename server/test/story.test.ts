@@ -12,7 +12,8 @@ import { startServer } from "../src/server.ts";
 import { isUnlocked, STORY, STORY_DUELS, storyDeck, storyRules, storyView, validateStory, type Story, type StoryDuel } from "../src/story.ts";
 import { fakeAccounts } from "./fakes.ts";
 
-const [weevil, mako, mai] = ["dk-weevil", "dk-mako", "dk-mai"].map((id) => STORY_DUELS.get(id) as StoryDuel);
+const DK = ["dk-weevil", "dk-mako", "dk-mai", "dk-keith", "dk-bakura", "dk-kaiba", "dk-pegasus"];
+const [weevil, mako, mai] = DK.slice(0, 3).map((id) => STORY_DUELS.get(id) as StoryDuel);
 // "Duelist Kingdom", an unofficial card outside the pool.
 const ANIME = 511002621;
 
@@ -21,7 +22,7 @@ const storyWith = (duel: Partial<StoryDuel>, anime: number[] = []): Story => ({ 
 describe("données du mode Histoire", () => {
   it("valide l'histoire livrée : cartes dans BabelCDB et autorisées, prérequis, règles, récompenses", () => {
     expect(validateStory(STORY)).toEqual([]);
-    expect(STORY.arcs[0].duels.map((duel) => duel.id)).toEqual(["dk-weevil", "dk-mako", "dk-mai"]);
+    expect(STORY.arcs[0].duels.map((duel) => duel.id)).toEqual(DK);
   });
 
   it("refuse une carte inconnue, hors pool, un deck trop court, un prérequis manquant, une règle inconnue", () => {
@@ -44,9 +45,9 @@ describe("données du mode Histoire", () => {
 
   it("déverrouille chaque duel quand ses prérequis sont gagnés, la conclusion seulement une fois gagné", () => {
     const statuses = (done: string[]) => storyView(new Set(done))[0].duels.map((duel) => duel.status);
-    expect(statuses([])).toEqual(["available", "locked", "locked"]);
-    expect(statuses(["dk-weevil"])).toEqual(["done", "available", "locked"]);
-    expect(statuses(["dk-weevil", "dk-mako", "dk-mai"])).toEqual(["done", "done", "done"]);
+    expect(statuses([])).toEqual(["available", ...DK.slice(1).map(() => "locked")]);
+    expect(statuses(["dk-weevil"])).toEqual(["done", "available", ...DK.slice(2).map(() => "locked")]);
+    expect(statuses(DK)).toEqual(DK.map(() => "done"));
     const [first, second] = storyView(new Set(["dk-weevil"]))[0].duels;
     expect(first).toMatchObject({ opponent: "Weevil Underwood", lp: 2000, hand: 5, special: ["duelist-kingdom"], outro: weevil.outro });
     expect(second.outro).toBeUndefined();
@@ -135,8 +136,8 @@ describe("duel d'histoire sur le serveur", () => {
 
   it("joue un duel complet contre le bot aux règles de l'île, enregistre la victoire, rien de plus au second passage", { timeout: 60_000 }, async () => {
     const finished = (received: Received[]) => received.some((msg) => msg.type === "story_won");
-    // With seed 11 the first valid option beats the bot on this duel: pick another seed if the bot changes.
-    const first = await play(11n, (socket) => story(socket, { type: "story_duel", duel: "dk-weevil" }));
+    // With seed 10 the first valid option beats the bot on this duel: pick another seed if the bot changes.
+    const first = await play(10n, (socket) => story(socket, { type: "story_duel", duel: "dk-weevil" }));
     await vi.waitFor(() => expect(finished(first)).toBe(true), { timeout: 25_000 });
     expect(first).toContainEqual(expect.objectContaining({ type: "joined", seat: 0, lp: 2000, decks: [41, 40] }));
     expect(messages(first)).toContainEqual(expect.objectContaining({ type: OcgMessageType.WIN, player: 0 }));
@@ -145,7 +146,7 @@ describe("duel d'histoire sur le serveur", () => {
     const agreement = String((4014n << 20n) | 6n);
     expect(first.filter((msg) => msg.type === "question" && "description" in msg.question && msg.question.description === agreement)).toEqual([]);
 
-    const again = await play(11n, (socket) => story(socket, { type: "story_duel", duel: "dk-weevil" }));
+    const again = await play(10n, (socket) => story(socket, { type: "story_duel", duel: "dk-weevil" }));
     await vi.waitFor(() => expect(finished(again)).toBe(true), { timeout: 25_000 });
     expect(again).toContainEqual({ type: "story_won", duel: "dk-weevil", outro: weevil.outro, rewards: null });
     expect(won).toEqual(["dk-weevil", "dk-weevil"]);
