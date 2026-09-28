@@ -46,4 +46,4 @@
 - [ ] F-extra-deck-duel : charger l'Extra Deck du deck actif dans les duels (fusions tirées en booster)
 - [ ] F-bot-regles-histoire : le bot pose toujours un monstre aux règles du Royaume des Duellistes, nom lisible de la carte de règle au lancement
 - [ ] F-histoire-arcs : un ticket par arc (Duelist Kingdom, Battle City, Noah, finales Battle City, Doma, Grand Championship KC, Monde des souvenirs), découpage à caler sur les 6 saisons
-- [ ] F-deploiement-coolify : conteneur serveur + client sur Coolify (le serveur importe client/src/board.ts pour le bot ; router /ws et /api ; base via le réseau Docker du service Supabase)
+- [ ] F-deploiement-coolify : conteneur serveur + client sur Coolify (le serveur importe client/src/board.ts pour le bot ; router /ws et /api ; base via le réseau Docker du service Supabase ; illustrations sur un volume persistant, téléchargées par `pnpm images` au premier démarrage si absentes, jamais dans git ni Supabase Storage)
