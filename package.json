@@ -8,6 +8,7 @@
     "typecheck": "pnpm -r typecheck",
     "vendor": "pnpm --filter server vendor",
     "import-sets": "pnpm --filter server import-sets",
-    "images": "pnpm --filter server images"
+    "images": "pnpm --filter server images",
+    "test:db": "pnpm --filter server test:db"
   }
 }

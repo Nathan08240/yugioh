@@ -1,9 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createProfile, type Db } from "../src/db.ts";
 import { chooseStarter, starterCards } from "../src/starter.ts";
-import { hasDocker, type Pg, startPostgres } from "./pg.ts";
+import { type Pg, startPostgres } from "./pg.ts";
 
-describe.skipIf(!hasDocker())("choix du starter sur Postgres jetable", () => {
+describe("choix du starter sur Postgres jetable", () => {
   let pg: Pg;
   let admin: Db;
   let server: Db;

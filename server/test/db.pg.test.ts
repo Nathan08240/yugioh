@@ -5,7 +5,7 @@ import { WebSocket } from "ws";
 import { createProfile, type Db, findProfile } from "../src/db.ts";
 import type { ClientMessage } from "../src/protocol.ts";
 import { dbAccounts, startServer } from "../src/server.ts";
-import { hasDocker, type Pg, startPostgres } from "./pg.ts";
+import { type Pg, startPostgres } from "./pg.ts";
 
 // Envoie `messages` sur une nouvelle connexion et renvoie les `count` premières réponses.
 async function exchange(url: string, messages: ClientMessage[], count: number): Promise<unknown[]> {
@@ -19,7 +19,7 @@ async function exchange(url: string, messages: ClientMessage[], count: number): 
   return received;
 }
 
-describe.skipIf(!hasDocker())("migration yugioh sur Postgres jetable", () => {
+describe("migration yugioh sur Postgres jetable", () => {
   let pg: Pg;
   let admin: Db;
   let server: Db;

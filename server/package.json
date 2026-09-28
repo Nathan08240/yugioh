@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "vitest run",
+    "test": "vitest run --exclude=**/*.pg.test.ts",
     "typecheck": "tsc",
     "vendor": "node scripts/vendor.ts",
     "import-sets": "node scripts/import-sets.ts",
@@ -11,7 +11,8 @@
     "duel": "node src/duel.ts",
     "record-duel": "node scripts/record-duel.ts",
     "dev": "node --env-file-if-exists=.env --watch src/server.ts",
-    "start": "node --env-file-if-exists=.env src/server.ts"
+    "start": "node --env-file-if-exists=.env src/server.ts",
+    "test:db": "vitest run pg.test"
   },
   "devDependencies": {
     "@types/node": "^24.19.0",

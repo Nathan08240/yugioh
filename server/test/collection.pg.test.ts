@@ -6,9 +6,9 @@ import { createProfile, type Db } from "../src/db.ts";
 import type { ClientMessage, ServerMessage } from "../src/protocol.ts";
 import { dbAccounts, startServer } from "../src/server.ts";
 import { chooseStarter, starterCards } from "../src/starter.ts";
-import { hasDocker, type Pg, startPostgres } from "./pg.ts";
+import { type Pg, startPostgres } from "./pg.ts";
 
-describe.skipIf(!hasDocker())("collection et decks sur Postgres jetable", () => {
+describe("collection et decks sur Postgres jetable", () => {
   let pg: Pg;
   let admin: Db;
   let wss: WebSocketServer;

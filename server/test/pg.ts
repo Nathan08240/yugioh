@@ -10,15 +10,6 @@ const migrations = readdirSync(migrationsDir)
   .map((file) => readFileSync(join(migrationsDir, file), "utf8"));
 const docker = (...args: string[]) => execFileSync("docker", args, { encoding: "utf8" }).trim();
 
-export function hasDocker(): boolean {
-  try {
-    docker("info", "--format", "{{.ServerVersion}}");
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 async function waitFor(url: string): Promise<Db> {
   for (let attempt = 0; attempt < 60; attempt++) {
     const db = openDb(url);

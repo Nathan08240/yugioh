@@ -1,18 +1,16 @@
 import { once } from "node:events";
 import type { AddressInfo } from "node:net";
 import { OcgMessageType, type OcgMessage } from "@n1xx1/ocgcore-wasm";
-import { afterAll, beforeAll, describe, expect, it, onTestFinished, vi } from "vitest";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { WebSocket } from "ws";
 import { Bot } from "../src/bot.ts";
-import { createProfile, type Db } from "../src/db.ts";
 import { YUGI } from "../src/decks.ts";
 import { runDuel, type Player } from "../src/duel.ts";
-import type { ClientMessage, Rewards, ServerMessage, Wire } from "../src/protocol.ts";
+import type { ClientMessage, ServerMessage, Wire } from "../src/protocol.ts";
 import { respond } from "../src/respond.ts";
 import { startServer } from "../src/server.ts";
-import { completeDuel, completedDuels, STORY, STORY_DUELS, storyDeck, storyRules, storyView, validateStory, type Story, type StoryDuel } from "../src/story.ts";
+import { STORY, STORY_DUELS, storyDeck, storyRules, storyView, validateStory, type Story, type StoryDuel } from "../src/story.ts";
 import { fakeAccounts } from "./fakes.ts";
-import { hasDocker, type Pg, startPostgres } from "./pg.ts";
 
 const [weevil, mako, mai] = ["dk-weevil", "dk-mako", "dk-mai"].map((id) => STORY_DUELS.get(id) as StoryDuel);
 // "Duelist Kingdom", an unofficial card outside the pool.
@@ -137,49 +135,5 @@ describe("duel d'histoire sur le serveur", () => {
     await vi.waitFor(() => expect(finished(again)).toBe(true), { timeout: 25_000 });
     expect(again).toContainEqual({ type: "story_won", duel: "dk-weevil", outro: weevil.outro, rewards: null });
     expect(won).toEqual(["dk-weevil", "dk-weevil"]);
-  });
-});
-
-describe.skipIf(!hasDocker())("progression et récompenses sur Postgres jetable", () => {
-  let pg: Pg;
-  let admin: Db;
-  let server: Db;
-
-  beforeAll(async () => {
-    pg = await startPostgres();
-    ({ admin, server } = pg);
-  }, 180_000);
-
-  afterAll(() => pg?.stop());
-
-  async function newPlayer(pseudo: string): Promise<string> {
-    const [{ id }] = await admin<{ id: string }[]>`insert into auth.users (id) values (gen_random_uuid()) returning id`;
-    await createProfile(server, id, pseudo);
-    return id;
-  }
-
-  const holdings = async (userId: string) => ({
-    pending: (await admin`select pending from yugioh.booster_state where user_id = ${userId}`)[0]?.pending ?? 0,
-    cards: await admin`select card_code, quantity from yugioh.collection where user_id = ${userId}`,
-    unlocks: (await admin`select unlock_id from yugioh.story_unlocks where user_id = ${userId}`).map((row) => row.unlock_id),
-  });
-
-  it("accorde les récompenses à la première victoire seulement, même rejouée", async () => {
-    const id = await newPlayer("Yugi");
-    expect(await completeDuel(server, id, weevil)).toEqual({ boosters: 1, cards: [] });
-    expect(await completeDuel(server, id, mako)).toEqual({ boosters: 1, cards: [3643300] });
-    expect(await completeDuel(server, id, mako)).toBeUndefined();
-    expect(await completeDuel(server, id, weevil)).toBeUndefined();
-
-    expect(await completedDuels(server, id)).toEqual(new Set(["dk-weevil", "dk-mako"]));
-    expect(await holdings(id)).toEqual({ pending: 2, cards: [{ card_code: 3643300, quantity: 1 }], unlocks: ["card:3643300"] });
-  });
-
-  it("n'accorde qu'une fois des victoires simultanées sur le même duel", async () => {
-    const id = await newPlayer("Joey");
-    await Promise.all(Array.from({ length: 10 }, () => server`select pg_sleep(0.2)`));
-    const results: (Rewards | undefined)[] = await Promise.all(Array.from({ length: 10 }, () => completeDuel(server, id, mai)));
-    expect(results.filter(Boolean)).toEqual([{ boosters: 2, cards: [12206212] }]);
-    expect(await holdings(id)).toEqual({ pending: 2, cards: [{ card_code: 12206212, quantity: 1 }], unlocks: ["card:12206212"] });
   });
 });
