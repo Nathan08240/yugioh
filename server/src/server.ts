@@ -7,6 +7,7 @@ import postgres from "postgres";
 import { WebSocketServer, type WebSocket } from "ws";
 import { verifySession } from "./auth.ts";
 import { cardInfo } from "./cards.ts";
+import { dbDeckStore, deckReply, isDeckMessage, validDeckMessage, type DeckMessage, type DeckStore } from "./collection.ts";
 import { activeDeck, createProfile, findProfile, openDb, type Db, type Profile } from "./db.ts";
 import { openDuel, STARTING_LP, type Seed } from "./duel.ts";
 import { isAllowed, POOL } from "./pool.ts";
@@ -24,8 +25,8 @@ export type Room = {
   timer?: NodeJS.Timeout;
 };
 
-// Identity and profile storage, faked in tests.
-export type Accounts = {
+// Identity, profile and deck storage, faked in tests.
+export type Accounts = DeckStore & {
   verify: (token: string) => Promise<string | null>;
   findProfile: (userId: string) => Promise<Profile | undefined>;
   // Resolves to undefined when the pseudo is already taken.
@@ -46,6 +47,7 @@ export function dbAccounts(db: Db): Accounts {
       }),
     activeDeck: (userId) => activeDeck(db, userId),
     chooseStarter: (userId, starter) => chooseStarter(db, userId, starter),
+    ...dbDeckStore(db),
   };
 }
 
@@ -128,7 +130,8 @@ function parse(data: string): ClientMessage | undefined {
     (msg.type === "starter" && (msg.starter === "yugi" || msg.starter === "kaiba")) ||
     msg.type === "create" ||
     (msg.type === "join" && typeof msg.room === "string") ||
-    (msg.type === "respond" && typeof msg.response === "object" && msg.response !== null);
+    (msg.type === "respond" && typeof msg.response === "object" && msg.response !== null) ||
+    validDeckMessage(msg);
   return valid ? (msg as ClientMessage) : undefined;
 }
 
@@ -305,6 +308,13 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
       return undefined;
     }
 
+    async function manageDecks(player: { id: string }, msg: DeckMessage): Promise<string | undefined> {
+      const reply = await deckReply(accounts, player.id, msg);
+      if (typeof reply === "string") return reply;
+      send(socket, reply);
+      return undefined;
+    }
+
     // Returns an error for the sender, if any.
     function handle(msg: ClientMessage): string | undefined | Promise<string | undefined> {
       if (msg.type === "auth") return identify(msg.token);
@@ -312,6 +322,7 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
       if (msg.type === "pseudo") return choosePseudo(user, msg.pseudo);
       if (!user.pseudo) return "pseudo à choisir d'abord";
       if (msg.type === "starter") return pickStarter(user, msg.starter);
+      if (isDeckMessage(msg)) return manageDecks(user, msg);
       if (msg.type === "respond") return seat ? answer(seat.room, seat.index, msg.response) : "pas dans une salle";
       if (seat) return "déjà dans une salle";
       return enterRoom(user, msg);

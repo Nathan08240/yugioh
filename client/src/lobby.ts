@@ -1,6 +1,8 @@
 import type { Seat, ServerMessage, Wire } from "../../server/src/protocol.ts";
 import { newBoard, playAll, type Board, type Message } from "./board.ts";
 
+export type DeckList = Extract<Wire<ServerMessage>, { type: "decks" }>;
+
 export type Action = Wire<ServerMessage> | { type: "connecting" } | { type: "closed" } | { type: "answered" } | { type: "left" };
 
 // `id` tells two successive questions apart, even identical ones.
@@ -20,6 +22,9 @@ export type LobbyState = {
   asked: number;
   error?: string;
   closed: boolean;
+  // Owned cards as [passcode, quantity] and the player's decks, loaded by the collection screen.
+  collection?: [number, number][];
+  decks?: DeckList;
 };
 
 export const initialLobby: LobbyState = { started: false, asked: 0, closed: false, needsStarter: false };
@@ -50,6 +55,10 @@ export function reduce(state: LobbyState, action: Action): LobbyState {
       return { ...state, question: { question: action.question, retry: action.retry, id: state.asked + 1 }, asked: state.asked + 1 };
     case "answered":
       return { ...state, question: undefined };
+    case "collection":
+      return { ...state, collection: action.cards };
+    case "decks":
+      return { ...state, decks: action, error: undefined };
     case "error":
       return { ...state, error: action.error };
     case "duel_error":

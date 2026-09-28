@@ -26,6 +26,11 @@ const accounts: Accounts = {
     decks.set(userId, starter === "yugi" ? YUGI : KAIBA);
     return true;
   },
+  collection: async () => [],
+  decks: async () => ({ decks: [], active: null }),
+  saveDeck: async () => ({ error: "non simulé" }),
+  deleteDeck: async () => false,
+  activateDeck: async () => false,
 };
 const wss = startServer(0, accounts, () => [1n, 2n, 3n, 4n]);
 await once(wss, "listening");

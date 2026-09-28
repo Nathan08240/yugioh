@@ -3,6 +3,7 @@ import { useEffect, useMemo, useReducer, useRef, useState, type FormEvent } from
 import type { ClientMessage } from "../../server/src/protocol.ts";
 import { CardView } from "./Card.tsx";
 import { DuelView, useCards } from "./cards.ts";
+import { DeckBuilder } from "./DeckBuilder.tsx";
 import { Duel } from "./Duel.tsx";
 import { initialLobby, reduce, type Action, type LobbyState } from "./lobby.ts";
 import { autoAnswer } from "./question.ts";
@@ -94,7 +95,7 @@ function Screen({ state, send, reconnect, leave, respond }: Readonly<ScreenProps
   if (state.pseudo === undefined) return <p className="muted">Connexion au serveur…</p>;
   if (state.pseudo === null) return <PseudoForm send={send} />;
   if (state.needsStarter) return <StarterChoice send={send} />;
-  if (!state.room) return <RoomChoice pseudo={state.pseudo} send={send} />;
+  if (!state.room) return <Home pseudo={state.pseudo} state={state} send={send} />;
   if (!state.started || !state.board) return <Waiting room={state.room} />;
   return <Duel board={state.board} seat={state.seat ?? 0} asked={state.question} respond={respond} leave={leave} />;
 }
@@ -151,6 +152,30 @@ function StarterOption({ name, codes, onChoose }: Readonly<{ name: string; codes
         Choisir {name}
       </button>
     </section>
+  );
+}
+
+type Tab = "play" | "collection";
+
+// Menu after login. Boosters get their own tab with the opening screen.
+function Home({ pseudo, state, send }: Readonly<{ pseudo: string; state: LobbyState; send: Send }>) {
+  const [tab, setTab] = useState<Tab>("play");
+  const current = (value: Tab) => (tab === value ? "page" : undefined);
+  return (
+    <>
+      <nav className="tabs">
+        <button type="button" aria-current={current("play")} onClick={() => setTab("play")}>
+          Jouer
+        </button>
+        <button type="button" aria-current={current("collection")} onClick={() => setTab("collection")}>
+          Collection et decks
+        </button>
+        <button type="button" disabled title="Bientôt disponible">
+          Boosters
+        </button>
+      </nav>
+      {tab === "play" ? <RoomChoice pseudo={pseudo} send={send} /> : <DeckBuilder collection={state.collection} decks={state.decks} send={send} />}
+    </>
   );
 }
 
