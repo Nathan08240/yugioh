@@ -20,6 +20,20 @@ const RULES = new Map([
       ],
     },
   ],
+  [
+    "virtual-world",
+    {
+      title: "Règles du Monde virtuel",
+      details: [
+        "Chaque duelliste choisit un Deck Master en début de duel, gardé hors du deck.",
+        "Pendant sa Main Phase, on peut l'Invoquer Spécialement depuis l'extérieur du duel.",
+        "Qui n'a plus de Deck Master perd le duel : sur le terrain, il peut être détruit.",
+        "Un monstre sacrifié transmet son rôle au monstre invoqué grâce à lui.",
+        "Aucun monstre ne se pose face verso : il arrive face recto en Position de Défense.",
+        "Seuls Total Defense Shogun et Super Roboyarou ont leur pouvoir de Deck Master.",
+      ],
+    },
+  ],
 ]);
 
 const boosters = (count: number) => (count > 1 ? `${count} boosters à ouvrir` : "1 booster à ouvrir");

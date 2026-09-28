@@ -96,7 +96,8 @@ function sum(msg: OcgMessageSelectSum): number[] {
   const reaches = (picked: number[]) => total(picked).some((value) => value >= msg.amount);
   const exact = (picked: number[]) => total(picked).includes(msg.amount);
   const tight = (picked: number[]) => reaches(picked) && picked.every((drop) => !reaches(picked.filter((i) => i !== drop)));
-  const largest = Math.min(msg.max, msg.selects.length);
+  // select_max 1, a ritual's "equal or more": min and max are 0, any count goes.
+  const largest = msg.select_max ? msg.selects.length : Math.min(msg.max, msg.selects.length);
   for (const fits of [exact, tight]) {
     for (let size = Math.max(msg.min, 1); size <= largest; size++) {
       for (const picked of subsets(msg.selects.length, size)) if (fits(picked)) return picked;

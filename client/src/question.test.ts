@@ -1,7 +1,7 @@
 import { OcgHintTiming, OcgLocation, OcgMessageType, OcgResponseType } from "@n1xx1/ocgcore-wasm";
 import { expect, it } from "vitest";
 import type { Message } from "./board.ts";
-import { autoAnswer, freePlaces } from "./question.ts";
+import { autoAnswer, freePlaces, placeKey } from "./question.ts";
 
 const { MZONE, SZONE } = OcgLocation;
 
@@ -18,4 +18,10 @@ it("passe tout seul une chaîne sans carte à activer", () => {
   expect(autoAnswer(chain)).toEqual({ type: OcgResponseType.SELECT_CHAIN, index: null });
   expect(autoAnswer({ ...chain, forced: true })).toBeUndefined();
   expect(autoAnswer({ type: OcgMessageType.SELECT_YESNO, player: 0, description: "0" })).toBeUndefined();
+});
+
+it("distingue par leur code les cartes hors du duel, toutes en séquence 0", () => {
+  const outside = [153000001, 153000004].map((code) => placeKey({ controller: 0, location: 0 as OcgLocation, sequence: 0, code }));
+  expect(new Set(outside).size).toBe(2);
+  expect(placeKey({ controller: 1, location: MZONE, sequence: 2 })).toBe(`1:${MZONE}:2`);
 });

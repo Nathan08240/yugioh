@@ -34,6 +34,8 @@ const NON_MONSTER = 1000;
 // Guards against an effect the engine would let the bot activate again and again.
 const MAX_ACTIVATIONS = 8;
 const HAND_OR_FIELD = OcgLocation.HAND | OcgLocation.MZONE | OcgLocation.SZONE;
+// Deck Master System, Stringid(153000000, 5): summon the Deck Master from outside the duel?
+const SUMMON_DECK_MASTER = (153000000n << 20n) | 5n;
 
 type Stats = { atk: number; def: number; level: number; type: number };
 type Choice = [SelectIdleCMDAction, number];
@@ -170,6 +172,9 @@ export class Bot {
         return { type: OcgResponseType.SELECT_TRIBUTE, indicies: cheapestTributes(q) };
       case OcgMessageType.SELECT_POSITION:
         return { type: OcgResponseType.SELECT_POSITION, position: this.position(q) };
+      // Out of the duel it still counts as Deck Master and cannot be destroyed: losing it loses the duel.
+      case OcgMessageType.SELECT_YESNO:
+        return q.description === SUMMON_DECK_MASTER ? { type: OcgResponseType.SELECT_YESNO, yes: false } : undefined;
       default:
         return undefined;
     }
