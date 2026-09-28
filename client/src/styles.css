@@ -337,21 +337,54 @@ button.slot:hover .card.defense {
   text-align: center;
 }
 
+/* Cards: a frame drawn in CSS around the artwork, sized in cqw so the same card reads at any width. */
 .card {
   container-type: inline-size;
   width: var(--card-w);
   height: var(--card-h);
-  border-radius: 0.25rem;
+  border: 1px solid #1a1208;
+  border-radius: 0.3rem;
   overflow: hidden;
+  color: var(--ink, #1b1206);
+  background:
+    radial-gradient(ellipse at 25% 10%, rgb(255 255 255 / 0.28), transparent 55%),
+    var(--frame, linear-gradient(#6b5a3a, #3a2f1d));
   box-shadow: 0 2px 6px rgb(0 0 0 / 0.5);
+  font-family: var(--serif);
+  text-align: left;
   transition: transform 0.15s;
 }
 
-.card img {
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+.card.normal {
+  --frame: linear-gradient(160deg, #eccb78, #c89440);
+}
+
+.card.effect {
+  --frame: linear-gradient(160deg, #e59358, #b3561f);
+}
+
+.card.fusion {
+  --frame: linear-gradient(160deg, #a37acb, #643a8e);
+  --ink: #fff;
+}
+
+.card.ritual {
+  --frame: linear-gradient(160deg, #7aa1e0, #3a5fa3);
+  --ink: #fff;
+}
+
+.card.spell {
+  --frame: linear-gradient(160deg, #37b59f, #136b5b);
+  --ink: #fff;
+}
+
+.card.trap {
+  --frame: linear-gradient(160deg, #c9649d, #7f2556);
+  --ink: #fff;
+}
+
+.card.token {
+  --frame: linear-gradient(160deg, #c4c4c4, #7c7c7c);
 }
 
 .card.defense {
@@ -369,80 +402,234 @@ button.slot:hover .card.defense {
   background: radial-gradient(ellipse 34% 26% at 50% 50%, #1a0f06 70%, #c89b4a 73%, #7a4a1e 80%, #3a220d 100%);
 }
 
-.drawn {
+/* cqw units resolve against the card, so the frame spacing lives on this inner box. */
+.face {
   display: flex;
   flex-direction: column;
-  gap: 3cqw;
+  gap: 2cqw;
   height: 100%;
-  padding: 5cqw;
-  border: 3cqw solid #2b1d0c;
+  padding: 4cqw 5cqw;
+}
+
+.face-name {
+  display: flex;
+  align-items: center;
+  gap: 2cqw;
+  padding: 1.5cqw 2cqw;
   color: #1b1206;
-  background: var(--frame);
-  font-size: 9cqw;
-  line-height: 1.1;
-}
-
-.drawn-name {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
-  overflow: hidden;
-  padding: 1cqw 2cqw;
+  font-size: 12cqw;
   font-weight: 700;
-  font-size: 10cqw;
-  background: rgb(255 255 255 / 0.35);
+  line-height: 1.15;
+  background: linear-gradient(rgb(255 255 255 / 0.62), rgb(255 255 255 / 0.4));
+  border: 0.8cqw solid rgb(0 0 0 / 0.4);
+  border-radius: 1cqw;
 }
 
-.drawn-level {
-  text-align: right;
-  color: #d8431a;
-  font-size: 8cqw;
+.face-name > span:first-child {
+  flex: 1;
+  min-width: 0;
   overflow: hidden;
   white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
-.drawn-art {
-  flex: 1;
+.face-attr {
+  flex: none;
+  width: 1.05em;
+  aspect-ratio: 1;
+  border: 0.6cqw solid rgb(255 255 255 / 0.85);
+  border-radius: 50%;
+  background: var(--attr, radial-gradient(circle at 35% 30%, #aaa, #444));
+  box-shadow: 0 0 0 0.5cqw rgb(0 0 0 / 0.45);
+}
+
+.attr-1 {
+  --attr: radial-gradient(circle at 35% 30%, #dcb67c, #5e3f1a);
+}
+
+.attr-2 {
+  --attr: radial-gradient(circle at 35% 30%, #8fd0ff, #17579e);
+}
+
+.attr-4 {
+  --attr: radial-gradient(circle at 35% 30%, #ffb27a, #b8230e);
+}
+
+.attr-8 {
+  --attr: radial-gradient(circle at 35% 30%, #b2f2a6, #2a7f36);
+}
+
+.attr-16 {
+  --attr: radial-gradient(circle at 35% 30%, #fff6c4, #c29a18);
+}
+
+.attr-32 {
+  --attr: radial-gradient(circle at 35% 30%, #c79ae9, #351553);
+}
+
+.attr-64 {
+  --attr: radial-gradient(circle at 35% 30%, #fff0b0, #9a7414);
+}
+
+.spell .face-attr {
+  --attr: radial-gradient(circle at 35% 30%, #6fe6cc, #0c5246);
+}
+
+.trap .face-attr {
+  --attr: radial-gradient(circle at 35% 30%, #f08cc4, #5e1240);
+}
+
+.face-level,
+.face-kind {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2cqw;
+  min-height: 7cqw;
+  margin: 0;
+  font-size: 7cqw;
+  line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.face-kind {
+  justify-content: flex-end;
+  font-weight: 700;
+  text-transform: uppercase;
+  text-overflow: ellipsis;
+}
+
+.face-attr-name {
+  font-size: 5cqw;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+}
+
+.card:not(.full) .face-attr-name {
+  display: none;
+}
+
+.face-stars {
+  margin-left: auto;
+  color: #ffd23f;
+  letter-spacing: -0.4cqw;
+  text-shadow:
+    0 0 0.8cqw #7a1600,
+    0 0 0.8cqw #7a1600;
+}
+
+.face-art {
+  position: relative;
+  flex: none;
   display: grid;
   place-items: center;
-  padding: 2cqw;
+  width: 100%;
+  aspect-ratio: 1;
+  padding: 6cqw;
+  overflow: hidden;
+  color: rgb(255 255 255 / 0.8);
+  font-size: 7cqw;
   text-align: center;
-  color: #fff;
-  background: rgb(0 0 0 / 0.3);
-  border: 1px solid rgb(0 0 0 / 0.4);
+  background:
+    radial-gradient(circle, rgb(255 255 255 / 0.12), transparent 70%),
+    repeating-linear-gradient(45deg, rgb(0 0 0 / 0.45) 0 3cqw, rgb(0 0 0 / 0.3) 3cqw 6cqw);
+  border: 1cqw solid #2a1c0c;
+  box-shadow: 0 0 0 0.6cqw rgb(255 255 255 / 0.3);
 }
 
-.drawn-stats {
+.face-art img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.face-stats {
+  margin: 0;
+  padding: 0 2cqw;
+  color: #1b1206;
+  font-family: system-ui, "Segoe UI", Roboto, sans-serif;
+  font-size: 11cqw;
+  font-weight: 700;
+  line-height: 1.15;
   text-align: right;
+  background: rgb(255 255 255 / 0.5);
+  border-radius: 1cqw;
+}
+
+/* The full card of the detail panel: taller than a printed card when its text is long. */
+.card.full {
+  height: auto;
+  min-height: var(--card-h);
+  border-width: 2px;
+  border-radius: 0.6rem;
+}
+
+.card.full .face {
+  min-height: var(--card-h);
+  padding: 4cqw 5cqw 5cqw;
+}
+
+.card.full .face-name {
+  font-size: 7.5cqw;
+}
+
+.card.full .face-name > span:first-child {
+  white-space: normal;
+}
+
+.card.full .face-level,
+.card.full .face-kind {
+  font-size: 5.5cqw;
+}
+
+.card.full .face-stars {
+  font-size: 6.5cqw;
+}
+
+.card.full .face-art {
+  width: 86%;
+  align-self: center;
+}
+
+.face-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 1.5cqw;
+  padding: 2.5cqw 3cqw;
+  color: #1b1206;
+  font-size: 5.2cqw;
+  line-height: 1.35;
+  background: linear-gradient(#f7eed6, #eadcb6);
+  border: 0.8cqw solid rgb(0 0 0 / 0.45);
+}
+
+.face-type {
+  margin: 0;
   font-weight: 700;
 }
 
-.drawn.normal {
-  --frame: linear-gradient(#ecd08e, #c89a45);
+.face-desc {
+  flex: 1;
+  max-height: 16rem;
+  margin: 0;
+  overflow: auto;
+  white-space: pre-wrap;
 }
 
-.drawn.effect {
-  --frame: linear-gradient(#e8955a, #bf5f22);
+.face-desc.flavor {
+  font-style: italic;
 }
 
-.drawn.fusion {
-  --frame: linear-gradient(#a57bcf, #6d4196);
-}
-
-.drawn.ritual {
-  --frame: linear-gradient(#7aa4e3, #3f68ad);
-}
-
-.drawn.spell {
-  --frame: linear-gradient(#3cbca6, #177764);
-}
-
-.drawn.trap {
-  --frame: linear-gradient(#cf6aa3, #8c2d63);
-}
-
-.drawn.token {
-  --frame: linear-gradient(#b5b5b5, #7a7a7a);
+.face-text .face-stats {
+  padding: 1.2cqw 0 0;
+  font-size: 5.6cqw;
+  background: none;
+  border-top: 0.4cqw solid rgb(0 0 0 / 0.65);
+  border-radius: 0;
 }
 
 .pile {
@@ -550,12 +737,10 @@ button.slot:hover .card.defense {
 }
 
 .detail {
-  --card-w: 7.5rem;
+  --card-w: 15rem;
   --card-h: calc(var(--card-w) * 1.46);
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 0.75rem;
-  min-height: var(--card-h);
+  justify-items: center;
 }
 
 .detail-empty {
@@ -564,28 +749,6 @@ button.slot:hover .card.defense {
   place-items: center;
   text-align: center;
   font-size: 0.85rem;
-}
-
-.detail-text {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-  font-size: 0.8rem;
-}
-
-.detail-text h3 {
-  margin: 0;
-  font-family: var(--serif);
-  font-size: 1.05rem;
-  font-weight: normal;
-  color: var(--gold-light);
-}
-
-.card-desc {
-  max-height: 9rem;
-  overflow: auto;
-  line-height: 1.45;
-  white-space: pre-wrap;
 }
 
 .ask {

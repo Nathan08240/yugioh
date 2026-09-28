@@ -3,7 +3,7 @@ import { useMemo, useState, type ReactNode } from "react";
 import type { Board, LogEntry } from "./board.ts";
 import { Table } from "./Board.tsx";
 import { CardDetail } from "./Card.tsx";
-import { cardName, DuelView, useCards, useDuelView } from "./cards.ts";
+import { cardName, DuelView, useCards, useDuelView, useSystemStrings, type Strings } from "./cards.ts";
 import type { Asked, StoryWon } from "./lobby.ts";
 import { interaction } from "./Question.tsx";
 import { RewardList } from "./Story.tsx";
@@ -14,13 +14,14 @@ type StoryEnd = { won?: StoryWon };
 
 export function Duel({ board, seat, asked, respond, leave, story }: Readonly<Props & { story?: StoryEnd }>) {
   const cards = useCards();
+  const strings = useSystemStrings();
   const [shown, setShown] = useState<number>();
   const view = useMemo(() => ({ cards, show: setShown, seat }), [cards, seat]);
   return (
     <DuelView value={view}>
       <div className="duel">
         {/* A new question starts with nothing picked. */}
-        <Play key={asked?.id ?? 0} board={board} seat={seat} asked={asked} respond={respond} leave={leave}>
+        <Play key={asked?.id ?? 0} board={board} seat={seat} asked={asked} respond={respond} leave={leave} strings={strings}>
           <CardDetail code={shown} />
         </Play>
         {board.winner !== undefined && <End winner={board.winner} seat={seat} leave={leave} story={story} />}
@@ -29,10 +30,10 @@ export function Duel({ board, seat, asked, respond, leave, story }: Readonly<Pro
   );
 }
 
-function Play({ board, seat, asked, respond, leave, children }: Readonly<Props & { children: ReactNode }>) {
+function Play({ board, seat, asked, respond, leave, strings, children }: Readonly<Props & { strings: Strings; children: ReactNode }>) {
   const { cards } = useDuelView();
   const [picked, setPicked] = useState<string[]>([]);
-  const ui = interaction(asked?.question, { board, cards, picked, setPicked, respond });
+  const ui = interaction(asked?.question, { board, cards, strings, picked, setPicked, respond });
   return (
     <>
       <Table board={board} seat={seat} ui={{ ...ui, picked }} />

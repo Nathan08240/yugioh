@@ -71,7 +71,8 @@ export type StoryDuelView = {
 };
 export type StoryArcView = { id: string; title: string; duels: StoryDuelView[] };
 
-// GET /api/cards: every card of the pool by passcode, from BabelCDB. `strings` are the effect descriptions (str1 to str16).
+// GET /api/cards: every card of the pool by passcode, from BabelCDB with French name and text from YGOJSON (English when
+// missing). `strings` are the effect descriptions (str1 to str16), in English. GET /api/strings: EDOPro system strings, in French.
 export type CardInfo = {
   name: string;
   // Passcode of the original card for an alternate artwork, or of the card it is treated as; 0 otherwise.
@@ -84,6 +85,9 @@ export type CardInfo = {
   atk: number;
   def: number;
   strings: string[];
-  // GET /api/images/<code>.jpg exists.
+  // French labels from the EDOPro system strings: "TÉNÈBRES", "Magicien / Effet", "Magie Continue".
+  attributeName: string;
+  typeLine: string;
+  // GET /api/art/<code>.jpg exists: the artwork alone, square, without the card frame.
   image: boolean;
 };

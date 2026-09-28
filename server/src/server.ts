@@ -9,7 +9,7 @@ import { announceCard } from "./announce.ts";
 import { verifySession } from "./auth.ts";
 import { boosterState, BOOSTERS, creditBoosters, openBooster, WIN_BOOSTER_REWARD } from "./boosters.ts";
 import { Bot } from "./bot.ts";
-import { cardInfo } from "./cards.ts";
+import { clientCard } from "./cards.ts";
 import { dbDeckStore, deckReply, isDeckMessage, validDeckMessage, type DeckMessage, type DeckStore } from "./collection.ts";
 import { activeDeck, createProfile, findProfile, openDb, type Db, type Profile } from "./db.ts";
 import { KAIBA } from "./decks.ts";
@@ -19,6 +19,7 @@ import type { CardInfo, ClientMessage, Rewards, Seat, ServerMessage } from "./pr
 import { respond } from "./respond.ts";
 import { chooseStarter, starterCards, type Starter } from "./starter.ts";
 import { completeDuel, completedDuels, isUnlocked, STORY, STORY_DUELS, storyDeck, storyRules, storyView, type StoryDuel } from "./story.ts";
+import { systemStrings } from "./strings.ts";
 import { hideCards, visibleTo } from "./visibility.ts";
 
 type Question = Extract<OcgMessage, { player: number }>;
@@ -113,21 +114,25 @@ const ANSWERS = new Map<OcgMessageType, OcgResponseType>([
   [OcgMessageType.ANNOUNCE_NUMBER, OcgResponseType.ANNOUNCE_NUMBER],
 ]);
 
-const imageFile = (code: number) => join(import.meta.dirname, "..", "vendor", "images", `${code}.jpg`);
-const IMAGE_URL = /^\/api\/images\/(\d{1,10})\.jpg$/;
+const artFile = (code: number) => join(import.meta.dirname, "..", "vendor", "art", `${code}.jpg`);
+const ART_URL = /^\/api\/art\/(\d{1,10})\.jpg$/;
 // The pool and the anime cards of the story opponents.
 const SERVED: ReadonlySet<number> = new Set([...POOL, ...STORY.anime]);
 let cards: [number, Omit<CardInfo, "image">][] | undefined;
 
-// Card data and images for the client (see CardInfo). Images are optional: `pnpm images` downloads them.
+// Card data, system strings and artworks for the client (see CardInfo). Artworks are optional: `pnpm images` downloads them.
 function serveHttp(req: IncomingMessage, res: ServerResponse) {
   if (req.method === "GET" && req.url === "/api/cards") {
     cards ??= [...SERVED].flatMap((code) => {
-      const info = cardInfo(code);
+      const info = clientCard(code);
       return info ? [[code, info] as const] : [];
     });
-    const body = Object.fromEntries(cards.map(([code, info]) => [code, { ...info, image: existsSync(imageFile(code)) } satisfies CardInfo]));
+    const body = Object.fromEntries(cards.map(([code, info]) => [code, { ...info, image: existsSync(artFile(code)) } satisfies CardInfo]));
     res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify(body));
+    return;
+  }
+  if (req.method === "GET" && req.url === "/api/strings") {
+    res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify(Object.fromEntries(systemStrings())));
     return;
   }
   if (req.method === "GET" && req.url === "/api/starters") {
@@ -140,10 +145,10 @@ function serveHttp(req: IncomingMessage, res: ServerResponse) {
     res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify(body));
     return;
   }
-  const code = Number(IMAGE_URL.exec(req.url ?? "")?.[1]);
-  if (req.method === "GET" && SERVED.has(code) && existsSync(imageFile(code))) {
+  const code = Number(ART_URL.exec(req.url ?? "")?.[1]);
+  if (req.method === "GET" && SERVED.has(code) && existsSync(artFile(code))) {
     res.writeHead(200, { "content-type": "image/jpeg", "cache-control": "max-age=86400" });
-    createReadStream(imageFile(code)).pipe(res);
+    createReadStream(artFile(code)).pipe(res);
     return;
   }
   res.writeHead(404).end();

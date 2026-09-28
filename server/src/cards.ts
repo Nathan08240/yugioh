@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import type { OcgCardData } from "@n1xx1/ocgcore-wasm";
 import type { CardInfo } from "./protocol.ts";
+import { attributeName, typeLine } from "./strings.ts";
 
 const vendor = join(import.meta.dirname, "..", "vendor");
 if (!existsSync(vendor)) throw new Error("server/vendor absent : lancer `pnpm vendor`");
@@ -49,8 +50,8 @@ export function cardName(code: number): string {
   return findRow(code)?.name ?? `#${code}`;
 }
 
-// Without `image`, which depends on the downloaded files.
-export function cardInfo(code: number): Omit<CardInfo, "image"> | undefined {
+// English, as in BabelCDB, without the labels and `image` of the client's CardInfo.
+export function cardInfo(code: number): Omit<CardInfo, "image" | "attributeName" | "typeLine"> | undefined {
   const row = findRow(code);
   if (!row) return undefined;
   const strings = Array.from({ length: 16 }, (_, i) => row[`str${i + 1}`] ?? "");
@@ -66,6 +67,35 @@ export function cardInfo(code: number): Omit<CardInfo, "image"> | undefined {
     atk: Number(row.atk),
     def: Number(row.def),
     strings,
+  };
+}
+
+type French = { name: string; desc?: string };
+let french: ReadonlyMap<number, French> | undefined;
+
+// Written by `pnpm vendor` from YGOJSON.
+function frenchText(code: number): French | undefined {
+  if (!french) {
+    const file = join(vendor, "cards-fr.json");
+    if (!existsSync(file)) throw new Error("server/vendor/cards-fr.json absent : lancer `pnpm vendor`");
+    const texts: Record<string, French> = JSON.parse(readFileSync(file, "utf-8"));
+    french = new Map(Object.entries(texts).map(([passcode, text]) => [Number(passcode), text]));
+  }
+  return french.get(code);
+}
+
+// The card as the client shows it: French name and text, English from BabelCDB for a card YGOJSON does not translate
+// (anime cards). Without `image`, which depends on the downloaded files.
+export function clientCard(code: number): Omit<CardInfo, "image"> | undefined {
+  const info = cardInfo(code);
+  if (!info) return undefined;
+  const text = frenchText(code);
+  return {
+    ...info,
+    name: text?.name ?? info.name,
+    desc: text?.desc ?? info.desc,
+    attributeName: attributeName(info.attribute),
+    typeLine: typeLine(info.type, info.race),
   };
 }
 

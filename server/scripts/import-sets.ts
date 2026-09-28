@@ -1,5 +1,4 @@
 // Build data/sets.json from YGOJSON (set lists with rarities and booster slots, sourced from Yugipedia and YGOPRODeck).
-import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { readCard } from "../src/cards.ts";
@@ -12,14 +11,7 @@ type Content = { locales: string[]; distrobution?: string; cards: Printing[] };
 type YgoSet = { name: { en: string }; locales?: Record<string, { prefix?: string; date?: string }>; contents: Content[] };
 
 const dir = join(import.meta.dirname, "..", "vendor", "YGOJSON");
-const git = (...args: string[]) => execFileSync("git", args, { stdio: "inherit" });
-if (existsSync(dir)) {
-  git("-C", dir, "pull", "--ff-only", "--depth", "1");
-} else {
-  git("clone", "--depth", "1", "--filter=blob:none", "--no-checkout", "-b", "v1/individual", "https://github.com/iconmaster5326/YGOJSON.git", dir);
-  git("-C", dir, "sparse-checkout", "set", "--no-cone", "/sets/*", "/cards/*", "/distributions/*");
-  git("-C", dir, "checkout");
-}
+if (!existsSync(dir)) throw new Error("server/vendor/YGOJSON absent : lancer `pnpm vendor`");
 
 const readJson = (...path: string[]) => JSON.parse(readFileSync(join(dir, ...path), "utf-8"));
 // Alternate arts have their own passcode: keep the original one (no alias in BabelCDB).

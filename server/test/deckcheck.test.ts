@@ -64,14 +64,14 @@ describe("règles du deck", () => {
   });
 
   it("lit les vraies cartes du pool : fusions, Harpie Lady 1 distincte de Harpie Lady, cartes hors pool", () => {
-    expect(poolCard(45231177)).toMatchObject({ name: "Flame Swordsman", type: expect.any(Number) });
+    expect(poolCard(45231177)).toMatchObject({ name: "Spadassin des Flammes", type: expect.any(Number) });
     expect(poolCard(21844576)).toBeUndefined(); // Elemental HERO Avian
     const harpies = [76812113, 76812113, 76812113, 91932350, 91932350, 91932350];
     const main = [...main40.slice(6), ...harpies];
     const real = (code: number) => (code < 100 ? lookup(code) : poolCard(code));
     expect(deckError(deck({ main }), real, new Map([...owned, [76812113, 3], [91932350, 3]]))).toBeUndefined();
     expect(deckError(deck({ main: [...main40.slice(1), 45231177] }), real, new Map([...owned, [45231177, 1]]))).toBe(
-      "Flame Swordsman : les monstres de fusion vont dans l'extra deck",
+      "Spadassin des Flammes : les monstres de fusion vont dans l'extra deck",
     );
   });
 });
