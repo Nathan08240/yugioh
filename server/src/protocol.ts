@@ -10,8 +10,13 @@ export type ClientMessage =
   | { type: "auth"; token: string }
   | { type: "pseudo"; pseudo: string }
   | { type: "create" }
+  // A room against the bot, which takes seat 1.
+  | { type: "bot" }
   | { type: "join"; room: string }
-  | { type: "respond"; response: OcgResponse };
+  | { type: "respond"; response: OcgResponse }
+  // Story mode: `story` asks for the arcs and progression, `story_duel` starts a duel against the bot.
+  | { type: "story" }
+  | { type: "story_duel"; duel: string };
 
 // `joined` replays every message the player was allowed to see, which rebuilds the board after a reconnection,
 // from the starting LP and main deck sizes (the engine never sends them).
@@ -22,7 +27,28 @@ export type ServerMessage =
   | { type: "messages"; messages: OcgMessage[] }
   | { type: "question"; question: OcgMessage; retry: boolean }
   | { type: "error"; error: string }
-  | { type: "duel_error"; error: string };
+  | { type: "duel_error"; error: string }
+  | { type: "story"; arcs: StoryArcView[] }
+  // A won story duel, recorded. `rewards` is null when the duel had already been won.
+  | { type: "story_won"; duel: string; outro: string; rewards: Rewards | null };
+
+export type Rewards = { boosters?: number; cards?: number[] };
+// Locked until every duel of `requires` is won.
+export type StoryStatus = "locked" | "available" | "done";
+export type StoryDuelView = {
+  id: string;
+  title: string;
+  opponent: string;
+  lp: number;
+  hand: number;
+  special: string[];
+  intro: string;
+  outro?: string;
+  rewards: Rewards;
+  requires: string[];
+  status: StoryStatus;
+};
+export type StoryArcView = { id: string; title: string; duels: StoryDuelView[] };
 
 // GET /api/cards: every card of the pool by passcode, from BabelCDB. `strings` are the effect descriptions (str1 to str16).
 export type CardInfo = {

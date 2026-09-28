@@ -1,5 +1,5 @@
 import { randomInt } from "node:crypto";
-import type { Db } from "./db.ts";
+import type { Db, Sql } from "./db.ts";
 import { type CardSet, type Printing, SETS, type Slot } from "./pool.ts";
 
 export const FREE_BOOSTER_HOURS = 12;
@@ -45,7 +45,7 @@ export function drawPack(set: CardSet): Printing[] {
 }
 
 // Boosters won in duels or Story mode, opened later in the set of the player's choice.
-export async function creditBoosters(db: Db, userId: string, count: number): Promise<void> {
+export async function creditBoosters(db: Sql, userId: string, count: number): Promise<void> {
   if (!Number.isInteger(count) || count <= 0) throw new Error(`nombre de boosters invalide : ${count}`);
   await db`
     insert into yugioh.booster_state (user_id, pending) values (${userId}, ${count})

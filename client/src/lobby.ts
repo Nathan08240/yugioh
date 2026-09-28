@@ -1,7 +1,14 @@
-import type { Seat, ServerMessage, Wire } from "../../server/src/protocol.ts";
+import type { Seat, ServerMessage, StoryArcView, Wire } from "../../server/src/protocol.ts";
 import { newBoard, playAll, type Board, type Message } from "./board.ts";
 
-export type Action = Wire<ServerMessage> | { type: "connecting" } | { type: "closed" } | { type: "answered" } | { type: "left" };
+export type Action =
+  | Wire<ServerMessage>
+  | { type: "connecting" }
+  | { type: "closed" }
+  | { type: "answered" }
+  | { type: "left" }
+  | { type: "story_menu"; open: boolean };
+export type StoryWon = Extract<ServerMessage, { type: "story_won" }>;
 
 // `id` tells two successive questions apart, even identical ones.
 export type Asked = { question: Message; retry: boolean; id: number };
@@ -18,9 +25,13 @@ export type LobbyState = {
   asked: number;
   error?: string;
   closed: boolean;
+  // Story mode screen, kept open across its duels.
+  storyOpen: boolean;
+  story?: StoryArcView[];
+  won?: StoryWon;
 };
 
-export const initialLobby: LobbyState = { started: false, asked: 0, closed: false };
+export const initialLobby: LobbyState = { started: false, asked: 0, closed: false, storyOpen: false };
 
 export function reduce(state: LobbyState, action: Action): LobbyState {
   switch (action.type) {
@@ -29,7 +40,7 @@ export function reduce(state: LobbyState, action: Action): LobbyState {
     case "closed":
       return { ...state, closed: true };
     case "left":
-      return { ...state, room: undefined, seat: undefined, board: undefined, started: false, question: undefined, error: undefined };
+      return { ...state, room: undefined, seat: undefined, board: undefined, started: false, question: undefined, error: undefined, won: undefined };
     case "profile":
       return { ...state, pseudo: action.pseudo, error: undefined };
     case "joined":
@@ -52,5 +63,11 @@ export function reduce(state: LobbyState, action: Action): LobbyState {
       return { ...state, error: action.error };
     case "duel_error":
       return { ...state, error: action.error, question: undefined };
+    case "story_menu":
+      return { ...state, storyOpen: action.open, error: undefined };
+    case "story":
+      return { ...state, story: action.arcs };
+    case "story_won":
+      return { ...state, won: action };
   }
 }

@@ -4,12 +4,15 @@ import type { Board, LogEntry } from "./board.ts";
 import { Table } from "./Board.tsx";
 import { CardDetail } from "./Card.tsx";
 import { cardName, DuelView, useCards, useDuelView } from "./cards.ts";
-import type { Asked } from "./lobby.ts";
+import type { Asked, StoryWon } from "./lobby.ts";
 import { interaction } from "./Question.tsx";
+import { RewardList } from "./Story.tsx";
 
 type Props = { board: Board; seat: number; asked?: Asked; respond: (response: OcgResponse) => void; leave: () => void };
+// A story duel, with its conclusion once the server has recorded the win.
+type StoryEnd = { won?: StoryWon };
 
-export function Duel({ board, seat, asked, respond, leave }: Readonly<Props>) {
+export function Duel({ board, seat, asked, respond, leave, story }: Readonly<Props & { story?: StoryEnd }>) {
   const cards = useCards();
   const [shown, setShown] = useState<number>();
   const view = useMemo(() => ({ cards, show: setShown, seat }), [cards, seat]);
@@ -20,7 +23,7 @@ export function Duel({ board, seat, asked, respond, leave }: Readonly<Props>) {
         <Play key={asked?.id ?? 0} board={board} seat={seat} asked={asked} respond={respond} leave={leave}>
           <CardDetail code={shown} />
         </Play>
-        {board.winner !== undefined && <End winner={board.winner} seat={seat} leave={leave} />}
+        {board.winner !== undefined && <End winner={board.winner} seat={seat} leave={leave} story={story} />}
       </div>
     </DuelView>
   );
@@ -105,17 +108,27 @@ function CardName({ code }: Readonly<{ code: number }>) {
   );
 }
 
-function End({ winner, seat, leave }: Readonly<{ winner: number; seat: number; leave: () => void }>) {
+function End({ winner, seat, leave, story }: Readonly<{ winner: number; seat: number; leave: () => void; story?: StoryEnd }>) {
   let title = "Match nul";
   if (winner === seat) title = "Victoire !";
   else if (winner === 1 - seat) title = "Défaite";
   return (
     <dialog open className="end">
       <h2>{title}</h2>
-      <p className="muted">Le duel est terminé.</p>
+      {story?.won ? <StoryConclusion won={story.won} /> : <p className="muted">Le duel est terminé.</p>}
       <button type="button" onClick={leave}>
-        Retour à l'accueil
+        {story ? "Retour à l'histoire" : "Retour à l'accueil"}
       </button>
     </dialog>
+  );
+}
+
+function StoryConclusion({ won }: Readonly<{ won: StoryWon }>) {
+  const { cards } = useDuelView();
+  return (
+    <>
+      <p className="story-text">{won.outro}</p>
+      {won.rewards ? <RewardList rewards={won.rewards} cards={cards} /> : <p className="muted">Récompenses déjà obtenues.</p>}
+    </>
   );
 }

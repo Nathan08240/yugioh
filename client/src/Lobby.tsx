@@ -4,6 +4,7 @@ import type { ClientMessage } from "../../server/src/protocol.ts";
 import { Duel } from "./Duel.tsx";
 import { initialLobby, reduce, type Action, type LobbyState } from "./lobby.ts";
 import { autoAnswer } from "./question.ts";
+import { Story } from "./Story.tsx";
 import { supabase } from "./supabase.ts";
 
 // Same origin as the page: Vite proxies /ws to the game server in dev.
@@ -72,14 +73,21 @@ export function Lobby() {
           {state.error}
         </p>
       )}
-      <Screen state={state} send={send} reconnect={reconnect} leave={leave} respond={respond} />
+      <Screen state={state} send={send} reconnect={reconnect} leave={leave} respond={respond} openStory={(open) => dispatch({ type: "story_menu", open })} />
     </>
   );
 }
 
-type ScreenProps = { state: LobbyState; send: Send; reconnect: () => void; leave: () => void; respond: (response: OcgResponse) => void };
+type ScreenProps = {
+  state: LobbyState;
+  send: Send;
+  reconnect: () => void;
+  leave: () => void;
+  respond: (response: OcgResponse) => void;
+  openStory: (open: boolean) => void;
+};
 
-function Screen({ state, send, reconnect, leave, respond }: Readonly<ScreenProps>) {
+function Screen({ state, send, reconnect, leave, respond, openStory }: Readonly<ScreenProps>) {
   if (state.closed) {
     return (
       <div className="stack">
@@ -92,9 +100,11 @@ function Screen({ state, send, reconnect, leave, respond }: Readonly<ScreenProps
   }
   if (state.pseudo === undefined) return <p className="muted">Connexion au serveur…</p>;
   if (state.pseudo === null) return <PseudoForm send={send} />;
-  if (!state.room) return <RoomChoice pseudo={state.pseudo} send={send} />;
+  if (!state.room && state.storyOpen) return <Story arcs={state.story} send={send} close={() => openStory(false)} />;
+  if (!state.room) return <RoomChoice pseudo={state.pseudo} send={send} openStory={() => openStory(true)} />;
   if (!state.started || !state.board) return <Waiting room={state.room} deck={DECKS[state.seat ?? 0]} />;
-  return <Duel board={state.board} seat={state.seat ?? 0} asked={state.question} respond={respond} leave={leave} />;
+  const story = state.storyOpen ? { won: state.won } : undefined;
+  return <Duel board={state.board} seat={state.seat ?? 0} asked={state.question} respond={respond} leave={leave} story={story} />;
 }
 
 function PseudoForm({ send }: Readonly<{ send: Send }>) {
@@ -108,12 +118,18 @@ function PseudoForm({ send }: Readonly<{ send: Send }>) {
   );
 }
 
-function RoomChoice({ pseudo, send }: Readonly<{ pseudo: string; send: Send }>) {
+function RoomChoice({ pseudo, send, openStory }: Readonly<{ pseudo: string; send: Send; openStory: () => void }>) {
   return (
     <div className="stack">
       <h2>Bienvenue, {pseudo}</h2>
       <button type="button" onClick={() => send({ type: "create" })}>
         Créer une salle
+      </button>
+      <button type="button" onClick={() => send({ type: "bot" })}>
+        Jouer contre le bot
+      </button>
+      <button type="button" className="secondary" onClick={openStory}>
+        Mode Histoire
       </button>
       <p className="divider">ou</p>
       <form className="row" onSubmit={(event) => send({ type: "join", room: field(event, "room").toUpperCase() })}>

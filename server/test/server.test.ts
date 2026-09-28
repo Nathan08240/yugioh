@@ -16,6 +16,8 @@ const accounts: Accounts = {
   verify: async (token) => (token.startsWith("jeton-") ? token.slice(6) : null),
   findProfile: async (userId) => (userId === "nouveau" ? undefined : { userId, pseudo: userId }),
   createProfile: async (userId, pseudo) => (pseudo === "pris" ? undefined : { userId, pseudo }),
+  storyProgress: async () => new Set(),
+  completeStory: async () => undefined,
 };
 const wss = startServer(0, accounts, () => [1n, 2n, 3n, 4n]);
 await once(wss, "listening");
