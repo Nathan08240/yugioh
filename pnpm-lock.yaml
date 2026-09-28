@@ -10,6 +10,9 @@ importers:
 
   client:
     dependencies:
+      '@n1xx1/ocgcore-wasm':
+        specifier: jsr:^0.1.4
+        version: '@jsr/n1xx1__ocgcore-wasm@0.1.4'
       '@supabase/supabase-js':
         specifier: ^2.117.2
         version: 2.117.2

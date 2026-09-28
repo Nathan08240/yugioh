@@ -2,15 +2,17 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import type { OcgCardData } from "@n1xx1/ocgcore-wasm";
+import type { CardInfo } from "./protocol.ts";
 
 const vendor = join(import.meta.dirname, "..", "vendor");
 if (!existsSync(vendor)) throw new Error("server/vendor absent : lancer `pnpm vendor`");
 
-type Row = Record<"id" | "alias" | "setcode" | "type" | "atk" | "def" | "level" | "race" | "attribute", bigint> & { name: string };
+type Row = Record<"id" | "alias" | "setcode" | "type" | "atk" | "def" | "level" | "race" | "attribute", bigint> &
+  Record<"name" | "desc" | `str${number}`, string | null>;
 
 const queries = ["cards.cdb", "cards-unofficial.cdb"].map((file) => {
   const db = new DatabaseSync(join(vendor, "BabelCDB", file), { readOnly: true });
-  const query = db.prepare("SELECT d.*, t.name FROM datas d JOIN texts t ON t.id = d.id WHERE d.id = ?");
+  const query = db.prepare("SELECT d.*, t.* FROM datas d JOIN texts t ON t.id = d.id WHERE d.id = ?");
   query.setReadBigInts(true);
   return query;
 });
@@ -45,6 +47,25 @@ export function readCard(code: number): OcgCardData | null {
 
 export function cardName(code: number): string {
   return findRow(code)?.name ?? `#${code}`;
+}
+
+// Without `image`, which depends on the downloaded files.
+export function cardInfo(code: number): Omit<CardInfo, "image"> | undefined {
+  const row = findRow(code);
+  if (!row) return undefined;
+  const strings = Array.from({ length: 16 }, (_, i) => row[`str${i + 1}`] ?? "");
+  while (strings.at(-1) === "") strings.pop();
+  return {
+    name: row.name ?? `#${code}`,
+    desc: row.desc ?? "",
+    type: Number(row.type),
+    level: Number(row.level & 0xffn),
+    attribute: Number(row.attribute),
+    race: Number(row.race),
+    atk: Number(row.atk),
+    def: Number(row.def),
+    strings,
+  };
 }
 
 const scriptDirs = ["", "official", "unofficial"].map((dir) => join(vendor, "CardScripts", dir));

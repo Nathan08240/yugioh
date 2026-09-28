@@ -3,7 +3,8 @@ import type { AddressInfo } from "node:net";
 import { OcgMessageType, OcgProcessResult, OcgResponseType, SelectIdleCMDAction, type OcgMessage, type OcgResponse } from "@n1xx1/ocgcore-wasm";
 import { afterAll, describe, expect, it, vi } from "vitest";
 import { WebSocket } from "ws";
-import type { ClientMessage, ServerMessage, Wire } from "../src/protocol.ts";
+import { POOL } from "../src/pool.ts";
+import type { CardInfo, ClientMessage, ServerMessage, Wire } from "../src/protocol.ts";
 import { respond } from "../src/respond.ts";
 import { advance, startServer, type Accounts, type Room } from "../src/server.ts";
 
@@ -83,7 +84,7 @@ describe("serveur de partie", () => {
     const b2 = await connect("bob");
     b2.send({ type: "join", room });
     await vi.waitFor(() => expect(b2.messages().length).toBeGreaterThan(0));
-    expect(joined(b2.received)).toEqual({ type: "joined", room, seat: 1, log: b.messages() });
+    expect(joined(b2.received)).toEqual({ type: "joined", room, seat: 1, lp: 4000, decks: [40, 40], log: b.messages() });
     expect(b2.received).toContainEqual({ type: "question", question: held, retry: false });
   });
 
@@ -129,6 +130,16 @@ describe("serveur de partie", () => {
     expect(other.duel).toBeDefined();
     expect(other.question).toEqual(question);
     expect(c.send).toHaveBeenCalledWith(expect.stringContaining('"question"'));
+  });
+
+  it("sert les données des cartes du pool, et pas d'image hors pool ou absente", async () => {
+    const http = url.replace("ws:", "http:");
+    const cards: Record<string, CardInfo> = await (await fetch(`${http}/api/cards`)).json();
+    expect(Object.keys(cards)).toHaveLength(POOL.size);
+    expect(cards[46986414]).toMatchObject({ name: "Dark Magician", level: 7, attribute: 32, atk: 2500, def: 2100 });
+    expect(cards[55144522].desc).toContain("Draw 2 cards");
+    expect((await fetch(`${http}/api/images/1.jpg`)).status).toBe(404);
+    expect((await fetch(`${http}/api/images/..%2F..%2Fpackage.json`)).status).toBe(404);
   });
 
   it("refuse une salle inconnue et une salle complète", async () => {

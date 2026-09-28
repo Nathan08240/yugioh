@@ -13,12 +13,28 @@ export type ClientMessage =
   | { type: "join"; room: string }
   | { type: "respond"; response: OcgResponse };
 
-// `joined` replays every message the player was allowed to see, which rebuilds the board after a reconnection.
+// `joined` replays every message the player was allowed to see, which rebuilds the board after a reconnection,
+// from the starting LP and main deck sizes (the engine never sends them).
 // `profile` answers `auth` and `pseudo`: a null pseudo means the player has to choose one before playing.
 export type ServerMessage =
   | { type: "profile"; pseudo: string | null }
-  | { type: "joined"; room: string; seat: Seat; log: OcgMessage[] }
+  | { type: "joined"; room: string; seat: Seat; lp: number; decks: [number, number]; log: OcgMessage[] }
   | { type: "messages"; messages: OcgMessage[] }
   | { type: "question"; question: OcgMessage; retry: boolean }
   | { type: "error"; error: string }
   | { type: "duel_error"; error: string };
+
+// GET /api/cards: every card of the pool by passcode, from BabelCDB. `strings` are the effect descriptions (str1 to str16).
+export type CardInfo = {
+  name: string;
+  desc: string;
+  type: number;
+  level: number;
+  attribute: number;
+  race: number;
+  atk: number;
+  def: number;
+  strings: string[];
+  // GET /api/images/<code>.jpg exists.
+  image: boolean;
+};

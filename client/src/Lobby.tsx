@@ -1,6 +1,9 @@
+import type { OcgResponse } from "@n1xx1/ocgcore-wasm";
 import { useEffect, useReducer, useRef, useState, type FormEvent } from "react";
 import type { ClientMessage } from "../../server/src/protocol.ts";
-import { initialLobby, reduce, type LobbyState } from "./lobby.ts";
+import { Duel } from "./Duel.tsx";
+import { initialLobby, reduce, type Action, type LobbyState } from "./lobby.ts";
+import { autoAnswer } from "./question.ts";
 import { supabase } from "./supabase.ts";
 
 // Same origin as the page: Vite proxies /ws to the game server in dev.
@@ -31,7 +34,12 @@ export function Lobby() {
         if (rejoin.current) ws.send(JSON.stringify({ type: "join", room: rejoin.current } satisfies ClientMessage));
       });
     };
-    ws.onmessage = (event) => dispatch(JSON.parse(event.data));
+    ws.onmessage = (event) => {
+      const msg: Action = JSON.parse(event.data);
+      const auto = msg.type === "question" ? autoAnswer(msg.question) : undefined;
+      if (auto) ws.send(JSON.stringify({ type: "respond", response: auto } satisfies ClientMessage));
+      else dispatch(msg);
+    };
     ws.onclose = () => dispatch({ type: "closed" });
     return () => {
       ws.onclose = null;
@@ -45,6 +53,17 @@ export function Lobby() {
     dispatch({ type: "connecting" });
     setAttempt(attempt + 1);
   };
+  // A new connection leaves the room: the server keeps a seat per connection.
+  const leave = () => {
+    rejoin.current = undefined;
+    dispatch({ type: "left" });
+    dispatch({ type: "connecting" });
+    setAttempt(attempt + 1);
+  };
+  const respond = (response: OcgResponse) => {
+    send({ type: "respond", response });
+    dispatch({ type: "answered" });
+  };
 
   return (
     <>
@@ -53,12 +72,14 @@ export function Lobby() {
           {state.error}
         </p>
       )}
-      <Screen state={state} send={send} reconnect={reconnect} />
+      <Screen state={state} send={send} reconnect={reconnect} leave={leave} respond={respond} />
     </>
   );
 }
 
-function Screen({ state, send, reconnect }: Readonly<{ state: LobbyState; send: Send; reconnect: () => void }>) {
+type ScreenProps = { state: LobbyState; send: Send; reconnect: () => void; leave: () => void; respond: (response: OcgResponse) => void };
+
+function Screen({ state, send, reconnect, leave, respond }: Readonly<ScreenProps>) {
   if (state.closed) {
     return (
       <div className="stack">
@@ -72,9 +93,8 @@ function Screen({ state, send, reconnect }: Readonly<{ state: LobbyState; send: 
   if (state.pseudo === undefined) return <p className="muted">Connexion au serveur…</p>;
   if (state.pseudo === null) return <PseudoForm send={send} />;
   if (!state.room) return <RoomChoice pseudo={state.pseudo} send={send} />;
-  const deck = DECKS[state.seat ?? 0];
-  if (state.journal.length === 0) return <Waiting room={state.room} deck={deck} />;
-  return <Journal room={state.room} deck={deck} journal={state.journal} />;
+  if (!state.started || !state.board) return <Waiting room={state.room} deck={DECKS[state.seat ?? 0]} />;
+  return <Duel board={state.board} seat={state.seat ?? 0} asked={state.question} respond={respond} leave={leave} />;
 }
 
 function PseudoForm({ send }: Readonly<{ send: Send }>) {
@@ -120,20 +140,6 @@ function Waiting({ room, deck }: Readonly<{ room: string; deck: string }>) {
         {room}
       </button>
       <p className="muted">Vous jouez le deck de {deck}.</p>
-    </div>
-  );
-}
-
-function Journal({ room, deck, journal }: Readonly<{ room: string; deck: string; journal: string[] }>) {
-  return (
-    <div className="stack">
-      <h2>Duel en cours</h2>
-      <p className="muted">
-        Salle {room}, vous jouez le deck de {deck}. Le plateau arrive bientôt : en attendant, voici les messages du moteur.
-      </p>
-      <div className="journal">
-        <pre>{journal.join("\n")}</pre>
-      </div>
     </div>
   );
 }

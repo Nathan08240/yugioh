@@ -1,12 +1,17 @@
 import { randomInt } from "node:crypto";
+import { createReadStream, existsSync } from "node:fs";
+import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { join } from "node:path";
 import { OcgMessageType, OcgProcessResult, OcgResponseType, type OcgMessage, type OcgResponse } from "@n1xx1/ocgcore-wasm";
 import postgres from "postgres";
 import { WebSocketServer, type WebSocket } from "ws";
 import { verifySession } from "./auth.ts";
+import { cardInfo } from "./cards.ts";
 import { createProfile, findProfile, openDb, type Db, type Profile } from "./db.ts";
 import { KAIBA, YUGI } from "./decks.ts";
-import { openDuel, type Seed } from "./duel.ts";
-import type { ClientMessage, Seat, ServerMessage } from "./protocol.ts";
+import { openDuel, STARTING_LP, type Seed } from "./duel.ts";
+import { POOL } from "./pool.ts";
+import type { CardInfo, ClientMessage, Seat, ServerMessage } from "./protocol.ts";
 import { hideCards, visibleTo } from "./visibility.ts";
 
 type Question = Extract<OcgMessage, { player: number }>;
@@ -68,6 +73,30 @@ const ANSWERS = new Map<OcgMessageType, OcgResponseType>([
   [OcgMessageType.ANNOUNCE_CARD, OcgResponseType.ANNOUNCE_CARD],
   [OcgMessageType.ANNOUNCE_NUMBER, OcgResponseType.ANNOUNCE_NUMBER],
 ]);
+
+const imageFile = (code: number) => join(import.meta.dirname, "..", "vendor", "images", `${code}.jpg`);
+const IMAGE_URL = /^\/api\/images\/(\d{1,10})\.jpg$/;
+let cards: [number, Omit<CardInfo, "image">][] | undefined;
+
+// Card data and images for the client (see CardInfo). Images are optional: `pnpm images` downloads them.
+function serveHttp(req: IncomingMessage, res: ServerResponse) {
+  if (req.method === "GET" && req.url === "/api/cards") {
+    cards ??= [...POOL].flatMap((code) => {
+      const info = cardInfo(code);
+      return info ? [[code, info] as const] : [];
+    });
+    const body = Object.fromEntries(cards.map(([code, info]) => [code, { ...info, image: existsSync(imageFile(code)) } satisfies CardInfo]));
+    res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify(body));
+    return;
+  }
+  const code = Number(IMAGE_URL.exec(req.url ?? "")?.[1]);
+  if (req.method === "GET" && POOL.has(code) && existsSync(imageFile(code))) {
+    res.writeHead(200, { "content-type": "image/jpeg", "cache-control": "max-age=86400" });
+    createReadStream(imageFile(code)).pipe(res);
+    return;
+  }
+  res.writeHead(404).end();
+}
 
 export const randomSeed = (): Seed => [...crypto.getRandomValues(new BigUint64Array(4))] as Seed;
 
@@ -180,7 +209,10 @@ function newCode(rooms: Map<string, Room>): string {
 // ponytail: every duel is Yugi (host) vs Kaiba until the deck builder exists.
 export function startServer(port: number, accounts: Accounts, newSeed = randomSeed): WebSocketServer {
   const rooms = new Map<string, Room>();
-  const wss = new WebSocketServer({ port, maxPayload: 64 * 1024 });
+  const http = createServer(serveHttp);
+  const wss = new WebSocketServer({ server: http, maxPayload: 64 * 1024 });
+  wss.on("close", () => http.close());
+  http.listen(port);
 
   function sit(room: Room, id: string, socket: WebSocket): Seat | undefined {
     const known = room.players.findIndex((player) => player.id === id);
@@ -190,7 +222,7 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
     if (player.socket !== socket) player.socket?.close();
     player.socket = socket;
     clearTimeout(room.timer);
-    send(socket, { type: "joined", room: room.code, seat, log: player.log });
+    send(socket, { type: "joined", room: room.code, seat, lp: STARTING_LP, decks: [YUGI.length, KAIBA.length], log: player.log });
     if (room.question?.player === seat) ask(room, false);
     if (known === -1 && seat === 1) start(room, newSeed()).catch((error: unknown) => console.error(error));
     return seat;
@@ -272,5 +304,5 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
 if (import.meta.main) {
   const port = Number(process.env.PORT ?? 3001);
   startServer(port, dbAccounts(openDb()));
-  console.log(`Serveur de partie sur ws://localhost:${port}`);
+  console.log(`Serveur de partie sur http://localhost:${port} (WebSocket et /api)`);
 }
