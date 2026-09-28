@@ -9,6 +9,8 @@ export type Asked = { question: Message; retry: boolean; id: number };
 export type LobbyState = {
   // undefined until the server has checked the token, null while the player has no pseudo.
   pseudo?: string | null;
+  // Has a pseudo but no active deck yet: must pick a starter before playing.
+  needsStarter: boolean;
   room?: string;
   seat?: Seat;
   board?: Board;
@@ -20,7 +22,7 @@ export type LobbyState = {
   closed: boolean;
 };
 
-export const initialLobby: LobbyState = { started: false, asked: 0, closed: false };
+export const initialLobby: LobbyState = { started: false, asked: 0, closed: false, needsStarter: false };
 
 export function reduce(state: LobbyState, action: Action): LobbyState {
   switch (action.type) {
@@ -31,7 +33,7 @@ export function reduce(state: LobbyState, action: Action): LobbyState {
     case "left":
       return { ...state, room: undefined, seat: undefined, board: undefined, started: false, question: undefined, error: undefined };
     case "profile":
-      return { ...state, pseudo: action.pseudo, error: undefined };
+      return { ...state, pseudo: action.pseudo, needsStarter: action.needsStarter, error: undefined };
     case "joined":
       return {
         ...state,

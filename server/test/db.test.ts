@@ -35,8 +35,8 @@ describe.skipIf(!hasDocker())("migration yugioh sur Postgres jetable", () => {
     const [yugi, kaiba] = await admin<{ id: string }[]>`
       insert into auth.users (id) values (gen_random_uuid()), (gen_random_uuid()) returning id`;
 
-    expect(await createProfile(server, yugi.id, "Yugi")).toEqual({ userId: yugi.id, pseudo: "Yugi" });
-    expect(await findProfile(server, yugi.id)).toEqual({ userId: yugi.id, pseudo: "Yugi" });
+    expect(await createProfile(server, yugi.id, "Yugi")).toEqual({ userId: yugi.id, pseudo: "Yugi", activeDeckId: null });
+    expect(await findProfile(server, yugi.id)).toEqual({ userId: yugi.id, pseudo: "Yugi", activeDeckId: null });
     expect(await findProfile(server, kaiba.id)).toBeUndefined();
     await expect(createProfile(server, kaiba.id, "yugi")).rejects.toThrow("profiles_pseudo_key");
   });
@@ -73,10 +73,19 @@ describe.skipIf(!hasDocker())("migration yugioh sur Postgres jetable", () => {
     const url = `ws://localhost:${(wss.address() as AddressInfo).port}`;
     const choose = (id: string, pseudo: string) => exchange(url, [{ type: "auth", token: id }, { type: "pseudo", pseudo }], 2);
     try {
-      expect(await choose(lea.id, "Lea")).toEqual([{ type: "profile", pseudo: null }, { type: "profile", pseudo: "Lea" }]);
-      expect(await choose(max.id, "LEA")).toEqual([{ type: "profile", pseudo: null }, { type: "error", error: "pseudo déjà pris" }]);
-      expect(await choose(lea.id, "Autre")).toEqual([{ type: "profile", pseudo: "Lea" }, { type: "error", error: "pseudo déjà choisi" }]);
-      expect(await findProfile(server, lea.id)).toEqual({ userId: lea.id, pseudo: "Lea" });
+      expect(await choose(lea.id, "Lea")).toEqual([
+        { type: "profile", pseudo: null, needsStarter: false },
+        { type: "profile", pseudo: "Lea", needsStarter: true },
+      ]);
+      expect(await choose(max.id, "LEA")).toEqual([
+        { type: "profile", pseudo: null, needsStarter: false },
+        { type: "error", error: "pseudo déjà pris" },
+      ]);
+      expect(await choose(lea.id, "Autre")).toEqual([
+        { type: "profile", pseudo: "Lea", needsStarter: true },
+        { type: "error", error: "pseudo déjà choisi" },
+      ]);
+      expect(await findProfile(server, lea.id)).toEqual({ userId: lea.id, pseudo: "Lea", activeDeckId: null });
     } finally {
       wss.close();
     }

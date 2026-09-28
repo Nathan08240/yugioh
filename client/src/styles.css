@@ -161,6 +161,15 @@ p {
   font-size: 0.85rem;
 }
 
+.starter-cards {
+  --card-w: clamp(3.4rem, 4.6vw, 5.2rem);
+  --card-h: calc(var(--card-w) * 1.46);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  justify-content: center;
+}
+
 .error,
 .notice {
   border-radius: 0.35rem;

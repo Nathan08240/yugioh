@@ -36,7 +36,7 @@
 ## Vague 4
 
 - [ ] F-bot : joueur côté serveur qui répond aux questions du moteur
-- [ ] F-starter-deck : choix du starter deck Yugi ou Kaiba après le pseudo, ajouté à la collection et enregistré comme premier deck
+- [x] F-starter-deck : choix du starter deck Yugi ou Kaiba après le pseudo, ajouté à la collection et enregistré comme deck actif ; les duels utilisent le deck actif de chaque joueur (feat/F-starter-deck)
 - [ ] F-collection-deck-builder : collection et decks limités aux cartes possédées
 - [ ] F-ouverture-boosters : animation d'ouverture côté client
 - [ ] F-histoire-systeme : chapitres, progression, règles spéciales, récompenses

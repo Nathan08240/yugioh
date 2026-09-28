@@ -3,9 +3,9 @@ import { expect, it } from "vitest";
 import { initialLobby, reduce } from "./lobby.ts";
 
 it("passe du pseudo à l'attente puis au plateau quand le duel démarre", () => {
-  let state = reduce(initialLobby, { type: "profile", pseudo: null });
+  let state = reduce(initialLobby, { type: "profile", pseudo: null, needsStarter: false });
   state = reduce(state, { type: "error", error: "pseudo déjà pris" });
-  state = reduce(state, { type: "profile", pseudo: "Yugi" });
+  state = reduce(state, { type: "profile", pseudo: "Yugi", needsStarter: false });
   state = reduce(state, { type: "joined", room: "ABCDE", seat: 0, lp: 4000, decks: [40, 40], log: [] });
   expect(state).toMatchObject({ pseudo: "Yugi", room: "ABCDE", seat: 0, started: false, error: undefined, closed: false });
 

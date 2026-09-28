@@ -3,6 +3,7 @@ import type { AddressInfo } from "node:net";
 import { OcgMessageType, OcgProcessResult, OcgResponseType, SelectIdleCMDAction, type OcgMessage, type OcgResponse } from "@n1xx1/ocgcore-wasm";
 import { afterAll, describe, expect, it, vi } from "vitest";
 import { WebSocket } from "ws";
+import { KAIBA, YUGI } from "../src/decks.ts";
 import { POOL } from "../src/pool.ts";
 import type { CardInfo, ClientMessage, ServerMessage, Wire } from "../src/protocol.ts";
 import { respond } from "../src/respond.ts";
@@ -11,11 +12,20 @@ import { advance, startServer, type Accounts, type Room } from "../src/server.ts
 type Received = Wire<ServerMessage>;
 type Answer = (question: OcgMessage, retry: boolean) => OcgResponse | undefined;
 
+// Active decks, keyed by user id: preset for the usual test users, "sansdeck" never gets one.
+const decks = new Map<string, number[]>([["alice", YUGI], ["bob", KAIBA], ["carol", YUGI], ["dave", YUGI], ["eve", YUGI]]);
+
 // Token "jeton-<id>" identifies user <id>; "nouveau" has no profile yet and "pris" is a taken pseudo.
 const accounts: Accounts = {
   verify: async (token) => (token.startsWith("jeton-") ? token.slice(6) : null),
-  findProfile: async (userId) => (userId === "nouveau" ? undefined : { userId, pseudo: userId }),
-  createProfile: async (userId, pseudo) => (pseudo === "pris" ? undefined : { userId, pseudo }),
+  findProfile: async (userId) => (userId === "nouveau" ? undefined : { userId, pseudo: userId, activeDeckId: decks.has(userId) ? 1 : null }),
+  createProfile: async (userId, pseudo) => (pseudo === "pris" ? undefined : { userId, pseudo, activeDeckId: null }),
+  activeDeck: async (userId) => decks.get(userId),
+  chooseStarter: async (userId, starter) => {
+    if (decks.has(userId)) return false;
+    decks.set(userId, starter === "yugi" ? YUGI : KAIBA);
+    return true;
+  },
 };
 const wss = startServer(0, accounts, () => [1n, 2n, 3n, 4n]);
 await once(wss, "listening");
@@ -102,8 +112,8 @@ describe("serveur de partie", () => {
     const crashing: Room = {
       code: "CRASH",
       players: [
-        { id: "a", socket: a.socket, log: [] },
-        { id: "b", socket: b.socket, log: [] },
+        { id: "a", socket: a.socket, log: [], deck: [] },
+        { id: "b", socket: b.socket, log: [], deck: [] },
       ],
       duel: fakeDuel({
         duelProcess: () => {
@@ -123,7 +133,7 @@ describe("serveur de partie", () => {
     const c = socket();
     const other: Room = {
       code: "OTHER",
-      players: [{ id: "c", socket: c.socket, log: [] }, { id: "d", socket: socket().socket, log: [] }],
+      players: [{ id: "c", socket: c.socket, log: [], deck: [] }, { id: "d", socket: socket().socket, log: [], deck: [] }],
       duel: fakeDuel({ duelProcess: vi.fn(() => OcgProcessResult.WAITING), duelGetMessage: vi.fn(() => [question]), destroyDuel: vi.fn() }),
     };
     advance(other);
@@ -140,6 +150,34 @@ describe("serveur de partie", () => {
     expect(cards[55144522].desc).toContain("Draw 2 cards");
     expect((await fetch(`${http}/api/images/1.jpg`)).status).toBe(404);
     expect((await fetch(`${http}/api/images/..%2F..%2Fpackage.json`)).status).toBe(404);
+  });
+
+  it("utilise le deck actif de chaque joueur pour le duel, pas des decks fixes", async () => {
+    decks.set("hote", Array<number>(45).fill(15025844)); // Mystical Elf
+    decks.set("invite", Array<number>(50).fill(89631139)); // Blue-Eyes White Dragon
+
+    const host = await connect("hote");
+    host.send({ type: "create" });
+    await vi.waitFor(() => expect(joined(host.received)).toBeDefined());
+    const room = joined(host.received)?.room ?? "";
+
+    const guest = await connect("invite");
+    guest.send({ type: "join", room });
+    await vi.waitFor(() => expect(joined(guest.received)).toBeDefined());
+    expect(joined(guest.received)).toMatchObject({ seat: 1, decks: [45, 50] });
+    await vi.waitFor(() => expect(host.messages().length).toBeGreaterThan(0));
+  });
+
+  it("refuse de créer ou rejoindre une salle sans deck actif", async () => {
+    const h = await connect("sansdeck");
+    h.send({ type: "create" });
+    h.send({ type: "join", room: "ZZZZZ" });
+    await vi.waitFor(() => expect(h.received).toHaveLength(3));
+    expect(h.received).toEqual([
+      { type: "profile", pseudo: "sansdeck", needsStarter: true },
+      { type: "error", error: "deck actif requis" },
+      { type: "error", error: "deck actif requis" },
+    ]);
   });
 
   it("refuse une salle inconnue et une salle complète", async () => {
@@ -172,23 +210,27 @@ describe("serveur de partie", () => {
 
   it("authentifie par le jeton et fait choisir un pseudo au premier passage", async () => {
     const known = await connect("carol");
-    await vi.waitFor(() => expect(known.received).toEqual([{ type: "profile", pseudo: "carol" }]));
+    await vi.waitFor(() => expect(known.received).toEqual([{ type: "profile", pseudo: "carol", needsStarter: false }]));
 
     const g = await connect("nouveau");
     g.send({ type: "create" });
     g.send({ type: "pseudo", pseudo: "a b" });
     g.send({ type: "pseudo", pseudo: "pris" });
     g.send({ type: "pseudo", pseudo: "Nouveau_1" });
+    g.send({ type: "create" });
     g.send({ type: "auth", token: "jeton-autre" });
+    g.send({ type: "starter", starter: "yugi" });
     g.send({ type: "create" });
     await vi.waitFor(() => expect(joined(g.received)).toBeDefined());
-    expect(g.received.slice(0, 6)).toEqual([
-      { type: "profile", pseudo: null },
+    expect(g.received.slice(0, 8)).toEqual([
+      { type: "profile", pseudo: null, needsStarter: false },
       { type: "error", error: "pseudo à choisir d'abord" },
       { type: "error", error: expect.stringContaining("pseudo invalide") },
       { type: "error", error: "pseudo déjà pris" },
-      { type: "profile", pseudo: "Nouveau_1" },
+      { type: "profile", pseudo: "Nouveau_1", needsStarter: true },
+      { type: "error", error: "deck actif requis" },
       { type: "error", error: "déjà authentifié" },
+      { type: "profile", pseudo: "Nouveau_1", needsStarter: false },
     ]);
   });
 });

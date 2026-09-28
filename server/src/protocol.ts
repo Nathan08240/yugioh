@@ -9,15 +9,17 @@ export type Seat = 0 | 1;
 export type ClientMessage =
   | { type: "auth"; token: string }
   | { type: "pseudo"; pseudo: string }
+  | { type: "starter"; starter: "yugi" | "kaiba" }
   | { type: "create" }
   | { type: "join"; room: string }
   | { type: "respond"; response: OcgResponse };
 
 // `joined` replays every message the player was allowed to see, which rebuilds the board after a reconnection,
 // from the starting LP and main deck sizes (the engine never sends them).
-// `profile` answers `auth` and `pseudo`: a null pseudo means the player has to choose one before playing.
+// `profile` answers `auth`, `pseudo` and `starter`: a null pseudo means the player has to choose one before playing,
+// `needsStarter` means the player has a pseudo but no active deck yet and must pick a starter deck.
 export type ServerMessage =
-  | { type: "profile"; pseudo: string | null }
+  | { type: "profile"; pseudo: string | null; needsStarter: boolean }
   | { type: "joined"; room: string; seat: Seat; lp: number; decks: [number, number]; log: OcgMessage[] }
   | { type: "messages"; messages: OcgMessage[] }
   | { type: "question"; question: OcgMessage; retry: boolean }

@@ -7,15 +7,15 @@ import postgres from "postgres";
 import { WebSocketServer, type WebSocket } from "ws";
 import { verifySession } from "./auth.ts";
 import { cardInfo } from "./cards.ts";
-import { createProfile, findProfile, openDb, type Db, type Profile } from "./db.ts";
-import { KAIBA, YUGI } from "./decks.ts";
+import { activeDeck, createProfile, findProfile, openDb, type Db, type Profile } from "./db.ts";
 import { openDuel, STARTING_LP, type Seed } from "./duel.ts";
-import { POOL } from "./pool.ts";
+import { isAllowed, POOL } from "./pool.ts";
 import type { CardInfo, ClientMessage, Seat, ServerMessage } from "./protocol.ts";
+import { chooseStarter, starterCards, type Starter } from "./starter.ts";
 import { hideCards, visibleTo } from "./visibility.ts";
 
 type Question = Extract<OcgMessage, { player: number }>;
-type Player = { id: string; socket?: WebSocket; log: OcgMessage[] };
+type Player = { id: string; socket?: WebSocket; log: OcgMessage[]; deck: number[] };
 export type Room = {
   code: string;
   players: Player[];
@@ -30,6 +30,9 @@ export type Accounts = {
   findProfile: (userId: string) => Promise<Profile | undefined>;
   // Resolves to undefined when the pseudo is already taken.
   createProfile: (userId: string, pseudo: string) => Promise<Profile | undefined>;
+  activeDeck: (userId: string) => Promise<number[] | undefined>;
+  // Resolves to false when the player already has an active deck.
+  chooseStarter: (userId: string, starter: Starter) => Promise<boolean>;
 };
 
 export function dbAccounts(db: Db): Accounts {
@@ -41,6 +44,8 @@ export function dbAccounts(db: Db): Accounts {
         if (error instanceof postgres.PostgresError && error.code === "23505") return undefined;
         throw error;
       }),
+    activeDeck: (userId) => activeDeck(db, userId),
+    chooseStarter: (userId, starter) => chooseStarter(db, userId, starter),
   };
 }
 
@@ -89,6 +94,11 @@ function serveHttp(req: IncomingMessage, res: ServerResponse) {
     res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify(body));
     return;
   }
+  if (req.method === "GET" && req.url === "/api/starters") {
+    const body = { yugi: starterCards("yugi"), kaiba: starterCards("kaiba") };
+    res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify(body));
+    return;
+  }
   const code = Number(IMAGE_URL.exec(req.url ?? "")?.[1]);
   if (req.method === "GET" && POOL.has(code) && existsSync(imageFile(code))) {
     res.writeHead(200, { "content-type": "image/jpeg", "cache-control": "max-age=86400" });
@@ -115,6 +125,7 @@ function parse(data: string): ClientMessage | undefined {
   const valid =
     (msg.type === "auth" && typeof msg.token === "string" && msg.token.length <= 4096) ||
     (msg.type === "pseudo" && typeof msg.pseudo === "string") ||
+    (msg.type === "starter" && (msg.starter === "yugi" || msg.starter === "kaiba")) ||
     msg.type === "create" ||
     (msg.type === "join" && typeof msg.room === "string") ||
     (msg.type === "respond" && typeof msg.response === "object" && msg.response !== null);
@@ -194,7 +205,8 @@ function answer(room: Room, seat: Seat, response: OcgResponse): string | undefin
 }
 
 async function start(room: Room, seed: Seed) {
-  room.duel = await openDuel(seed, [YUGI, KAIBA], (text) => console.error(`[salle ${room.code}] ${text}`));
+  const decks = room.players.map((player) => player.deck);
+  room.duel = await openDuel(seed, decks, (text) => console.error(`[salle ${room.code}] ${text}`));
   advance(room);
 }
 
@@ -206,7 +218,9 @@ function newCode(rooms: Map<string, Room>): string {
   return code;
 }
 
-// ponytail: every duel is Yugi (host) vs Kaiba until the deck builder exists.
+// A deck as validated for a duel: 40 to 60 cards, all from the allowed pool.
+const validDeck = (deck: number[]) => deck.length >= 40 && deck.length <= 60 && deck.every(isAllowed);
+
 export function startServer(port: number, accounts: Accounts, newSeed = randomSeed): WebSocketServer {
   const rooms = new Map<string, Room>();
   const http = createServer(serveHttp);
@@ -214,17 +228,24 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
   wss.on("close", () => http.close());
   http.listen(port);
 
-  function sit(room: Room, id: string, socket: WebSocket): Seat | undefined {
+  function sit(room: Room, id: string, socket: WebSocket, deck: number[]): Seat | undefined {
     const known = room.players.findIndex((player) => player.id === id);
     if (known === -1 && room.players.length === 2) return undefined;
-    const seat = (known === -1 ? room.players.push({ id, log: [] }) - 1 : known) as Seat;
+    const isNew = known === -1;
+    const seat = (isNew ? room.players.push({ id, log: [], deck }) - 1 : known) as Seat;
     const player = room.players[seat];
     if (player.socket !== socket) player.socket?.close();
     player.socket = socket;
     clearTimeout(room.timer);
-    send(socket, { type: "joined", room: room.code, seat, lp: STARTING_LP, decks: [YUGI.length, KAIBA.length], log: player.log });
+    const decks: [number, number] = [room.players[0]?.deck.length ?? 0, room.players[1]?.deck.length ?? 0];
+    send(socket, { type: "joined", room: room.code, seat, lp: STARTING_LP, decks, log: player.log });
+    // The host's first `joined` guessed the guest's deck size as 0: correct it once they arrive.
+    if (isNew && seat === 1) {
+      const host = room.players[0];
+      send(host.socket, { type: "joined", room: room.code, seat: 0, lp: STARTING_LP, decks, log: host.log });
+    }
     if (room.question?.player === seat) ask(room, false);
-    if (known === -1 && seat === 1) start(room, newSeed()).catch((error: unknown) => console.error(error));
+    if (isNew && seat === 1) start(room, newSeed()).catch((error: unknown) => console.error(error));
     return seat;
   }
 
@@ -248,8 +269,9 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
       if (user) return "déjà authentifié";
       const id = await accounts.verify(token);
       if (!id) return "jeton invalide";
-      user = { id, pseudo: (await accounts.findProfile(id))?.pseudo };
-      send(socket, { type: "profile", pseudo: user.pseudo ?? null });
+      const profile = await accounts.findProfile(id);
+      user = { id, pseudo: profile?.pseudo };
+      send(socket, { type: "profile", pseudo: user.pseudo ?? null, needsStarter: profile !== undefined && profile.activeDeckId === null });
       return undefined;
     }
 
@@ -259,7 +281,27 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
       const profile = await accounts.createProfile(player.id, pseudo);
       if (!profile) return "pseudo déjà pris";
       player.pseudo = profile.pseudo;
-      send(socket, { type: "profile", pseudo: profile.pseudo });
+      send(socket, { type: "profile", pseudo: profile.pseudo, needsStarter: profile.activeDeckId === null });
+      return undefined;
+    }
+
+    async function pickStarter(player: { id: string; pseudo?: string }, starter: Starter): Promise<string | undefined> {
+      const chosen = await accounts.chooseStarter(player.id, starter);
+      if (!chosen) return "starter déjà choisi";
+      send(socket, { type: "profile", pseudo: player.pseudo ?? null, needsStarter: false });
+      return undefined;
+    }
+
+    async function enterRoom(player: { id: string }, msg: Extract<ClientMessage, { type: "create" } | { type: "join" }>): Promise<string | undefined> {
+      const deck = await accounts.activeDeck(player.id);
+      if (!deck) return "deck actif requis";
+      if (!validDeck(deck)) return "deck actif invalide";
+      const room = msg.type === "create" ? { code: newCode(rooms), players: [] } : rooms.get(msg.room.toUpperCase());
+      if (!room) return "salle introuvable";
+      rooms.set(room.code, room);
+      const index = sit(room, player.id, socket, deck);
+      if (index === undefined) return "salle complète";
+      seat = { room, index };
       return undefined;
     }
 
@@ -269,15 +311,10 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
       if (!user) return "non authentifié";
       if (msg.type === "pseudo") return choosePseudo(user, msg.pseudo);
       if (!user.pseudo) return "pseudo à choisir d'abord";
+      if (msg.type === "starter") return pickStarter(user, msg.starter);
       if (msg.type === "respond") return seat ? answer(seat.room, seat.index, msg.response) : "pas dans une salle";
       if (seat) return "déjà dans une salle";
-      const room = msg.type === "create" ? { code: newCode(rooms), players: [] } : rooms.get(msg.room.toUpperCase());
-      if (!room) return "salle introuvable";
-      rooms.set(room.code, room);
-      const index = sit(room, user.id, socket);
-      if (index === undefined) return "salle complète";
-      seat = { room, index };
-      return undefined;
+      return enterRoom(user, msg);
     }
 
     socket.on("close", () => {

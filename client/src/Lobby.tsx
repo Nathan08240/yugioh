@@ -1,6 +1,8 @@
 import type { OcgResponse } from "@n1xx1/ocgcore-wasm";
-import { useEffect, useReducer, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useReducer, useRef, useState, type FormEvent } from "react";
 import type { ClientMessage } from "../../server/src/protocol.ts";
+import { CardView } from "./Card.tsx";
+import { DuelView, useCards } from "./cards.ts";
 import { Duel } from "./Duel.tsx";
 import { initialLobby, reduce, type Action, type LobbyState } from "./lobby.ts";
 import { autoAnswer } from "./question.ts";
@@ -8,7 +10,6 @@ import { supabase } from "./supabase.ts";
 
 // Same origin as the page: Vite proxies /ws to the game server in dev.
 const SERVER_URL = `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws`;
-const DECKS = ["Yugi", "Kaiba"];
 
 type Send = (msg: ClientMessage) => void;
 
@@ -92,8 +93,9 @@ function Screen({ state, send, reconnect, leave, respond }: Readonly<ScreenProps
   }
   if (state.pseudo === undefined) return <p className="muted">Connexion au serveur…</p>;
   if (state.pseudo === null) return <PseudoForm send={send} />;
+  if (state.needsStarter) return <StarterChoice send={send} />;
   if (!state.room) return <RoomChoice pseudo={state.pseudo} send={send} />;
-  if (!state.started || !state.board) return <Waiting room={state.room} deck={DECKS[state.seat ?? 0]} />;
+  if (!state.started || !state.board) return <Waiting room={state.room} />;
   return <Duel board={state.board} seat={state.seat ?? 0} asked={state.question} respond={respond} leave={leave} />;
 }
 
@@ -105,6 +107,50 @@ function PseudoForm({ send }: Readonly<{ send: Send }>) {
       <input name="pseudo" required minLength={3} maxLength={20} pattern="[A-Za-z0-9_\-]+" autoComplete="nickname" />
       <button type="submit">Valider</button>
     </form>
+  );
+}
+
+type Starters = { yugi: number[]; kaiba: number[] };
+
+function StarterChoice({ send }: Readonly<{ send: Send }>) {
+  const [starters, setStarters] = useState<Starters>();
+  const cards = useCards();
+  const view = useMemo(() => ({ cards, show: () => {}, seat: 0 }), [cards]);
+
+  useEffect(() => {
+    fetch("/api/starters")
+      .then((res) => res.json())
+      .then(setStarters)
+      .catch((error: unknown) => console.error(error));
+  }, []);
+
+  return (
+    <div className="stack">
+      <h2>Choisissez votre deck de départ</h2>
+      <p className="muted">Choix définitif : vous recevrez ces cartes et ce deck pour commencer à jouer.</p>
+      {starters && (
+        <DuelView value={view}>
+          <StarterOption name="Yugi" codes={starters.yugi} onChoose={() => send({ type: "starter", starter: "yugi" })} />
+          <StarterOption name="Kaiba" codes={starters.kaiba} onChoose={() => send({ type: "starter", starter: "kaiba" })} />
+        </DuelView>
+      )}
+    </div>
+  );
+}
+
+function StarterOption({ name, codes, onChoose }: Readonly<{ name: string; codes: number[]; onChoose: () => void }>) {
+  return (
+    <section className="stack">
+      <h3>{name}</h3>
+      <div className="starter-cards">
+        {codes.map((code) => (
+          <CardView key={code} code={code} />
+        ))}
+      </div>
+      <button type="button" onClick={onChoose}>
+        Choisir {name}
+      </button>
+    </section>
   );
 }
 
@@ -124,7 +170,7 @@ function RoomChoice({ pseudo, send }: Readonly<{ pseudo: string; send: Send }>) 
   );
 }
 
-function Waiting({ room, deck }: Readonly<{ room: string; deck: string }>) {
+function Waiting({ room }: Readonly<{ room: string }>) {
   return (
     <div className="stack center">
       <h2>En attente de l'adversaire</h2>
@@ -139,7 +185,6 @@ function Waiting({ room, deck }: Readonly<{ room: string; deck: string }>) {
       >
         {room}
       </button>
-      <p className="muted">Vous jouez le deck de {deck}.</p>
     </div>
   );
 }
