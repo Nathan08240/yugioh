@@ -10,7 +10,7 @@ Duels en ligne et contre un bot, boosters façon TCG Pocket, mode Histoire. Back
 
 ## Commandes
 
-pnpm uniquement (workspace `pnpm-workspace.yaml`) : `pnpm install`, `pnpm test`, `pnpm typecheck` à la racine, `pnpm --filter server add <dep>` pour une dépendance. `pnpm test` ne demande pas Docker ; `pnpm test:db` lance à part les tests `*.pg.test.ts` sur un Postgres jetable Docker (après un changement de base ou avant une mise en ligne). `pnpm dev` lance client et serveur ; configuration : copier `client/.env.example` et `server/.env.example` en `.env`.
+pnpm uniquement (workspace `pnpm-workspace.yaml`) : `pnpm install`, `pnpm test`, `pnpm typecheck` à la racine, `pnpm --filter server add <dep>` pour une dépendance. `pnpm test` ne demande pas Docker ; `pnpm test:db` lance à part les tests `*.pg.test.ts` sur un Postgres jetable Docker (après un changement de base ou avant une mise en ligne). `pnpm dev` lance client et serveur ; configuration : copier `client/.env.example` et `server/.env.example` en `.env`. Déploiement (Docker, Coolify) : `DEPLOY.md`.
 
 ## Conventions
 
