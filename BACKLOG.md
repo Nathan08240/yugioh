@@ -4,6 +4,7 @@
 
 - Moteur : ocgcore (EDOPro), règles officielles. Cartes limitées au Yu-Gi-Oh! classique (Duel Monsters), versions anime comprises (Dieux Égyptiens).
 - 4000 LP.
+- Règles : mode Goat du moteur (format d'avril 2005, rulings d'avant 2008), le plus proche de 2002.
 - En ligne dès la v1 : un serveur Node fait tourner les duels, les clients passent par WebSocket. Le bot joue côté serveur.
 - Boosters façon TCG Pocket : vrais sets de l'époque avec leurs raretés, 1 booster gratuit par timer et des boosters gagnés en jouant. Tirage côté serveur.
 - Deck builder limité à la collection du joueur.
@@ -14,7 +15,7 @@
 ## Vague 1
 
 - [x] F-init-repo : création du repo
-- [ ] F-spike-moteur-ocgcore : preuve technique, un duel ocgcore dans Node à 4000 LP avec des cartes classiques et un Dieu Égyptien
+- [x] F-spike-moteur-ocgcore : preuve technique, un duel ocgcore dans Node à 4000 LP avec des cartes classiques et un Dieu Égyptien (feat/F-spike-moteur-ocgcore)
 
 ## Vague 2
 
