@@ -91,7 +91,7 @@ describe("collection et decks sur Postgres jetable", () => {
       });
       expect(await kaiba.ask({ type: "save_deck", deck: { name: "Fusion", main, extra: [45231177] } })).toEqual({
         type: "error",
-        error: "Flame Swordsman : plus d'exemplaires que dans la collection",
+        error: "Spadassin des Flammes : plus d'exemplaires que dans la collection",
       });
       expect(await kaiba.ask({ type: "save_deck", deck: { name: "Bad", main: "x", extra: [] } as never })).toEqual({ type: "error", error: "message invalide" });
 
