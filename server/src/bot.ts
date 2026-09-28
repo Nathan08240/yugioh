@@ -245,14 +245,15 @@ export class Bot {
     return best;
   }
 
-  // A tribute summon must bring more than the weakest monsters it sends to the graveyard.
+  // A tribute summon must bring more than the weakest monsters it sends to the graveyard. A monster the engine offers
+  // without the tributes to pay for it is summoned for free (Duelist Kingdom), and must be: a turn without one loses.
   private worthTributes(code: number): boolean {
     const needed = tributesFor(stats(code).level);
     if (needed === 0) return true;
     const own = cards(this.mine().monsters)
       .map((card) => value(card.code))
       .sort((a, b) => a - b);
-    if (own.length < needed) return false;
+    if (own.length < needed) return true;
     return value(code) > own.slice(0, needed).reduce((total, worth) => total + worth, 0);
   }
 

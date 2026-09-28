@@ -161,7 +161,9 @@ describe("serveur de partie", () => {
   it("sert les données des cartes du pool en français et leurs illustrations, pas celles hors pool ou absentes", async () => {
     const http = url.replace("ws:", "http:");
     const cards: Record<string, CardInfo> = await (await fetch(`${http}/api/cards`)).json();
-    expect(Object.keys(cards)).toHaveLength(POOL.size);
+    // The pool, plus the anime cards of the story and its rule cards.
+    expect(Object.keys(cards).length).toBeGreaterThanOrEqual(POOL.size);
+    expect(cards[511002621]).toMatchObject({ name: "Règles du Royaume des Duellistes", desc: expect.stringContaining("attaque directe") });
     expect(cards[46986414]).toMatchObject({ name: "Magicien Sombre", level: 7, attribute: 32, atk: 2500, def: 2100, image: true });
     expect(cards[46986414]).toMatchObject({ attributeName: "TÉNÈBRES", typeLine: "Magicien / Normal" });
     expect(cards[55144522].desc).toBe("Piochez 2 cartes.");

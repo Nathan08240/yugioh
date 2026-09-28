@@ -9,7 +9,7 @@ import { announceCard } from "./announce.ts";
 import { verifySession } from "./auth.ts";
 import { boosterState, BOOSTERS, creditBoosters, openBooster, WIN_BOOSTER_REWARD } from "./boosters.ts";
 import { Bot } from "./bot.ts";
-import { clientCard } from "./cards.ts";
+import { clientCard, RULE_CARDS } from "./cards.ts";
 import { dbDeckStore, deckReply, isDeckMessage, validDeckMessage, type DeckMessage, type DeckStore } from "./collection.ts";
 import { activeDeck, createProfile, findProfile, openDb, type Db, type Profile } from "./db.ts";
 import { KAIBA } from "./decks.ts";
@@ -116,8 +116,8 @@ const ANSWERS = new Map<OcgMessageType, OcgResponseType>([
 
 const artFile = (code: number) => join(import.meta.dirname, "..", "vendor", "art", `${code}.jpg`);
 const ART_URL = /^\/api\/art\/(\d{1,10})\.jpg$/;
-// The pool and the anime cards of the story opponents.
-const SERVED: ReadonlySet<number> = new Set([...POOL, ...STORY.anime]);
+// The pool, the anime cards of the story opponents and the rule cards.
+const SERVED: ReadonlySet<number> = new Set([...POOL, ...STORY.anime, ...RULE_CARDS.keys()]);
 let cards: [number, Omit<CardInfo, "image">][] | undefined;
 
 // Card data, system strings and artworks for the client (see CardInfo). Artworks are optional: `pnpm images` downloads them.

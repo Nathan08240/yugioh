@@ -40,6 +40,8 @@ export type DuelState = {
   log: string[];
   errors: string[];
   scripts: string[];
+  // Reason of the WIN message.
+  reason: number | null;
 };
 
 export type Seed = [bigint, bigint, bigint, bigint];
@@ -90,6 +92,7 @@ function track(state: DuelState, msg: OcgMessage) {
       break;
     case OcgMessageType.WIN:
       state.winner = msg.player;
+      state.reason = msg.reason;
       break;
     default:
       break;
@@ -176,7 +179,7 @@ export async function runDuel(
   decks: readonly (readonly number[])[] = [YUGI, KAIBA],
   rules = STANDARD_RULES,
 ): Promise<DuelState> {
-  const state: DuelState = { turns: 0, lp: [rules.lp, rules.lp], winner: null, log: [], errors: [], scripts: [] };
+  const state: DuelState = { turns: 0, lp: [rules.lp, rules.lp], winner: null, log: [], errors: [], scripts: [], reason: null };
   const { lib, handle } = await openDuel(seed, decks, (text) => state.errors.push(text), (name) => state.scripts.push(name), rules);
 
   const nameAt = (loc: OcgLocPos) => {
