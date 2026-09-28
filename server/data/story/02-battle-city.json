@@ -167,7 +167,7 @@
           "rules": { "lp": 4000, "hand": 5, "special": ["battle-city"] },
           "intro": "Un ancien rival réapparaît, le regard vide et la voix éteinte. Il ne joue plus pour lui : quelqu'un tire ses ficelles, et son armée de machines n'a jamais été aussi bien réglée.",
           "outro": "Yugi vient à bout de la meute de machines et rompt l'emprise qui pesait sur Keith. L'ombre qui tirait les ficelles se précise : quelqu'un cherche à réunir les trois cartes divines.",
-          "rewards": { "boosters": 2, "cards": [81480460] },
+          "rewards": { "boosters": 2, "cards": [3797883] },
           "requires": ["bc-arkana"]
         },
         {

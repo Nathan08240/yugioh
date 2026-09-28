@@ -36,7 +36,6 @@ const MAX_TEXT = 600;
 export const EXTRA_RULES: ReadonlyMap<string, number> = new Map([
   ["duelist-kingdom", 511002621],
   ["battle-city", 511004014],
-  ["deck-master", 153000000],
   ["virtual-world", 153999999],
 ]);
 
