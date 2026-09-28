@@ -1,4 +1,4 @@
-import { OcgLocation, OcgMessageType, OcgPosition, type OcgMessage, type OcgMessageSelectCard } from "@n1xx1/ocgcore-wasm";
+import { OcgHintType, OcgLocation, OcgMessageType, OcgPosition, type OcgMessage, type OcgMessageSelectCard } from "@n1xx1/ocgcore-wasm";
 import { describe, expect, it } from "vitest";
 import { hideCards, visibleTo } from "../src/visibility.ts";
 
@@ -25,5 +25,15 @@ describe("filtrage des informations cachées", () => {
     expect(visibleTo(move(toHand), 0)).toMatchObject({ card: 0 });
     expect(visibleTo(move(toHand), 1)).toMatchObject({ card: 123 });
     expect(visibleTo(move(toGrave), 0)).toMatchObject({ card: 123 });
+  });
+
+  it("aiguille les HINT comme EDOPro : RACE au camp adverse, EFFECT au camp qui agit, CARD aux deux", () => {
+    const hint = (hint_type: number): OcgMessage => ({ type: OcgMessageType.HINT, hint_type, player: 0, hint: 1n }) as OcgMessage;
+    expect(visibleTo(hint(OcgHintType.RACE), 0)).toBeNull();
+    expect(visibleTo(hint(OcgHintType.RACE), 1)).toMatchObject({ player: 0 });
+    expect(visibleTo(hint(OcgHintType.EFFECT), 0)).toMatchObject({ player: 0 });
+    expect(visibleTo(hint(OcgHintType.EFFECT), 1)).toBeNull();
+    expect(visibleTo(hint(OcgHintType.CARD), 0)).toMatchObject({ player: 0 });
+    expect(visibleTo(hint(OcgHintType.CARD), 1)).toMatchObject({ player: 0 });
   });
 });

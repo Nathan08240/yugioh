@@ -1,11 +1,11 @@
 import { once } from "node:events";
 import type { AddressInfo } from "node:net";
-import { OcgMessageType, OcgResponseType, SelectIdleCMDAction, type OcgMessage, type OcgResponse } from "@n1xx1/ocgcore-wasm";
+import { OcgMessageType, OcgProcessResult, OcgResponseType, SelectIdleCMDAction, type OcgMessage, type OcgResponse } from "@n1xx1/ocgcore-wasm";
 import { afterAll, describe, expect, it, vi } from "vitest";
 import { WebSocket } from "ws";
 import type { ClientMessage, ServerMessage, Wire } from "../src/protocol.ts";
 import { respond } from "../src/respond.ts";
-import { startServer } from "../src/server.ts";
+import { advance, startServer, type Room } from "../src/server.ts";
 
 type Received = Wire<ServerMessage>;
 type Answer = (question: OcgMessage, retry: boolean) => OcgResponse | undefined;
@@ -77,6 +77,50 @@ describe("serveur de partie", () => {
     await vi.waitFor(() => expect(b2.messages().length).toBeGreaterThan(0));
     expect(joined(b2.received)).toEqual({ type: "joined", room, seat: 1, log: b.messages() });
     expect(b2.received).toContainEqual({ type: "question", question: held, retry: false });
+  });
+
+  it("une salle dont le moteur lève une erreur est fermée, une autre salle continue de jouer", () => {
+    type Duel = NonNullable<Room["duel"]>;
+    const fakeDuel = (lib: Partial<Duel["lib"]>): Duel => ({ lib, handle: 1 }) as unknown as Duel;
+    const socket = () => {
+      const send = vi.fn();
+      return { send, socket: { send } as unknown as WebSocket };
+    };
+
+    const destroyDuel = vi.fn();
+    const a = socket();
+    const b = socket();
+    const crashing: Room = {
+      code: "CRASH",
+      players: [
+        { id: "a", socket: a.socket, log: [] },
+        { id: "b", socket: b.socket, log: [] },
+      ],
+      duel: fakeDuel({
+        duelProcess: () => {
+          throw new Error("panique moteur");
+        },
+        duelGetMessage: vi.fn(),
+        destroyDuel,
+      }),
+    };
+    advance(crashing);
+    expect(crashing.duel).toBeUndefined();
+    expect(destroyDuel).toHaveBeenCalledWith(1);
+    expect(a.send).toHaveBeenCalledWith(expect.stringContaining('"duel_error"'));
+    expect(b.send).toHaveBeenCalledWith(expect.stringContaining('"duel_error"'));
+
+    const question = { type: OcgMessageType.SELECT_YESNO, player: 0, description: 0n, code: 0, data: { location: 0, controller: 0, sequence: 0 } } as unknown as OcgMessage;
+    const c = socket();
+    const other: Room = {
+      code: "OTHER",
+      players: [{ id: "c", socket: c.socket, log: [] }, { id: "d", socket: socket().socket, log: [] }],
+      duel: fakeDuel({ duelProcess: vi.fn(() => OcgProcessResult.WAITING), duelGetMessage: vi.fn(() => [question]), destroyDuel: vi.fn() }),
+    };
+    advance(other);
+    expect(other.duel).toBeDefined();
+    expect(other.question).toEqual(question);
+    expect(c.send).toHaveBeenCalledWith(expect.stringContaining('"question"'));
   });
 
   it("refuse une salle inconnue et une salle complète", async () => {

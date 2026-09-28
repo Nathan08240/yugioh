@@ -16,4 +16,5 @@ export type ServerMessage =
   | { type: "joined"; room: string; seat: Seat; log: OcgMessage[] }
   | { type: "messages"; messages: OcgMessage[] }
   | { type: "question"; question: OcgMessage; retry: boolean }
-  | { type: "error"; error: string };
+  | { type: "error"; error: string }
+  | { type: "duel_error"; error: string };

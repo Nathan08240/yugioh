@@ -8,7 +8,7 @@ import { hideCards, visibleTo } from "./visibility.ts";
 
 type Question = Extract<OcgMessage, { player: number }>;
 type Player = { id: string; socket?: WebSocket; log: OcgMessage[] };
-type Room = {
+export type Room = {
   code: string;
   players: Player[];
   duel?: Awaited<ReturnType<typeof openDuel>>;
@@ -88,13 +88,22 @@ function endDuel(room: Room) {
   room.question = undefined;
 }
 
-// Runs the engine until it asks a question or the duel ends.
-function advance(room: Room) {
+// Runs the engine until it asks a question or the duel ends. A crash inside the engine closes only this room.
+export function advance(room: Room) {
   if (!room.duel) return;
   const { lib, handle } = room.duel;
   for (;;) {
-    const status = lib.duelProcess(handle);
-    const messages = lib.duelGetMessage(handle);
+    let status: OcgProcessResult;
+    let messages: OcgMessage[];
+    try {
+      status = lib.duelProcess(handle);
+      messages = lib.duelGetMessage(handle);
+    } catch (error) {
+      console.error(`[salle ${room.code}] erreur moteur : ${error}`);
+      room.players.forEach((player) => send(player.socket, { type: "duel_error", error: "le moteur a rencontré une erreur, salle fermée" }));
+      endDuel(room);
+      return;
+    }
     if (messages.some((msg) => msg.type === OcgMessageType.RETRY)) {
       ask(room, true);
       return;

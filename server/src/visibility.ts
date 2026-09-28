@@ -5,6 +5,17 @@ const PUBLIC_ZONES = OcgLocation.GRAVE | OcgLocation.OVERLAY;
 
 const faceUp = (position: number) => (position & OcgPosition.FACEUP) !== 0;
 
+// Verified against EDOPro's GenericDuel::Sending (gframe/generic_duel.cpp, case MSG_HINT): these hint types
+// report the acting player's choice, so they go to the other side, which doesn't already know it. CARD goes to both.
+const HINT_OPPONENT_ONLY = new Set<OcgHintType>([
+  OcgHintType.OPSELECTED,
+  OcgHintType.RACE,
+  OcgHintType.ATTRIB,
+  OcgHintType.CODE,
+  OcgHintType.NUMBER,
+  OcgHintType.ZONE,
+]);
+
 function hiddenFrom(card: Record<string, unknown>, viewer: number): boolean {
   if (typeof card.code !== "number" || typeof card.location !== "number") return false;
   if (card.controller === viewer || (card.location & PUBLIC_ZONES) !== 0) return false;
@@ -30,8 +41,11 @@ function outOfSight(to: OcgLocPos): boolean {
 // The message as the viewer may see it, or null when it is not for them. Questions go through hideCards only.
 export function visibleTo(msg: OcgMessage, viewer: number): OcgMessage | null {
   switch (msg.type) {
-    case OcgMessageType.HINT:
-      return msg.player === viewer || msg.hint_type === OcgHintType.CARD ? msg : null;
+    case OcgMessageType.HINT: {
+      if (msg.hint_type === OcgHintType.CARD) return msg;
+      if (HINT_OPPONENT_ONLY.has(msg.hint_type)) return msg.player !== viewer ? msg : null;
+      return msg.player === viewer ? msg : null;
+    }
     case OcgMessageType.MISSED_EFFECT:
       return msg.controller === viewer ? msg : null;
     case OcgMessageType.CONFIRM_CARDS:
