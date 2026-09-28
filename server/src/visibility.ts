@@ -1,0 +1,57 @@
+import { OcgHintType, OcgLocation, OcgMessageType, OcgPosition, type OcgLocPos, type OcgMessage } from "@n1xx1/ocgcore-wasm";
+
+// The engine sends every card code in clear: each player only gets what the rules let them see.
+const PUBLIC_ZONES = OcgLocation.GRAVE | OcgLocation.OVERLAY;
+
+const faceUp = (position: number) => (position & OcgPosition.FACEUP) !== 0;
+
+function hiddenFrom(card: Record<string, unknown>, viewer: number): boolean {
+  if (typeof card.code !== "number" || typeof card.location !== "number") return false;
+  if (card.controller === viewer || (card.location & PUBLIC_ZONES) !== 0) return false;
+  return typeof card.position !== "number" || !faceUp(card.position);
+}
+
+// Zeroes, at any depth, the code of every opponent card that is not face up or in a public zone.
+export function hideCards<T>(value: T, viewer: number): T {
+  if (Array.isArray(value)) return value.map((item) => hideCards(item, viewer)) as T;
+  if (typeof value !== "object" || value === null) return value;
+  const copy: Record<string, unknown> = {};
+  for (const [key, item] of Object.entries(value)) copy[key] = hideCards(item, viewer);
+  if (hiddenFrom(copy, viewer)) copy.code = 0;
+  return copy as T;
+}
+
+// Same rule as YGOPro: a card entering a deck, a hand or a face-down spot is only known to its new controller.
+function outOfSight(to: OcgLocPos): boolean {
+  if ((to.location & PUBLIC_ZONES) !== 0) return false;
+  return (to.location & (OcgLocation.DECK | OcgLocation.HAND)) !== 0 || !faceUp(to.position);
+}
+
+// The message as the viewer may see it, or null when it is not for them. Questions go through hideCards only.
+export function visibleTo(msg: OcgMessage, viewer: number): OcgMessage | null {
+  switch (msg.type) {
+    case OcgMessageType.HINT:
+      return msg.player === viewer || msg.hint_type === OcgHintType.CARD ? msg : null;
+    case OcgMessageType.MISSED_EFFECT:
+      return msg.controller === viewer ? msg : null;
+    case OcgMessageType.CONFIRM_CARDS:
+      return msg.player === viewer || msg.cards.every((card) => card.location !== OcgLocation.DECK) ? msg : null;
+    case OcgMessageType.DRAW:
+      if (msg.player === viewer) return msg;
+      return { ...msg, drawn: msg.drawn.map((card) => (faceUp(card.position) ? card : { ...card, code: 0 })) };
+    case OcgMessageType.MOVE:
+      return msg.to.controller === viewer || !outOfSight(msg.to) ? msg : { ...msg, card: 0 };
+    case OcgMessageType.SHUFFLE_HAND:
+    case OcgMessageType.SHUFFLE_EXTRA:
+      return msg.player === viewer ? msg : { ...msg, cards: msg.cards.map(() => 0) };
+    case OcgMessageType.DECK_TOP:
+      return faceUp(msg.position) ? msg : { ...msg, code: 0 };
+    // Activations and excavations are public, wherever the card sits.
+    case OcgMessageType.CHAINING:
+    case OcgMessageType.CONFIRM_DECKTOP:
+    case OcgMessageType.CONFIRM_EXTRATOP:
+      return msg;
+    default:
+      return hideCards(msg, viewer);
+  }
+}

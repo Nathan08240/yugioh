@@ -28,7 +28,7 @@ export type DuelState = {
   scripts: string[];
 };
 
-type Seed = [bigint, bigint, bigint, bigint];
+export type Seed = [bigint, bigint, bigint, bigint];
 
 // The JSR entry point re-exports everything except the default export, createCore.
 async function createCore(options: InitializerSync): Promise<OcgCoreSync> {
@@ -113,9 +113,11 @@ function describe(msg: OcgMessage, state: DuelState, nameAt: (loc: OcgLocPos) =>
   }
 }
 
-export async function runDuel(seed: Seed, maxTurns: number): Promise<DuelState> {
-  const state: DuelState = { turns: 0, lp: [STARTING_LP, STARTING_LP], winner: null, log: [], errors: [], scripts: [] };
-  const lib = await createCore({ sync: true });
+let core: Promise<OcgCoreSync> | undefined;
+
+// Creates a started duel, each deck shuffled by the seed (deck 0 goes to player 0).
+export async function openDuel(seed: Seed, decks: readonly number[][], onError: (text: string) => void, onScript = (_name: string) => {}) {
+  const lib = await (core ??= createCore({ sync: true }));
   const settings = { startingLP: STARTING_LP, startingDrawCount: 5, drawCountPerTurn: 1 };
   const handle = lib.createDuel({
     flags: RULES,
@@ -124,28 +126,34 @@ export async function runDuel(seed: Seed, maxTurns: number): Promise<DuelState> 
     team2: settings,
     cardReader: readCard,
     scriptReader: (name) => {
-      state.scripts.push(name);
+      onScript(name);
       return readScript(name);
     },
-    errorHandler: (_type, text) => state.errors.push(text),
+    errorHandler: (_type, text) => onError(text),
   });
   if (!handle) throw new Error("création du duel impossible");
 
   for (const base of ["constant.lua", "utility.lua"]) lib.loadScript(handle, base, readScript(base) ?? "");
   const random = mulberry32(Number(seed[0]));
-  [YUGI, KAIBA].forEach((deck, owner) => {
+  decks.forEach((deck, owner) => {
     const team = owner as 0 | 1;
     for (const code of shuffle(deck, random)) {
       lib.duelNewCard(handle, { team, duelist: 0, code, controller: team, location: OcgLocation.DECK, sequence: 0, position: OcgPosition.FACEDOWN_DEFENSE });
     }
   });
+  lib.startDuel(handle);
+  return { lib, handle };
+}
+
+export async function runDuel(seed: Seed, maxTurns: number): Promise<DuelState> {
+  const state: DuelState = { turns: 0, lp: [STARTING_LP, STARTING_LP], winner: null, log: [], errors: [], scripts: [] };
+  const { lib, handle } = await openDuel(seed, [YUGI, KAIBA], (text) => state.errors.push(text), (name) => state.scripts.push(name));
 
   const nameAt = (loc: OcgLocPos) => {
     const card = lib.duelQuery(handle, { flags: OcgQueryFlags.CODE, controller: loc.controller, location: loc.location, sequence: loc.sequence, overlaySequence: 0 });
     return card?.code ? cardName(card.code) : "?";
   };
 
-  lib.startDuel(handle);
   let question: OcgMessage | undefined;
   for (let step = 0; step < MAX_STEPS; step++) {
     const status = lib.duelProcess(handle);
