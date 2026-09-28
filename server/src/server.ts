@@ -1,6 +1,9 @@
 import { randomInt } from "node:crypto";
 import { OcgMessageType, OcgProcessResult, OcgResponseType, type OcgMessage, type OcgResponse } from "@n1xx1/ocgcore-wasm";
+import postgres from "postgres";
 import { WebSocketServer, type WebSocket } from "ws";
+import { verifySession } from "./auth.ts";
+import { createProfile, findProfile, openDb, type Db, type Profile } from "./db.ts";
 import { KAIBA, YUGI } from "./decks.ts";
 import { openDuel, type Seed } from "./duel.ts";
 import type { ClientMessage, Seat, ServerMessage } from "./protocol.ts";
@@ -16,6 +19,27 @@ export type Room = {
   timer?: NodeJS.Timeout;
 };
 
+// Identity and profile storage, faked in tests.
+export type Accounts = {
+  verify: (token: string) => Promise<string | null>;
+  findProfile: (userId: string) => Promise<Profile | undefined>;
+  // Resolves to undefined when the pseudo is already taken.
+  createProfile: (userId: string, pseudo: string) => Promise<Profile | undefined>;
+};
+
+export function dbAccounts(db: Db): Accounts {
+  return {
+    verify: (token) => verifySession(token),
+    findProfile: (userId) => findProfile(db, userId),
+    createProfile: (userId, pseudo) =>
+      createProfile(db, userId, pseudo).catch((error: unknown) => {
+        if (error instanceof postgres.PostgresError && error.code === "23505") return undefined;
+        throw error;
+      }),
+  };
+}
+
+const PSEUDO = /^[A-Za-z0-9_-]{3,20}$/;
 const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 // An empty room is kept this long so a player can come back to it.
 const ROOM_TTL = 10 * 60_000;
@@ -51,8 +75,6 @@ function send(socket: WebSocket | undefined, data: ServerMessage) {
   socket?.send(JSON.stringify(data, (_key, value) => (typeof value === "bigint" ? value.toString() : value)));
 }
 
-const isId = (value: unknown) => typeof value === "string" && value.length > 0 && value.length <= 64;
-
 function parse(data: string): ClientMessage | undefined {
   let msg: Record<string, unknown>;
   try {
@@ -62,8 +84,10 @@ function parse(data: string): ClientMessage | undefined {
   }
   if (typeof msg !== "object" || msg === null) return undefined;
   const valid =
-    (msg.type === "create" && isId(msg.player)) ||
-    (msg.type === "join" && isId(msg.player) && typeof msg.room === "string") ||
+    (msg.type === "auth" && typeof msg.token === "string" && msg.token.length <= 4096) ||
+    (msg.type === "pseudo" && typeof msg.pseudo === "string") ||
+    msg.type === "create" ||
+    (msg.type === "join" && typeof msg.room === "string") ||
     (msg.type === "respond" && typeof msg.response === "object" && msg.response !== null);
   return valid ? (msg as ClientMessage) : undefined;
 }
@@ -154,7 +178,7 @@ function newCode(rooms: Map<string, Room>): string {
 }
 
 // ponytail: every duel is Yugi (host) vs Kaiba until the deck builder exists.
-export function startServer(port: number, newSeed = randomSeed): WebSocketServer {
+export function startServer(port: number, accounts: Accounts, newSeed = randomSeed): WebSocketServer {
   const rooms = new Map<string, Room>();
   const wss = new WebSocketServer({ port, maxPayload: 64 * 1024 });
 
@@ -183,16 +207,42 @@ export function startServer(port: number, newSeed = randomSeed): WebSocketServer
   }
 
   wss.on("connection", (socket) => {
+    let user: { id: string; pseudo?: string } | undefined;
     let seat: { room: Room; index: Seat } | undefined;
+    // Messages are handled one at a time, so an action sent right after `auth` waits for its verification.
+    let queue = Promise.resolve();
+
+    async function identify(token: string): Promise<string | undefined> {
+      if (user) return "déjà authentifié";
+      const id = await accounts.verify(token);
+      if (!id) return "jeton invalide";
+      user = { id, pseudo: (await accounts.findProfile(id))?.pseudo };
+      send(socket, { type: "profile", pseudo: user.pseudo ?? null });
+      return undefined;
+    }
+
+    async function choosePseudo(player: { id: string; pseudo?: string }, pseudo: string): Promise<string | undefined> {
+      if (player.pseudo) return "pseudo déjà choisi";
+      if (!PSEUDO.test(pseudo)) return "pseudo invalide : 3 à 20 caractères, lettres sans accent, chiffres, _ ou -";
+      const profile = await accounts.createProfile(player.id, pseudo);
+      if (!profile) return "pseudo déjà pris";
+      player.pseudo = profile.pseudo;
+      send(socket, { type: "profile", pseudo: profile.pseudo });
+      return undefined;
+    }
 
     // Returns an error for the sender, if any.
-    function handle(msg: ClientMessage): string | undefined {
+    function handle(msg: ClientMessage): string | undefined | Promise<string | undefined> {
+      if (msg.type === "auth") return identify(msg.token);
+      if (!user) return "non authentifié";
+      if (msg.type === "pseudo") return choosePseudo(user, msg.pseudo);
+      if (!user.pseudo) return "pseudo à choisir d'abord";
       if (msg.type === "respond") return seat ? answer(seat.room, seat.index, msg.response) : "pas dans une salle";
       if (seat) return "déjà dans une salle";
       const room = msg.type === "create" ? { code: newCode(rooms), players: [] } : rooms.get(msg.room.toUpperCase());
       if (!room) return "salle introuvable";
       rooms.set(room.code, room);
-      const index = sit(room, msg.player, socket);
+      const index = sit(room, user.id, socket);
       if (index === undefined) return "salle complète";
       seat = { room, index };
       return undefined;
@@ -202,9 +252,18 @@ export function startServer(port: number, newSeed = randomSeed): WebSocketServer
       if (seat) leave(seat.room, socket);
     });
     socket.on("message", (data) => {
-      const msg = parse(String(data));
-      const error = msg ? handle(msg) : "message invalide";
-      if (error) send(socket, { type: "error", error });
+      queue = queue.then(async () => {
+        if (socket.readyState !== socket.OPEN) return;
+        const msg = parse(String(data));
+        let error: string | undefined;
+        try {
+          error = msg ? await handle(msg) : "message invalide";
+        } catch (failure) {
+          console.error(failure);
+          error = "service indisponible, réessayer plus tard";
+        }
+        if (error) send(socket, { type: "error", error });
+      });
     });
   });
   return wss;
@@ -212,6 +271,6 @@ export function startServer(port: number, newSeed = randomSeed): WebSocketServer
 
 if (import.meta.main) {
   const port = Number(process.env.PORT ?? 3001);
-  startServer(port);
+  startServer(port, dbAccounts(openDb()));
   console.log(`Serveur de partie sur ws://localhost:${port}`);
 }

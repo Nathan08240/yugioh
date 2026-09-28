@@ -5,18 +5,25 @@ import { afterAll, describe, expect, it, vi } from "vitest";
 import { WebSocket } from "ws";
 import type { ClientMessage, ServerMessage, Wire } from "../src/protocol.ts";
 import { respond } from "../src/respond.ts";
-import { advance, startServer, type Room } from "../src/server.ts";
+import { advance, startServer, type Accounts, type Room } from "../src/server.ts";
 
 type Received = Wire<ServerMessage>;
 type Answer = (question: OcgMessage, retry: boolean) => OcgResponse | undefined;
 
-const wss = startServer(0, () => [1n, 2n, 3n, 4n]);
+// Token "jeton-<id>" identifies user <id>; "nouveau" has no profile yet and "pris" is a taken pseudo.
+const accounts: Accounts = {
+  verify: async (token) => (token.startsWith("jeton-") ? token.slice(6) : null),
+  findProfile: async (userId) => (userId === "nouveau" ? undefined : { userId, pseudo: userId }),
+  createProfile: async (userId, pseudo) => (pseudo === "pris" ? undefined : { userId, pseudo }),
+};
+const wss = startServer(0, accounts, () => [1n, 2n, 3n, 4n]);
 await once(wss, "listening");
 const url = `ws://localhost:${(wss.address() as AddressInfo).port}`;
 afterAll(() => wss.close());
 
-// A client that records everything and answers its questions with `answer` (undefined keeps the question pending).
-async function connect(answer: Answer = respond) {
+// A client logged in as `user` (if any) that records everything and answers its questions with `answer`
+// (undefined keeps the question pending).
+async function connect(user?: string, answer: Answer = respond) {
   const socket = new WebSocket(url);
   const received: Received[] = [];
   socket.on("message", (data) => {
@@ -28,6 +35,7 @@ async function connect(answer: Answer = respond) {
   });
   await once(socket, "open");
   const send = (msg: ClientMessage) => socket.send(JSON.stringify(msg));
+  if (user) send({ type: "auth", token: `jeton-${user}` });
   const messages = () => received.flatMap((msg) => (msg.type === "messages" ? msg.messages : []));
   return { socket, received, send, messages };
 }
@@ -39,7 +47,7 @@ describe("serveur de partie", () => {
     let setCode = 0;
     let retried = false;
     // A sends a wrong answer once, then sets a monster face down at the first chance.
-    const a = await connect((question, retry) => {
+    const a = await connect("alice", (question, retry) => {
       if (question.type !== OcgMessageType.SELECT_IDLECMD || setCode) return respond(question);
       if (!retried && !retry) {
         retried = true;
@@ -49,18 +57,18 @@ describe("serveur de partie", () => {
       setCode = question.monster_sets[0].code;
       return { type: OcgResponseType.SELECT_IDLECMD, action: SelectIdleCMDAction.SELECT_MONSTER_SET, index: 0 };
     });
-    a.send({ type: "create", player: "alice" });
+    a.send({ type: "create" });
     await vi.waitFor(() => expect(joined(a.received)).toBeDefined());
     const room = joined(a.received)?.room ?? "";
 
     // B stops answering once A's monster is set, so the duel waits on B.
     let held: OcgMessage | undefined;
-    const b = await connect((question) => {
+    const b = await connect("bob", (question) => {
       if (!b.messages().some((msg) => msg.type === OcgMessageType.SET && msg.controller === 0)) return respond(question);
       held = question;
       return undefined;
     });
-    b.send({ type: "join", room, player: "bob" });
+    b.send({ type: "join", room });
     await vi.waitFor(() => expect(held).toBeDefined(), { timeout: 20_000 });
 
     expect(a.received).toContainEqual(expect.objectContaining({ type: "question", retry: true }));
@@ -72,8 +80,8 @@ describe("serveur de partie", () => {
 
     // B reconnects with the same identity: same visible history, same pending question.
     b.socket.close();
-    const b2 = await connect();
-    b2.send({ type: "join", room, player: "bob" });
+    const b2 = await connect("bob");
+    b2.send({ type: "join", room });
     await vi.waitFor(() => expect(b2.messages().length).toBeGreaterThan(0));
     expect(joined(b2.received)).toEqual({ type: "joined", room, seat: 1, log: b.messages() });
     expect(b2.received).toContainEqual({ type: "question", question: held, retry: false });
@@ -124,15 +132,52 @@ describe("serveur de partie", () => {
   });
 
   it("refuse une salle inconnue et une salle complète", async () => {
-    const [c, d, e] = await Promise.all([connect(), connect(), connect()]);
-    c.send({ type: "join", room: "ZZZZZ", player: "carol" });
+    const [c, d, e] = await Promise.all([connect("carol"), connect("dave"), connect("eve")]);
+    c.send({ type: "join", room: "ZZZZZ" });
     await vi.waitFor(() => expect(c.received).toContainEqual({ type: "error", error: "salle introuvable" }));
-    c.send({ type: "create", player: "carol" });
+    c.send({ type: "create" });
     await vi.waitFor(() => expect(joined(c.received)).toBeDefined());
     const room = joined(c.received)?.room ?? "";
-    d.send({ type: "join", room, player: "dave" });
+    d.send({ type: "join", room });
     await vi.waitFor(() => expect(joined(d.received)).toBeDefined());
-    e.send({ type: "join", room, player: "eve" });
+    e.send({ type: "join", room });
     await vi.waitFor(() => expect(e.received).toContainEqual({ type: "error", error: "salle complète" }));
+  });
+
+  it("refuse toute action avant authentification et un jeton invalide", async () => {
+    const f = await connect();
+    f.send({ type: "create" });
+    f.send({ type: "respond", response: { type: OcgResponseType.SELECT_YESNO, yes: true } });
+    f.send({ type: "auth", token: "faux" });
+    f.send({ type: "join", room: "ZZZZZ" });
+    await vi.waitFor(() => expect(f.received).toHaveLength(4));
+    expect(f.received).toEqual([
+      { type: "error", error: "non authentifié" },
+      { type: "error", error: "non authentifié" },
+      { type: "error", error: "jeton invalide" },
+      { type: "error", error: "non authentifié" },
+    ]);
+  });
+
+  it("authentifie par le jeton et fait choisir un pseudo au premier passage", async () => {
+    const known = await connect("carol");
+    await vi.waitFor(() => expect(known.received).toEqual([{ type: "profile", pseudo: "carol" }]));
+
+    const g = await connect("nouveau");
+    g.send({ type: "create" });
+    g.send({ type: "pseudo", pseudo: "a b" });
+    g.send({ type: "pseudo", pseudo: "pris" });
+    g.send({ type: "pseudo", pseudo: "Nouveau_1" });
+    g.send({ type: "auth", token: "jeton-autre" });
+    g.send({ type: "create" });
+    await vi.waitFor(() => expect(joined(g.received)).toBeDefined());
+    expect(g.received.slice(0, 6)).toEqual([
+      { type: "profile", pseudo: null },
+      { type: "error", error: "pseudo à choisir d'abord" },
+      { type: "error", error: expect.stringContaining("pseudo invalide") },
+      { type: "error", error: "pseudo déjà pris" },
+      { type: "profile", pseudo: "Nouveau_1" },
+      { type: "error", error: "déjà authentifié" },
+    ]);
   });
 });

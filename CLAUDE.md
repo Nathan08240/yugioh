@@ -5,12 +5,12 @@ Duels en ligne et contre un bot, boosters façon TCG Pocket, mode Histoire. Back
 ## Stack
 
 - `server/` : Node 24, TypeScript exécuté nativement (syntaxe effaçable seulement : pas d'`enum`, `namespace` ni propriétés de paramètre). Moteur ocgcore via `@n1xx1/ocgcore-wasm`.
-- `client/` (à venir) : Vite + React + TypeScript.
+- `client/` : Vite + React + TypeScript, types du protocole importés de `server/src/protocol.ts`.
 - Supabase : schéma dédié `yugioh`, jamais `public`.
 
 ## Commandes
 
-pnpm uniquement (workspace `pnpm-workspace.yaml`) : `pnpm install`, `pnpm test`, `pnpm typecheck` à la racine, `pnpm --filter server add <dep>` pour une dépendance.
+pnpm uniquement (workspace `pnpm-workspace.yaml`) : `pnpm install`, `pnpm test`, `pnpm typecheck` à la racine, `pnpm --filter server add <dep>` pour une dépendance. `pnpm dev` lance client et serveur ; configuration : copier `client/.env.example` et `server/.env.example` en `.env`.
 
 ## Conventions
 

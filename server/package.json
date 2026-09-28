@@ -9,7 +9,8 @@
     "import-sets": "node scripts/import-sets.ts",
     "images": "node scripts/images.ts",
     "duel": "node src/duel.ts",
-    "start": "node src/server.ts"
+    "dev": "node --env-file-if-exists=.env --watch src/server.ts",
+    "start": "node --env-file-if-exists=.env src/server.ts"
   },
   "devDependencies": {
     "@types/node": "^24.19.0",

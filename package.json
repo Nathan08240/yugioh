@@ -3,6 +3,7 @@
   "private": true,
   "packageManager": "pnpm@11.24.0",
   "scripts": {
+    "dev": "pnpm -r --parallel dev",
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck",
     "vendor": "pnpm --filter server vendor",
