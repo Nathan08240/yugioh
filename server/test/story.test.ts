@@ -9,7 +9,7 @@ import { runDuel, type Player } from "../src/duel.ts";
 import type { ClientMessage, ServerMessage, Wire } from "../src/protocol.ts";
 import { respond } from "../src/respond.ts";
 import { startServer } from "../src/server.ts";
-import { STORY, STORY_DUELS, storyDeck, storyRules, storyView, validateStory, type Story, type StoryDuel } from "../src/story.ts";
+import { isUnlocked, STORY, STORY_DUELS, storyDeck, storyRules, storyView, validateStory, type Story, type StoryDuel } from "../src/story.ts";
 import { fakeAccounts } from "./fakes.ts";
 
 const [weevil, mako, mai] = ["dk-weevil", "dk-mako", "dk-mai"].map((id) => STORY_DUELS.get(id) as StoryDuel);
@@ -26,11 +26,11 @@ describe("données du mode Histoire", () => {
 
   it("refuse une carte inconnue, hors pool, un deck trop court, un prérequis manquant, une règle inconnue", () => {
     const deck: StoryDuel["deck"] = [...weevil.deck.slice(1), [1, 1], [ANIME, 1]];
-    expect(validateStory(storyWith({ deck, requires: ["dk-absent"], rules: { lp: 0, hand: 5, special: ["battle-city"] } }))).toEqual([
+    expect(validateStory(storyWith({ deck, requires: ["dk-absent"], rules: { lp: 0, hand: 5, special: ["turbo-duel"] } }))).toEqual([
       "dk-weevil : carte 1 absente de BabelCDB",
       "dk-weevil : carte 511002621 hors pool et hors liste blanche de l'histoire",
       "dk-weevil : LP de départ invalides : 0",
-      "dk-weevil : règle spéciale inconnue : battle-city",
+      "dk-weevil : règle spéciale inconnue : turbo-duel",
       "dk-weevil : prérequis dk-absent inconnu ou placé après",
     ]);
     expect(validateStory(storyWith({ deck: weevil.deck.slice(2) }))).toEqual(["dk-weevil : deck de 35 cartes, 40 à 60 attendues"]);
@@ -51,6 +51,20 @@ describe("données du mode Histoire", () => {
     expect(first).toMatchObject({ opponent: "Weevil Underwood", lp: 2000, hand: 5, special: ["duelist-kingdom"], outro: weevil.outro });
     expect(second.outro).toBeUndefined();
     expect(second).not.toHaveProperty("deck");
+  });
+
+  it("déverrouille un arc une fois tous les duels de l'arc précédent gagnés, jamais un arc placé après", () => {
+    const withArc = (requires: string[]): Story => ({
+      ...STORY,
+      arcs: [STORY.arcs[0], { id: "suite", title: "Suite", duels: [{ ...weevil, id: "suite-1", requires, rewards: {} }] }],
+    });
+    const story = withArc([STORY.arcs[0].id]);
+    const [next] = story.arcs[1].duels;
+    const previous = STORY.arcs[0].duels.map((duel) => duel.id);
+    expect(validateStory(story)).toEqual([]);
+    expect(isUnlocked(next, new Set(previous.slice(0, -1)), story)).toBe(false);
+    expect(isUnlocked(next, new Set(previous), story)).toBe(true);
+    expect(validateStory(withArc(["suite"]))).toContainEqual(expect.stringContaining("prérequis suite inconnu ou placé après"));
   });
 });
 

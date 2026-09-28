@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { OcgType } from "@n1xx1/ocgcore-wasm";
 import { creditBoosters } from "./boosters.ts";
@@ -8,7 +8,7 @@ import type { Rules } from "./duel.ts";
 import { isAllowed } from "./pool.ts";
 import type { Rewards, StoryArcView, StoryStatus } from "./protocol.ts";
 
-// Format of data/story.json, version STORY_VERSION. Texts are short summaries written by us, never anime dialogue.
+// Format of each data/story/*.json file, version STORY_VERSION. Texts are short summaries written by us, never anime dialogue.
 export type StoryDuel = {
   id: string;
   title: string;
@@ -21,7 +21,7 @@ export type StoryDuel = {
   outro: string;
   // Reward cards must be in the pool, each one given by a single duel of the story.
   rewards: Rewards;
-  // Ids of duels placed before this one.
+  // Ids of duels placed before this one, or of earlier arcs, met once every duel of the arc is won.
   requires: string[];
 };
 export type Arc = { id: string; title: string; duels: StoryDuel[] };
@@ -31,9 +31,14 @@ export type Story = { version: number; anime: number[]; arcs: Arc[] };
 export const STORY_VERSION = 1;
 const MAX_TEXT = 600;
 
-// EDOPro Extra Rules, whose CardScripts/unofficial scripts call aux.EnableExtraRules.
-// ponytail: Duelist Kingdom only, add Battle City (511004014) with its arc once the bot copes with it.
-export const EXTRA_RULES: ReadonlyMap<string, number> = new Map([["duelist-kingdom", 511002621]]);
+// EDOPro Extra Rules of the series, whose CardScripts/unofficial scripts call aux.EnableExtraRules. An arc uses one
+// only once a full duel against the bot goes through with it.
+export const EXTRA_RULES: ReadonlyMap<string, number> = new Map([
+  ["duelist-kingdom", 511002621],
+  ["battle-city", 511004014],
+  ["deck-master", 153000000],
+  ["virtual-world", 153999999],
+]);
 
 function checkDeck(deck: StoryDuel["deck"], anime: ReadonlySet<number>): string[] {
   const errors: string[] = [];
@@ -86,21 +91,35 @@ export function validateStory(story: Story): string[] {
   const anime = new Set(story.anime);
   for (const code of anime) if (!readCard(code)) errors.push(`carte anime ${code} absente de BabelCDB`);
   if (new Set(story.arcs.map((arc) => arc.id)).size !== story.arcs.length) errors.push("identifiant d'arc en double");
+  // Duel ids, and arc ids once their arc is over: a duel can only require what comes before it.
   const before = new Set<string>();
   const rewarded = new Set<number>();
-  for (const duel of story.arcs.flatMap((arc) => arc.duels)) {
-    const problems = [...checkTexts(duel), ...checkDeck(duel.deck, anime), ...checkRules(duel.rules), ...checkRewards(duel.rewards, rewarded)];
-    if (before.has(duel.id)) problems.push("identifiant en double");
-    for (const id of duel.requires) if (!before.has(id)) problems.push(`prérequis ${id} inconnu ou placé après`);
-    errors.push(...problems.map((problem) => `${duel.id} : ${problem}`));
-    before.add(duel.id);
+  for (const arc of story.arcs) {
+    for (const duel of arc.duels) {
+      const problems = [...checkTexts(duel), ...checkDeck(duel.deck, anime), ...checkRules(duel.rules), ...checkRewards(duel.rewards, rewarded)];
+      if (before.has(duel.id)) problems.push("identifiant en double");
+      for (const id of duel.requires) if (!before.has(id)) problems.push(`prérequis ${id} inconnu ou placé après`);
+      errors.push(...problems.map((problem) => `${duel.id} : ${problem}`));
+      before.add(duel.id);
+    }
+    before.add(arc.id);
   }
   return errors;
 }
 
-export const STORY: Story = JSON.parse(readFileSync(join(import.meta.dirname, "..", "data", "story.json"), "utf-8"));
+// One file per arc, read in file name order, so arcs can be written separately.
+function loadStory(dir: string): Story {
+  const parts: Story[] = readdirSync(dir)
+    .filter((file) => file.endsWith(".json"))
+    .sort()
+    .map((file) => JSON.parse(readFileSync(join(dir, file), "utf-8")));
+  const version = parts.find((part) => part.version !== STORY_VERSION)?.version ?? STORY_VERSION;
+  return { version, anime: parts.flatMap((part) => part.anime), arcs: parts.flatMap((part) => part.arcs) };
+}
+
+export const STORY: Story = loadStory(join(import.meta.dirname, "..", "data", "story"));
 const errors = validateStory(STORY);
-if (errors.length > 0) throw new Error(`data/story.json invalide :\n${errors.join("\n")}`);
+if (errors.length > 0) throw new Error(`data/story invalide :\n${errors.join("\n")}`);
 
 export const STORY_DUELS: ReadonlyMap<string, StoryDuel> = new Map(STORY.arcs.flatMap((arc) => arc.duels.map((duel) => [duel.id, duel])));
 
@@ -112,11 +131,18 @@ export const storyRules = ({ rules }: StoryDuel): Rules => ({
   cards: (rules.special ?? []).map((name) => EXTRA_RULES.get(name) as number),
 });
 
-export const isUnlocked = (duel: StoryDuel, done: ReadonlySet<string>) => duel.requires.every((id) => done.has(id));
+// A duel requirement is won, an arc requirement once all its duels are.
+function met(id: string, done: ReadonlySet<string>, story: Story): boolean {
+  if (done.has(id)) return true;
+  const arc = story.arcs.find((candidate) => candidate.id === id);
+  return arc !== undefined && arc.duels.every((duel) => done.has(duel.id));
+}
 
-function statusOf(duel: StoryDuel, done: ReadonlySet<string>): StoryStatus {
+export const isUnlocked = (duel: StoryDuel, done: ReadonlySet<string>, story = STORY) => duel.requires.every((id) => met(id, done, story));
+
+function statusOf(duel: StoryDuel, done: ReadonlySet<string>, story: Story): StoryStatus {
   if (done.has(duel.id)) return "done";
-  return isUnlocked(duel, done) ? "available" : "locked";
+  return isUnlocked(duel, done, story) ? "available" : "locked";
 }
 
 // What the player sees: the conclusion only once the duel is won, no opponent deck.
@@ -135,7 +161,7 @@ export function storyView(done: ReadonlySet<string>, story = STORY): StoryArcVie
       outro: done.has(duel.id) ? duel.outro : undefined,
       rewards: duel.rewards,
       requires: duel.requires,
-      status: statusOf(duel, done),
+      status: statusOf(duel, done, story),
     })),
   }));
 }
