@@ -4,6 +4,7 @@ import { OcgType } from "@n1xx1/ocgcore-wasm";
 import { creditBoosters } from "./boosters.ts";
 import { readCard } from "./cards.ts";
 import type { Db } from "./db.ts";
+import { EXTRA_MAX } from "./deckcheck.ts";
 import type { Rules } from "./duel.ts";
 import { isAllowed } from "./pool.ts";
 import type { Rewards, StoryArcView, StoryStatus } from "./protocol.ts";
@@ -15,6 +16,8 @@ export type StoryDuel = {
   opponent: string;
   // [passcode, copies], main deck only.
   deck: [code: number, copies: number][];
+  // Fusion monsters of the extra deck, same format; none when absent.
+  extra?: [code: number, copies: number][];
   // `special`: names from EXTRA_RULES.
   rules: { lp: number; hand: number; special?: string[] };
   intro: string;
@@ -57,6 +60,17 @@ function checkDeck(deck: StoryDuel["deck"], anime: ReadonlySet<number>): string[
   return errors;
 }
 
+function checkExtra(extra: StoryDuel["extra"] = []): string[] {
+  const errors: string[] = [];
+  if (extra.reduce((sum, [, copies]) => sum + copies, 0) > EXTRA_MAX) errors.push(`extra deck de plus de ${EXTRA_MAX} cartes`);
+  for (const [code] of extra) {
+    const card = readCard(code);
+    if (!card) errors.push(`carte ${code} absente de BabelCDB`);
+    else if (!(card.type & OcgType.FUSION)) errors.push(`${code} n'est pas une fusion, extra deck refusé`);
+  }
+  return errors;
+}
+
 function checkRules({ lp, hand, special = [] }: StoryDuel["rules"]): string[] {
   const errors: string[] = [];
   if (!Number.isInteger(lp) || lp <= 0) errors.push(`LP de départ invalides : ${lp}`);
@@ -89,6 +103,7 @@ export function validateStory(story: Story): string[] {
   if (story.version !== STORY_VERSION) errors.push(`version ${story.version}, ${STORY_VERSION} attendue`);
   const anime = new Set(story.anime);
   for (const code of anime) if (!readCard(code)) errors.push(`carte anime ${code} absente de BabelCDB`);
+  for (const duel of story.arcs.flatMap((arc) => arc.duels)) errors.push(...checkExtra(duel.extra).map((problem) => `${duel.id} : ${problem}`));
   if (new Set(story.arcs.map((arc) => arc.id)).size !== story.arcs.length) errors.push("identifiant d'arc en double");
   // Duel ids, and arc ids once their arc is over: a duel can only require what comes before it.
   const before = new Set<string>();
@@ -122,7 +137,11 @@ if (errors.length > 0) throw new Error(`data/story invalide :\n${errors.join("\n
 
 export const STORY_DUELS: ReadonlyMap<string, StoryDuel> = new Map(STORY.arcs.flatMap((arc) => arc.duels.map((duel) => [duel.id, duel])));
 
-export const storyDeck = (duel: StoryDuel) => duel.deck.flatMap(([code, copies]) => Array<number>(copies).fill(code));
+const expand = (list: [code: number, copies: number][]) => list.flatMap(([code, copies]) => Array<number>(copies).fill(code));
+
+export const storyDeck = (duel: StoryDuel) => expand(duel.deck);
+
+export const storyExtra = (duel: StoryDuel) => expand(duel.extra ?? []);
 
 export const storyRules = ({ rules }: StoryDuel): Rules => ({
   lp: rules.lp,

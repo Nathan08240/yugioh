@@ -10,20 +10,21 @@ import { verifySession } from "./auth.ts";
 import { boosterState, BOOSTERS, creditBoosters, openBooster, WIN_BOOSTER_REWARD } from "./boosters.ts";
 import { Bot } from "./bot.ts";
 import { clientCard, RULE_CARDS } from "./cards.ts";
-import { dbDeckStore, deckReply, isDeckMessage, validDeckMessage, type DeckMessage, type DeckStore } from "./collection.ts";
-import { activeDeck, createProfile, findProfile, openDb, type Db, type Profile } from "./db.ts";
+import { dbDeckStore, deckReply, isDeckMessage, poolCard, validDeckMessage, type DeckMessage, type DeckStore } from "./collection.ts";
+import { activeDeck, createProfile, findProfile, openDb, type ActiveDeck, type Db, type Profile } from "./db.ts";
+import { EXTRA_MAX, isFusion, MAIN_MAX, MAIN_MIN } from "./deckcheck.ts";
 import { KAIBA } from "./decks.ts";
 import { agreeToRules, openDuel, STANDARD_RULES, type Rules, type Seed } from "./duel.ts";
 import { isAllowed, POOL, type Printing } from "./pool.ts";
 import type { CardInfo, ClientMessage, Rewards, Seat, ServerMessage } from "./protocol.ts";
 import { respond } from "./respond.ts";
 import { chooseStarter, starterCards, type Starter } from "./starter.ts";
-import { completeDuel, completedDuels, isUnlocked, STORY, STORY_DUELS, storyDeck, storyRules, storyView, type StoryDuel } from "./story.ts";
+import { completeDuel, completedDuels, isUnlocked, STORY, STORY_DUELS, storyDeck, storyExtra, storyRules, storyView, type StoryDuel } from "./story.ts";
 import { systemStrings } from "./strings.ts";
 import { hideCards, visibleTo } from "./visibility.ts";
 
 type Question = Extract<OcgMessage, { player: number }>;
-type Player = { id: string; socket?: WebSocket; log: OcgMessage[]; deck: readonly number[]; bot?: Bot };
+type Player = { id: string; socket?: WebSocket; log: OcgMessage[]; deck: readonly number[]; extra?: readonly number[]; bot?: Bot };
 export type Room = {
   code: string;
   players: Player[];
@@ -42,6 +43,7 @@ const deckSizes = (room: Room): [number, number] => [
   (room.players[0]?.deck.length ?? 0) + rulesOf(room).cards.length,
   room.players[1]?.deck.length ?? 0,
 ];
+const extraSizes = (room: Room): [number, number] => [room.players[0]?.extra?.length ?? 0, room.players[1]?.extra?.length ?? 0];
 
 // Identity, profile, deck, booster and Story mode storage, faked in tests.
 export type Accounts = DeckStore & {
@@ -49,7 +51,7 @@ export type Accounts = DeckStore & {
   findProfile: (userId: string) => Promise<Profile | undefined>;
   // Resolves to undefined when the pseudo is already taken.
   createProfile: (userId: string, pseudo: string) => Promise<Profile | undefined>;
-  activeDeck: (userId: string) => Promise<number[] | undefined>;
+  activeDeck: (userId: string) => Promise<ActiveDeck | undefined>;
   // Resolves to false when the player already has an active deck.
   chooseStarter: (userId: string, starter: Starter) => Promise<boolean>;
   boosterState: (userId: string) => Promise<{ nextFreeAt: string; pending: number }>;
@@ -245,7 +247,7 @@ export function creditWinner(room: Room, seat: Seat, accounts: Pick<Accounts, "c
 function sendJoined(room: Room, seat: Seat) {
   const player = room.players[seat];
   if (!player) return;
-  send(player.socket, { type: "joined", room: room.code, seat, lp: rulesOf(room).lp, decks: deckSizes(room), log: player.log });
+  send(player.socket, { type: "joined", room: room.code, seat, lp: rulesOf(room).lp, decks: deckSizes(room), extras: extraSizes(room), log: player.log });
 }
 
 // Runs the engine until it asks a question or the duel ends. A crash inside the engine closes only this room.
@@ -302,7 +304,8 @@ function answer(room: Room, seat: Seat, response: OcgResponse): string | undefin
 
 async function start(room: Room, seed: Seed) {
   const decks = room.players.map((player) => player.deck);
-  room.duel = await openDuel(seed, decks, (text) => console.error(`[salle ${room.code}] ${text}`), undefined, rulesOf(room));
+  const extras = room.players.map((player) => player.extra ?? []);
+  room.duel = await openDuel(seed, decks, (text) => console.error(`[salle ${room.code}] ${text}`), undefined, rulesOf(room), extras);
   advance(room);
 }
 
@@ -314,8 +317,14 @@ function newCode(rooms: Map<string, Room>): string {
   return code;
 }
 
-// A deck as validated for a duel: 40 to 60 cards, all from the allowed pool.
-const validDeck = (deck: number[]) => deck.length >= 40 && deck.length <= 60 && deck.every(isAllowed);
+const isPoolFusion = (code: number) => {
+  const card = poolCard(code);
+  return card !== undefined && isFusion(card);
+};
+
+// A deck as validated for a duel: 40 to 60 cards from the allowed pool, and at most 15 Fusion monsters in the extra deck.
+const validDeck = ({ main, extra }: ActiveDeck) =>
+  main.length >= MAIN_MIN && main.length <= MAIN_MAX && main.every(isAllowed) && extra.length <= EXTRA_MAX && extra.every(isPoolFusion);
 
 // The bot takes seat 1.
 export function startServer(port: number, accounts: Accounts, newSeed = randomSeed, botDelay = BOT_DELAY): WebSocketServer {
@@ -325,11 +334,11 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
   wss.on("close", () => http.close());
   http.listen(port);
 
-  function sit(room: Room, id: string, socket: WebSocket, deck: readonly number[]): Seat | undefined {
+  function sit(room: Room, id: string, socket: WebSocket, deck: ActiveDeck): Seat | undefined {
     const known = room.players.findIndex((player) => player.id === id);
     if (known === -1 && room.players.length === 2) return undefined;
     const isNew = known === -1;
-    const seat = (isNew ? room.players.push({ id, log: [], deck }) - 1 : known) as Seat;
+    const seat = (isNew ? room.players.push({ id, log: [], deck: deck.main, extra: deck.extra }) - 1 : known) as Seat;
     const player = room.players[seat];
     if (player.socket !== socket) player.socket?.close();
     player.socket = socket;
@@ -342,10 +351,10 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
     return seat;
   }
 
-  function addBot(room: Room, deck: readonly number[]) {
-    const player: Player = { id: "bot", log: [], deck };
+  function addBot(room: Room, deck: ActiveDeck) {
+    const player: Player = { id: "bot", log: [], deck: deck.main, extra: deck.extra };
     room.players.push(player);
-    player.bot = new Bot(1, rulesOf(room).lp, deckSizes(room), botDelay);
+    player.bot = new Bot(1, rulesOf(room).lp, deckSizes(room), botDelay, extraSizes(room));
     sendJoined(room, 0);
     start(room, newSeed()).catch((error: unknown) => console.error(error));
   }
@@ -415,13 +424,13 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
     }
 
     // The active deck of the player, or the error that keeps them out of a duel.
-    async function duelDeck(userId: string): Promise<readonly number[] | string> {
+    async function duelDeck(userId: string): Promise<ActiveDeck | string> {
       const deck = await accounts.activeDeck(userId);
       if (!deck) return "deck actif requis";
       return validDeck(deck) ? deck : "deck actif invalide";
     }
 
-    function enter(userId: string, room: Room, deck: readonly number[], botDeck?: readonly number[]): string | undefined {
+    function enter(userId: string, room: Room, deck: ActiveDeck, botDeck?: ActiveDeck): string | undefined {
       rooms.set(room.code, room);
       const index = sit(room, userId, socket, deck);
       if (index === undefined) return "salle complète";
@@ -439,7 +448,7 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
         return joined ? enter(userId, joined, deck) : "salle introuvable";
       }
       const room: Room = { code: newCode(rooms), players: [] };
-      if (msg.type === "bot") return enter(userId, room, deck, KAIBA);
+      if (msg.type === "bot") return enter(userId, room, deck, { main: KAIBA, extra: [] });
       room.onWin = (winner) => creditWinner(room, winner as Seat, accounts);
       return enter(userId, room, deck);
     }
@@ -470,7 +479,7 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
       room.onWin = (winner) => {
         if (winner === 0) recordWin(room, userId, duel);
       };
-      return enter(userId, room, deck, storyDeck(duel));
+      return enter(userId, room, deck, { main: storyDeck(duel), extra: storyExtra(duel) });
     }
 
     // Returns an error for the sender, if any.

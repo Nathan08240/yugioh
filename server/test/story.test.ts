@@ -9,7 +9,7 @@ import { runDuel, type Player } from "../src/duel.ts";
 import type { ClientMessage, ServerMessage, Wire } from "../src/protocol.ts";
 import { respond } from "../src/respond.ts";
 import { startServer } from "../src/server.ts";
-import { isUnlocked, STORY, STORY_DUELS, storyDeck, storyRules, storyView, validateStory, type Story, type StoryDuel } from "../src/story.ts";
+import { isUnlocked, STORY, STORY_DUELS, storyDeck, storyExtra, storyRules, storyView, validateStory, type Story, type StoryDuel } from "../src/story.ts";
 import { fakeAccounts } from "./fakes.ts";
 
 const DK = ["dk-weevil", "dk-mako", "dk-mai", "dk-keith", "dk-bakura", "dk-kaiba", "dk-pegasus"];
@@ -36,6 +36,18 @@ describe("données du mode Histoire", () => {
     ]);
     expect(validateStory(storyWith({ deck: weevil.deck.slice(2) }))).toEqual(["dk-weevil : deck de 35 cartes, 40 à 60 attendues"]);
     expect(validateStory(storyWith({ rewards: { cards: [ANIME] } }, [ANIME]))).toEqual(["dk-weevil : carte offerte 511002621 hors pool"]);
+  });
+
+  it("accepte un extra deck de fusions facultatif, refuse plus de 15 cartes ou un monstre qui n'est pas une fusion", () => {
+    const swordsman = 45231177;
+    expect(storyExtra(weevil)).toEqual([]);
+    expect(validateStory(storyWith({ extra: [[swordsman, 3]] }))).toEqual([]);
+    expect(storyExtra({ ...weevil, extra: [[swordsman, 2]] })).toEqual([swordsman, swordsman]);
+    expect(validateStory(storyWith({ extra: [[swordsman, 3], [1, 1], [46986414, 1]] }))).toEqual([
+      "dk-weevil : carte 1 absente de BabelCDB",
+      "dk-weevil : 46986414 n'est pas une fusion, extra deck refusé",
+    ]);
+    expect(validateStory(storyWith({ extra: [[swordsman, 16]] }))).toEqual(["dk-weevil : extra deck de plus de 15 cartes"]);
   });
 
   it("accepte une carte anime de la liste blanche de l'histoire dans le deck adverse", () => {

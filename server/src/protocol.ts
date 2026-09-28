@@ -33,12 +33,12 @@ export type ClientMessage =
 export type Deck = { id: number; name: string; main: number[]; extra: number[] };
 
 // `joined` replays every message the player was allowed to see, which rebuilds the board after a reconnection,
-// from the starting LP and main deck sizes (the engine never sends them).
+// from the starting LP, main deck and extra deck sizes (the engine never sends them).
 // `profile` answers `auth`, `pseudo` and `starter`: a null pseudo means the player has to choose one before playing,
 // `needsStarter` means the player has a pseudo but no active deck yet and must pick a starter deck.
 export type ServerMessage =
   | { type: "profile"; pseudo: string | null; needsStarter: boolean }
-  | { type: "joined"; room: string; seat: Seat; lp: number; decks: [number, number]; log: OcgMessage[] }
+  | { type: "joined"; room: string; seat: Seat; lp: number; decks: [number, number]; extras: [number, number]; log: OcgMessage[] }
   | { type: "messages"; messages: OcgMessage[] }
   | { type: "question"; question: OcgMessage; retry: boolean }
   | { type: "error"; error: string }

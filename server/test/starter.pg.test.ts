@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createProfile, type Db } from "../src/db.ts";
+import { activeDeck, createProfile, type Db } from "../src/db.ts";
 import { chooseStarter, starterCards } from "../src/starter.ts";
 import { type Pg, startPostgres } from "./pg.ts";
 
@@ -37,6 +37,17 @@ describe("choix du starter sur Postgres jetable", () => {
 
     const [profile] = await admin<{ active_deck_id: number }[]>`select active_deck_id from yugioh.profiles where user_id = ${id}`;
     expect(profile.active_deck_id).not.toBeNull();
+  });
+
+  it("lit le main deck et l'extra deck du deck actif, rien sans deck actif", async () => {
+    const id = await newPlayer("Tea");
+    expect(await activeDeck(server, id)).toBeUndefined();
+
+    await chooseStarter(server, id, "yugi");
+    expect(await activeDeck(server, id)).toEqual({ main: starterCards("yugi"), extra: [] });
+
+    await admin`update yugioh.decks set extra_deck = ${[45231177, 45231177]} where user_id = ${id}`;
+    expect((await activeDeck(server, id))?.extra).toEqual([45231177, 45231177]);
   });
 
   it("refuse un deuxième choix", async () => {
