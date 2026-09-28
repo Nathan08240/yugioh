@@ -46,6 +46,8 @@ describe("bot", () => {
       verify: async (token) => token,
       findProfile: async (userId) => ({ userId, pseudo: userId }),
       createProfile: async () => undefined,
+      storyProgress: async () => new Set(),
+      completeStory: async () => undefined,
     };
     const wss = startServer(0, accounts, () => [5n, 2n, 3n, 4n], 0);
     onTestFinished(() => wss.close());

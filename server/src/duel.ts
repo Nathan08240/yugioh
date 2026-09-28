@@ -5,6 +5,7 @@ import {
   OcgPosition,
   OcgProcessResult,
   OcgQueryFlags,
+  OcgResponseType,
   type InitializerSync,
   type OcgCoreSync,
   type OcgLocPos,
@@ -19,6 +20,16 @@ import { hideCards, visibleTo } from "./visibility.ts";
 // Goat format (2005): Master Rule 1 plus the pre-2008 rulings, the closest the engine gets to 2002.
 export const RULES = OcgDuelMode.MODE_GOAT;
 export const STARTING_LP = 4000;
+// `cards`: EDOPro Extra Rules cards (aux.EnableExtraRules), shuffled into player 0's deck; each one leaves the duel at the start.
+export type Rules = { lp: number; hand: number; cards: readonly number[] };
+export const STANDARD_RULES: Rules = { lp: STARTING_LP, hand: 5, cards: [] };
+// aux.EnableExtraRules asks both players to agree, Stringid(4014, 6): the host imposes the rule and says yes.
+const RULE_AGREEMENT = (4014n << 20n) | 6n;
+
+export function agreeToRules(question: OcgMessage): OcgResponse | undefined {
+  if (question.type !== OcgMessageType.SELECT_YESNO || question.description !== RULE_AGREEMENT) return undefined;
+  return { type: OcgResponseType.SELECT_YESNO, yes: true };
+}
 const MAX_STEPS = 20_000;
 
 export type DuelState = {
@@ -50,7 +61,7 @@ function mulberry32(seed: number) {
   };
 }
 
-function shuffle(deck: number[], random: () => number): number[] {
+function shuffle(deck: readonly number[], random: () => number): number[] {
   const out = [...deck];
   for (let i = out.length - 1; i > 0; i--) {
     const j = Math.floor(random() * (i + 1));
@@ -118,9 +129,15 @@ function describe(msg: OcgMessage, state: DuelState, nameAt: (loc: OcgLocPos) =>
 let core: Promise<OcgCoreSync> | undefined;
 
 // Creates a started duel, each deck shuffled by the seed (deck 0 goes to player 0).
-export async function openDuel(seed: Seed, decks: readonly number[][], onError: (text: string) => void, onScript = (_name: string) => {}) {
+export async function openDuel(
+  seed: Seed,
+  decks: readonly (readonly number[])[],
+  onError: (text: string) => void,
+  onScript = (_name: string) => {},
+  rules = STANDARD_RULES,
+) {
   const lib = await (core ??= createCore({ sync: true }));
-  const settings = { startingLP: STARTING_LP, startingDrawCount: 5, drawCountPerTurn: 1 };
+  const settings = { startingLP: rules.lp, startingDrawCount: rules.hand, drawCountPerTurn: 1 };
   const handle = lib.createDuel({
     flags: RULES,
     seed,
@@ -137,7 +154,7 @@ export async function openDuel(seed: Seed, decks: readonly number[][], onError: 
 
   for (const base of ["constant.lua", "utility.lua"]) lib.loadScript(handle, base, readScript(base) ?? "");
   const random = mulberry32(Number(seed[0]));
-  decks.forEach((deck, owner) => {
+  [[...decks[0], ...rules.cards], decks[1]].forEach((deck, owner) => {
     const team = owner as 0 | 1;
     for (const code of shuffle(deck, random)) {
       lib.duelNewCard(handle, { team, duelist: 0, code, controller: team, location: OcgLocation.DECK, sequence: 0, position: OcgPosition.FACEDOWN_DEFENSE });
@@ -151,9 +168,15 @@ export async function openDuel(seed: Seed, decks: readonly number[][], onError: 
 export type Player = (question: OcgMessage, log: readonly OcgMessage[]) => OcgResponse;
 const firstOption: Player = (question) => respond(question);
 
-export async function runDuel(seed: Seed, maxTurns: number, players: readonly Player[] = [firstOption, firstOption]): Promise<DuelState> {
-  const state: DuelState = { turns: 0, lp: [STARTING_LP, STARTING_LP], winner: null, log: [], errors: [], scripts: [] };
-  const { lib, handle } = await openDuel(seed, [YUGI, KAIBA], (text) => state.errors.push(text), (name) => state.scripts.push(name));
+export async function runDuel(
+  seed: Seed,
+  maxTurns: number,
+  players: readonly Player[] = [firstOption, firstOption],
+  decks: readonly (readonly number[])[] = [YUGI, KAIBA],
+  rules = STANDARD_RULES,
+): Promise<DuelState> {
+  const state: DuelState = { turns: 0, lp: [rules.lp, rules.lp], winner: null, log: [], errors: [], scripts: [] };
+  const { lib, handle } = await openDuel(seed, decks, (text) => state.errors.push(text), (name) => state.scripts.push(name), rules);
 
   const nameAt = (loc: OcgLocPos) => {
     const card = lib.duelQuery(handle, { flags: OcgQueryFlags.CODE, controller: loc.controller, location: loc.location, sequence: loc.sequence, overlaySequence: 0 });
@@ -179,7 +202,7 @@ export async function runDuel(seed: Seed, maxTurns: number, players: readonly Pl
     }
     question = messages.at(-1);
     if (status === OcgProcessResult.WAITING && question && "player" in question) {
-      lib.duelSetResponse(handle, players[question.player](hideCards(question, question.player), logs[question.player]));
+      lib.duelSetResponse(handle, agreeToRules(question) ?? players[question.player](hideCards(question, question.player), logs[question.player]));
     }
   }
   throw new Error(`duel bloqué après ${MAX_STEPS} étapes`);

@@ -10,28 +10,42 @@ import { Bot } from "./bot.ts";
 import { cardInfo } from "./cards.ts";
 import { createProfile, findProfile, openDb, type Db, type Profile } from "./db.ts";
 import { KAIBA, YUGI } from "./decks.ts";
-import { openDuel, STARTING_LP, type Seed } from "./duel.ts";
+import { agreeToRules, openDuel, STANDARD_RULES, type Rules, type Seed } from "./duel.ts";
 import { POOL } from "./pool.ts";
-import type { CardInfo, ClientMessage, Seat, ServerMessage } from "./protocol.ts";
+import type { CardInfo, ClientMessage, Rewards, Seat, ServerMessage } from "./protocol.ts";
 import { respond } from "./respond.ts";
+import { completeDuel, completedDuels, isUnlocked, STORY, STORY_DUELS, storyDeck, storyRules, storyView, type StoryDuel } from "./story.ts";
 import { hideCards, visibleTo } from "./visibility.ts";
 
 type Question = Extract<OcgMessage, { player: number }>;
 type Player = { id: string; socket?: WebSocket; log: OcgMessage[]; bot?: Bot };
+type Setup = { decks: [readonly number[], readonly number[]]; rules: Rules };
 export type Room = {
   code: string;
   players: Player[];
+  // ONLINE when absent.
+  setup?: Setup;
   duel?: Awaited<ReturnType<typeof openDuel>>;
   question?: Question;
   timer?: NodeJS.Timeout;
+  onWin?: (winner: number) => void;
 };
 
-// Identity and profile storage, faked in tests.
+// ponytail: every online duel is Yugi (host) vs Kaiba until the deck builder exists.
+const ONLINE: Setup = { decks: [YUGI, KAIBA], rules: STANDARD_RULES };
+// Main deck sizes the engine never sends: the Extra Rules cards sit in player 0's deck until they remove themselves.
+const deckSizes = ({ decks, rules }: Setup): [number, number] => [decks[0].length + rules.cards.length, decks[1].length];
+
+// Identity, profile and Story mode storage, faked in tests.
 export type Accounts = {
   verify: (token: string) => Promise<string | null>;
   findProfile: (userId: string) => Promise<Profile | undefined>;
   // Resolves to undefined when the pseudo is already taken.
   createProfile: (userId: string, pseudo: string) => Promise<Profile | undefined>;
+  // Ids of the story duels won.
+  storyProgress: (userId: string) => Promise<ReadonlySet<string>>;
+  // Resolves to the rewards granted, undefined for a duel already won.
+  completeStory: (userId: string, duel: StoryDuel) => Promise<Rewards | undefined>;
 };
 
 export function dbAccounts(db: Db): Accounts {
@@ -43,6 +57,8 @@ export function dbAccounts(db: Db): Accounts {
         if (error instanceof postgres.PostgresError && error.code === "23505") return undefined;
         throw error;
       }),
+    storyProgress: (userId) => completedDuels(db, userId),
+    completeStory: (userId, duel) => completeDuel(db, userId, duel),
   };
 }
 
@@ -80,12 +96,14 @@ const ANSWERS = new Map<OcgMessageType, OcgResponseType>([
 
 const imageFile = (code: number) => join(import.meta.dirname, "..", "vendor", "images", `${code}.jpg`);
 const IMAGE_URL = /^\/api\/images\/(\d{1,10})\.jpg$/;
+// The pool and the anime cards of the story opponents.
+const SERVED: ReadonlySet<number> = new Set([...POOL, ...STORY.anime]);
 let cards: [number, Omit<CardInfo, "image">][] | undefined;
 
 // Card data and images for the client (see CardInfo). Images are optional: `pnpm images` downloads them.
 function serveHttp(req: IncomingMessage, res: ServerResponse) {
   if (req.method === "GET" && req.url === "/api/cards") {
-    cards ??= [...POOL].flatMap((code) => {
+    cards ??= [...SERVED].flatMap((code) => {
       const info = cardInfo(code);
       return info ? [[code, info] as const] : [];
     });
@@ -94,7 +112,7 @@ function serveHttp(req: IncomingMessage, res: ServerResponse) {
     return;
   }
   const code = Number(IMAGE_URL.exec(req.url ?? "")?.[1]);
-  if (req.method === "GET" && POOL.has(code) && existsSync(imageFile(code))) {
+  if (req.method === "GET" && SERVED.has(code) && existsSync(imageFile(code))) {
     res.writeHead(200, { "content-type": "image/jpeg", "cache-control": "max-age=86400" });
     createReadStream(imageFile(code)).pipe(res);
     return;
@@ -121,6 +139,8 @@ function parse(data: string): ClientMessage | undefined {
     (msg.type === "pseudo" && typeof msg.pseudo === "string") ||
     msg.type === "create" ||
     msg.type === "bot" ||
+    msg.type === "story" ||
+    (msg.type === "story_duel" && typeof msg.duel === "string") ||
     (msg.type === "join" && typeof msg.room === "string") ||
     (msg.type === "respond" && typeof msg.response === "object" && msg.response !== null);
   return valid ? (msg as ClientMessage) : undefined;
@@ -129,6 +149,11 @@ function parse(data: string): ClientMessage | undefined {
 function ask(room: Room, retry: boolean) {
   const question = room.question;
   if (!question) return;
+  const agreed = agreeToRules(question);
+  if (agreed) {
+    answer(room, question.player as Seat, agreed);
+    return;
+  }
   const player = room.players[question.player];
   const hidden = hideCards(question, question.player);
   if (player?.bot) play(room, player, hidden, retry);
@@ -193,6 +218,8 @@ export function advance(room: Room) {
     // The engine keeps sending WIN without ever reaching END: the first one closes the duel.
     const win = events.findIndex((msg) => msg.type === OcgMessageType.WIN);
     broadcast(room, win === -1 ? events : events.slice(0, win + 1));
+    const won = events[win];
+    if (won?.type === OcgMessageType.WIN) room.onWin?.(won.player);
     if (win !== -1 || status === OcgProcessResult.END) {
       endDuel(room);
       return;
@@ -222,7 +249,8 @@ function answer(room: Room, seat: Seat, response: OcgResponse): string | undefin
 }
 
 async function start(room: Room, seed: Seed) {
-  room.duel = await openDuel(seed, [YUGI, KAIBA], (text) => console.error(`[salle ${room.code}] ${text}`));
+  const { decks, rules } = room.setup ?? ONLINE;
+  room.duel = await openDuel(seed, decks, (text) => console.error(`[salle ${room.code}] ${text}`), undefined, rules);
   advance(room);
 }
 
@@ -234,7 +262,7 @@ function newCode(rooms: Map<string, Room>): string {
   return code;
 }
 
-// ponytail: every duel is Yugi (host) vs Kaiba until the deck builder exists. The bot takes seat 1, Kaiba.
+// The bot takes seat 1.
 export function startServer(port: number, accounts: Accounts, newSeed = randomSeed, botDelay = BOT_DELAY): WebSocketServer {
   const rooms = new Map<string, Room>();
   const http = createServer(serveHttp);
@@ -250,14 +278,16 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
     if (player.socket !== socket) player.socket?.close();
     player.socket = socket;
     clearTimeout(room.timer);
-    send(socket, { type: "joined", room: room.code, seat, lp: STARTING_LP, decks: [YUGI.length, KAIBA.length], log: player.log });
+    const setup = room.setup ?? ONLINE;
+    send(socket, { type: "joined", room: room.code, seat, lp: setup.rules.lp, decks: deckSizes(setup), log: player.log });
     if (room.question?.player === seat) ask(room, false);
     if (known === -1 && seat === 1) start(room, newSeed()).catch((error: unknown) => console.error(error));
     return seat;
   }
 
   function addBot(room: Room) {
-    room.players.push({ id: "bot", log: [], bot: new Bot(1, STARTING_LP, [YUGI.length, KAIBA.length], botDelay) });
+    const setup = room.setup ?? ONLINE;
+    room.players.push({ id: "bot", log: [], bot: new Bot(1, setup.rules.lp, deckSizes(setup), botDelay) });
     start(room, newSeed()).catch((error: unknown) => console.error(error));
   }
 
@@ -296,6 +326,42 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
       return undefined;
     }
 
+    function enter(userId: string, room: Room, bot: boolean): string | undefined {
+      rooms.set(room.code, room);
+      const index = sit(room, userId, socket);
+      if (index === undefined) return "salle complète";
+      seat = { room, index };
+      if (bot) addBot(room);
+      return undefined;
+    }
+
+    async function showStory(userId: string): Promise<undefined> {
+      send(socket, { type: "story", arcs: storyView(await accounts.storyProgress(userId)) });
+      return undefined;
+    }
+
+    function recordWin(room: Room, userId: string, duel: StoryDuel) {
+      accounts.completeStory(userId, duel).then(
+        (rewards) => send(room.players[0]?.socket, { type: "story_won", duel: duel.id, outro: duel.outro, rewards: rewards ?? null }),
+        (error: unknown) => {
+          console.error(error);
+          send(room.players[0]?.socket, { type: "error", error: "victoire non enregistrée, rejouez le duel plus tard" });
+        },
+      );
+    }
+
+    // The player keeps seat 0 against the bot; only their win counts.
+    async function playStory(userId: string, id: string): Promise<string | undefined> {
+      const duel = STORY_DUELS.get(id);
+      if (!duel) return "duel d'histoire inconnu";
+      if (!isUnlocked(duel, await accounts.storyProgress(userId))) return "duel verrouillé : gagnez d'abord les duels précédents";
+      const room: Room = { code: newCode(rooms), players: [], setup: { decks: [YUGI, storyDeck(duel)], rules: storyRules(duel) } };
+      room.onWin = (winner) => {
+        if (winner === 0) recordWin(room, userId, duel);
+      };
+      return enter(userId, room, true);
+    }
+
     // Returns an error for the sender, if any.
     function handle(msg: ClientMessage): string | undefined | Promise<string | undefined> {
       if (msg.type === "auth") return identify(msg.token);
@@ -303,15 +369,12 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
       if (msg.type === "pseudo") return choosePseudo(user, msg.pseudo);
       if (!user.pseudo) return "pseudo à choisir d'abord";
       if (msg.type === "respond") return seat ? answer(seat.room, seat.index, msg.response) : "pas dans une salle";
+      if (msg.type === "story") return showStory(user.id);
       if (seat) return "déjà dans une salle";
+      if (msg.type === "story_duel") return playStory(user.id, msg.duel);
       const room = msg.type === "join" ? rooms.get(msg.room.toUpperCase()) : { code: newCode(rooms), players: [] };
       if (!room) return "salle introuvable";
-      rooms.set(room.code, room);
-      const index = sit(room, user.id, socket);
-      if (index === undefined) return "salle complète";
-      seat = { room, index };
-      if (msg.type === "bot") addBot(room);
-      return undefined;
+      return enter(user.id, room, msg.type === "bot");
     }
 
     socket.on("close", () => {

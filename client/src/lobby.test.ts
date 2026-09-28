@@ -24,3 +24,12 @@ it("passe du pseudo à l'attente puis au plateau quand le duel démarre", () => 
   expect(state).toMatchObject({ pseudo: undefined, room: "ABCDE", closed: false });
   expect(reduce(state, { type: "left" })).toMatchObject({ room: undefined, board: undefined, started: false });
 });
+
+it("garde le mode Histoire ouvert pendant ses duels et oublie la conclusion en quittant le duel", () => {
+  let state = reduce(reduce(initialLobby, { type: "story_menu", open: true }), { type: "story", arcs: [] });
+  state = reduce(state, { type: "joined", room: "ABCDE", seat: 0, lp: 2000, decks: [41, 40], log: [] });
+  const won = { type: "story_won", duel: "dk-weevil", outro: "Fin.", rewards: null } as const;
+  state = reduce(state, won);
+  expect(state).toMatchObject({ storyOpen: true, story: [], won });
+  expect(reduce(state, { type: "left" })).toMatchObject({ storyOpen: true, room: undefined, won: undefined });
+});

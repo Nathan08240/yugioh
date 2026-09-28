@@ -1,6 +1,8 @@
 import postgres from "postgres";
 
 export type Db = postgres.Sql;
+// A connection or a transaction.
+export type Sql = postgres.ISql;
 export type Profile = { userId: string; pseudo: string };
 
 // Connexion en tant que yugioh_server, ex. postgres://yugioh_server:<mdp>@hôte:5432/postgres
