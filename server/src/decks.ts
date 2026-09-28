@@ -1,8 +1,9 @@
-// 40-card decks from LOB / MRD / MRL / PSV, as [passcode, copies].
+// 40-card decks from the classic pool (src/pool.ts), as [passcode, copies].
 type DeckList = [code: number, copies: number][];
 
 export const SLIFER_ANIME = 511600399;
 export const OBELISK_ANIME = 511600398;
+export const RA_ANIME = 511600400;
 
 const yugi: DeckList = [
   [46986414, 2], // Dark Magician
@@ -15,9 +16,9 @@ const yugi: DeckList = [
   [15025844, 2], // Mystical Elf
   [41392891, 2], // Feral Imp
   [90357090, 2], // Silver Fang
-  [99785935, 1], // Alpha The Magnet Warrior
-  [39256679, 1], // Beta The Magnet Warrior
-  [11549357, 1], // Gamma The Magnet Warrior
+  [87796900, 1], // Winged Dragon, Guardian of the Fortress #1
+  [40374923, 1], // Mammoth Graveyard
+  [50930991, 1], // Neo the Magic Swordsman
   [40640057, 1], // Kuriboh
   [SLIFER_ANIME, 1],
   [53129443, 1], // Dark Hole
@@ -44,11 +45,11 @@ const kaiba: DeckList = [
   [76184692, 2], // Hitotsu-Me Giant
   [24611934, 2], // Ryu-Kishin Powered
   [97590747, 2], // La Jinn the Mystical Genie of the Lamp
-  [14898066, 2], // Vorse Raider
+  [73481154, 2], // Destroyer Golem
   [30113682, 1], // Judge Man
   [26378150, 2], // Rude Kaiser
   [68516705, 2], // Mystic Horseman
-  [17444133, 1], // Kaiser Sea Horse
+  [67724379, 1], // Koumori Dragon
   [62397231, 1], // Hyozanryu
   [OBELISK_ANIME, 1],
   [53129443, 1], // Dark Hole

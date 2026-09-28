@@ -6,6 +6,8 @@
     "test": "vitest run",
     "typecheck": "tsc",
     "vendor": "node scripts/vendor.ts",
+    "import-sets": "node scripts/import-sets.ts",
+    "images": "node scripts/images.ts",
     "duel": "node src/duel.ts"
   },
   "devDependencies": {
