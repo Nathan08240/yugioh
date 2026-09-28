@@ -43,6 +43,7 @@
 
 ## Vague 5
 
+- [x] F-cartes-fr : textes des cartes et messages du moteur en français, cartes dessinées avec leur illustration (feat/F-cartes-fr)
 - [ ] F-extra-deck-duel : charger l'Extra Deck du deck actif dans les duels (fusions tirées en booster)
 - [ ] F-bot-regles-histoire : le bot pose toujours un monstre aux règles du Royaume des Duellistes, nom lisible de la carte de règle au lancement
 - [ ] F-histoire-arcs : un ticket par arc (Duelist Kingdom, Battle City, Noah, finales Battle City, Doma, Grand Championship KC, Monde des souvenirs), découpage à caler sur les 6 saisons
