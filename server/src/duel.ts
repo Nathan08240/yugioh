@@ -24,11 +24,12 @@ export const STARTING_LP = 4000;
 // `cards`: EDOPro Extra Rules cards (aux.EnableExtraRules), shuffled into player 0's deck; each one leaves the duel at the start.
 export type Rules = { lp: number; hand: number; cards: readonly number[] };
 export const STANDARD_RULES: Rules = { lp: STARTING_LP, hand: 5, cards: [] };
-// aux.EnableExtraRules asks both players to agree, Stringid(4014, 6): the host imposes the rule and says yes.
-const RULE_AGREEMENT = (4014n << 20n) | 6n;
+// aux.EnableExtraRules asks both players to agree, Stringid(4014, 6), and Virtual World whether to apply the Deck Master
+// System, Stringid(153999999, 0): the host imposes the rule and says yes.
+const RULE_AGREEMENTS: ReadonlySet<bigint> = new Set([(4014n << 20n) | 6n, 153999999n << 20n]);
 
 export function agreeToRules(question: OcgMessage): OcgResponse | undefined {
-  if (question.type !== OcgMessageType.SELECT_YESNO || question.description !== RULE_AGREEMENT) return undefined;
+  if (question.type !== OcgMessageType.SELECT_YESNO || !RULE_AGREEMENTS.has(question.description)) return undefined;
   return { type: OcgResponseType.SELECT_YESNO, yes: true };
 }
 const MAX_STEPS = 20_000;

@@ -1,7 +1,8 @@
 import { OcgLocation, OcgMessageType, OcgResponseType, type OcgResponse } from "@n1xx1/ocgcore-wasm";
 import type { Message, Place } from "./board.ts";
 
-export const placeKey = (place: Place) => `${place.controller}:${place.location}:${place.sequence}`;
+// Cards outside the duel (location 0, such as the Deck Masters to declare) all have sequence 0: their code tells them apart.
+export const placeKey = (place: Place & { code?: number }) => `${place.controller}:${place.location}:${place.location ? place.sequence : place.code}`;
 
 // Bits of field_mask, set for every zone that cannot be chosen: 0-4 own monsters, 8-12 own S/T, 13 field zone, +16 opponent.
 const ZONES = [
