@@ -9,7 +9,8 @@
 - Boosters façon TCG Pocket : vrais sets de l'époque avec leurs raretés, 1 booster gratuit par timer et des boosters gagnés en jouant. Tirage côté serveur.
 - Deck builder limité à la collection du joueur.
 - Mode Histoire : les duels clés de chaque arc (~40 duels). Cartes anime débloquées par l'histoire (à valider).
-- Comptes et sauvegarde : Supabase, schéma dédié `yugioh`.
+- Comptes et sauvegarde : Supabase, schéma dédié `yugioh` (migration `yugioh_init` appliquée à la main le 2026-09-28).
+- Pool classique : 14 boosters LOB à FET et les starter decks Yugi, Kaiba, Joey, Pegasus (`server/data/sets.json`).
 - Déploiement : Coolify.
 
 ## Vague 1
@@ -19,12 +20,13 @@
 
 ## Vague 2
 
-- [ ] F-pool-cartes-import : liste des cartes autorisées, import des données et des images
-- [ ] F-serveur-partie : salles WebSocket, un duel par salle, informations cachées filtrées par joueur, reconnexion
-- [ ] F-comptes-supabase : comptes et schéma `yugioh` (collection, decks, progression, timers de boosters)
+- [x] F-pool-cartes-import : liste des cartes autorisées, import des données et des images (feat/F-pool-cartes-import)
+- [x] F-serveur-partie : salles WebSocket, un duel par salle, informations cachées filtrées par joueur, reconnexion (feat/F-serveur-partie)
+- [x] F-comptes-supabase : comptes et schéma `yugioh` (collection, decks, progression, timers de boosters) (feat/F-comptes-supabase)
 
 ## Vague 3
 
+- [ ] F-serveur-robustesse : une erreur du moteur (duelProcess) ne doit pas arrêter tout le serveur, seulement la salle concernée ; vérifier l'envoi des HINT publics aux deux joueurs
 - [ ] F-client-lobby : scaffold Vite + React, créer ou rejoindre une salle par code
 - [ ] F-client-plateau : plateau et choix du joueur à partir des messages du moteur
 - [ ] F-boosters-serveur : sets, raretés, tirage, booster gratuit par timer
