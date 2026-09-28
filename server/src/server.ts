@@ -1,3 +1,4 @@
+import { spawn } from "node:child_process";
 import { randomInt } from "node:crypto";
 import { createReadStream, existsSync } from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
@@ -18,6 +19,7 @@ import { agreeToRules, openDuel, STANDARD_RULES, type Rules, type Seed } from ".
 import { isAllowed, POOL, type Printing } from "./pool.ts";
 import type { CardInfo, ClientMessage, Rewards, Seat, ServerMessage } from "./protocol.ts";
 import { respond } from "./respond.ts";
+import { serveClient } from "./site.ts";
 import { chooseStarter, starterCards, type Starter } from "./starter.ts";
 import { completeDuel, completedDuels, isUnlocked, STORY, STORY_DUELS, storyDeck, storyExtra, storyRules, storyView, type StoryDuel } from "./story.ts";
 import { systemStrings } from "./strings.ts";
@@ -153,6 +155,7 @@ function serveHttp(req: IncomingMessage, res: ServerResponse) {
     createReadStream(artFile(code)).pipe(res);
     return;
   }
+  if (serveClient(req, res)) return;
   res.writeHead(404).end();
 }
 
@@ -524,4 +527,10 @@ if (import.meta.main) {
   const port = Number(process.env.PORT ?? 3001);
   startServer(port, dbAccounts(openDb()));
   console.log(`Serveur de partie sur http://localhost:${port} (WebSocket et /api)`);
+  // Missing artworks download in the background: the server answers without them meanwhile.
+  if ([...SERVED].some((code) => !existsSync(artFile(code)))) {
+    spawn(process.execPath, [join(import.meta.dirname, "..", "scripts", "images.ts")], { stdio: "inherit" }).on("error", console.error);
+  }
+  // As PID 1 in a container, Node ignores SIGTERM without a handler.
+  process.on("SIGTERM", () => process.exit());
 }

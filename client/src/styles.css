@@ -55,6 +55,16 @@ h2 {
   font-size: 1.35rem;
 }
 
+.source {
+  margin-top: 1.5rem;
+  text-align: center;
+  font-size: 0.85rem;
+}
+
+.source a {
+  color: var(--muted);
+}
+
 .panel {
   background: var(--panel);
   border: 1px solid var(--line);

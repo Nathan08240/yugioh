@@ -40,6 +40,9 @@ export function App() {
         {session === null && <AuthForm />}
         {session && <Lobby key={session.user.id} />}
       </main>
+      <footer className="source">
+        <a href="https://github.com/Nathan08240/yugioh" target="_blank" rel="noreferrer">Code source</a>
+      </footer>
     </div>
   );
 }
