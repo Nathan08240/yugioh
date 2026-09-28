@@ -22,6 +22,7 @@ import {
   type OcgResponse,
 } from "@n1xx1/ocgcore-wasm";
 import { cardAt, newBoard, playAll, type Board, type Card, type Message, type Place, type Side } from "../../client/src/board.ts";
+import { announceCard } from "./announce.ts";
 import { cardInfo, readCard, readScript } from "./cards.ts";
 import type { Seat } from "./protocol.ts";
 import { respond, tributes } from "./respond.ts";
@@ -106,10 +107,10 @@ export class Bot {
     const target = this.target;
     this.target = undefined;
     try {
-      return this.decide(question, target) ?? respond(question);
+      return this.decide(question, target) ?? respond(question, announceCard);
     } catch (error) {
       console.error(`[bot] repli sur la première option : ${error}`);
-      return respond(question);
+      return respond(question, announceCard);
     }
   }
 

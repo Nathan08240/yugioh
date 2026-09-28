@@ -5,6 +5,7 @@ import type { OcgFieldState } from "@n1xx1/ocgcore-wasm";
 import type { WebSocket } from "ws";
 import { KAIBA, YUGI } from "../src/decks.ts";
 import { openDuel, STARTING_LP } from "../src/duel.ts";
+import { announceCard } from "../src/announce.ts";
 import { respond } from "../src/respond.ts";
 import { advance, type Room } from "../src/server.ts";
 
@@ -35,7 +36,7 @@ const room: Room = {
 
 advance(room);
 while (room.duel && room.question) {
-  lib.duelSetResponse(handle, respond(room.question));
+  lib.duelSetResponse(handle, respond(room.question, announceCard));
   advance(room);
 }
 const fixture = { seat: 0, lp: STARTING_LP, decks: [YUGI.length, KAIBA.length], received, field };

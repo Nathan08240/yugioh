@@ -1,5 +1,4 @@
 import {
-  cardMatchesOpcode,
   OcgLocation,
   OcgMessageType,
   OcgResponseType,
@@ -19,8 +18,12 @@ import {
   type OcgResponse,
   type SelectFieldPlace,
 } from "@n1xx1/ocgcore-wasm";
-import { readCard } from "./cards.ts";
-import { POOL } from "./pool.ts";
+
+// No runtime import of the server's card data: the client bundles this file for its fallback choice.
+type Announce = (opcodes: OcgOpCode[]) => number;
+const cannotAnnounce: Announce = () => {
+  throw new Error("aucune carte déclarable");
+};
 
 // Pass on position changes so monsters stay in attack and the duel moves forward.
 function idle(msg: OcgMessageSelectIdlecmd): OcgResponse {
@@ -118,19 +121,10 @@ function lowBits(mask: bigint, count: number): bigint[] {
   return bits;
 }
 
-// ponytail: first pool card the filter accepts, scanning the whole pool on each announce.
-function announceCard(opcodes: OcgOpCode[]): number {
-  for (const code of POOL) {
-    const card = readCard(code);
-    if (card && cardMatchesOpcode(card, opcodes)) return code;
-  }
-  throw new Error("aucune carte déclarable");
-}
-
 const firstIndices = (min: number) => Array.from({ length: Math.max(min, 1) }, (_, i) => i);
 
-// Takes the first valid option of every question: the fallback of the bot (src/bot.ts).
-export function respond(msg: OcgMessage): OcgResponse {
+// Takes the first valid option of every question: the fallback of the bot (src/bot.ts). The server passes announceCard.
+export function respond(msg: OcgMessage, announce = cannotAnnounce): OcgResponse {
   switch (msg.type) {
     case OcgMessageType.SELECT_IDLECMD:
       return idle(msg);
@@ -168,7 +162,7 @@ export function respond(msg: OcgMessage): OcgResponse {
     case OcgMessageType.ANNOUNCE_ATTRIB:
       return { type: OcgResponseType.ANNOUNCE_ATTRIB, attributes: lowBits(BigInt(msg.available), msg.count).map(Number) as OcgAttribute[] };
     case OcgMessageType.ANNOUNCE_CARD:
-      return { type: OcgResponseType.ANNOUNCE_CARD, card: announceCard(msg.opcodes) };
+      return { type: OcgResponseType.ANNOUNCE_CARD, card: announce(msg.opcodes) };
     // The engine takes the index of the chosen option.
     case OcgMessageType.ANNOUNCE_NUMBER:
       return { type: OcgResponseType.ANNOUNCE_NUMBER, value: 0 };

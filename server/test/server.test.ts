@@ -50,7 +50,7 @@ afterAll(() => wss.close());
 
 // A client logged in as `user` (if any) that records everything and answers its questions with `answer`
 // (undefined keeps the question pending).
-async function connect(user?: string, answer: Answer = respond) {
+async function connect(user?: string, answer: Answer = (question) => respond(question)) {
   const socket = new WebSocket(url);
   const received: Received[] = [];
   socket.on("message", (data) => {

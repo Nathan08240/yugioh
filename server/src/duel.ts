@@ -12,6 +12,7 @@ import {
   type OcgMessage,
   type OcgResponse,
 } from "@n1xx1/ocgcore-wasm";
+import { announceCard } from "./announce.ts";
 import { cardName, readCard, readScript } from "./cards.ts";
 import { KAIBA, YUGI } from "./decks.ts";
 import { respond } from "./respond.ts";
@@ -166,7 +167,7 @@ export async function openDuel(
 
 // Answers from what its seat may see: the question through hideCards, the messages so far through visibleTo.
 export type Player = (question: OcgMessage, log: readonly OcgMessage[]) => OcgResponse;
-const firstOption: Player = (question) => respond(question);
+const firstOption: Player = (question) => respond(question, announceCard);
 
 export async function runDuel(
   seed: Seed,
