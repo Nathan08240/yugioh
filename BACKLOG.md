@@ -11,7 +11,7 @@
 - Cadeau de départ : un starter deck au choix (Yugi SDY ou Kaiba SDK) à la création du profil.
 - Chances des boosters : données YGOJSON telles quelles (Ultra 1:24 à partir de SOD confirmé par Yugipedia, Ultimate 1:12 non confirmé).
 - Mode Histoire : les duels clés de chaque arc (~40 duels). Cartes anime débloquées par l'histoire (à valider).
-- Comptes et sauvegarde : Supabase, schéma dédié `yugioh` (migration `yugioh_init` appliquée à la main le 2026-09-28).
+- Comptes et sauvegarde : Supabase, schéma dédié `yugioh` (migration `yugioh_init` appliquée à la main le 2026-09-28, `yugioh_active_deck` appliquée par le MCP).
 - Pool classique : 14 boosters LOB à FET et les starter decks Yugi, Kaiba, Joey, Pegasus (`server/data/sets.json`).
 - Déploiement : Coolify.
 
@@ -35,13 +35,15 @@
 
 ## Vague 4
 
-- [ ] F-bot : joueur côté serveur qui répond aux questions du moteur
+- [x] F-bot : joueur côté serveur qui répond aux questions du moteur (feat/F-bot)
 - [x] F-starter-deck : choix du starter deck Yugi ou Kaiba après le pseudo, ajouté à la collection et enregistré comme deck actif ; les duels utilisent le deck actif de chaque joueur (feat/F-starter-deck)
 - [x] F-collection-deck-builder : collection et decks limités aux cartes possédées, deck actif au choix ; validation serveur (40-60, extra 15 fusions, 3 exemplaires, possédées, pool) (feat/F-collection-deck-builder)
-- [ ] F-ouverture-boosters : animation d'ouverture côté client
-- [ ] F-histoire-systeme : chapitres, progression, règles spéciales, récompenses
+- [x] F-ouverture-boosters : animation d'ouverture côté client, 1 booster au vainqueur d'un duel en ligne (feat/F-ouverture-boosters)
+- [x] F-histoire-systeme : chapitres, progression, règles spéciales, récompenses, chapitre d'exemple Royaume des Duellistes (feat/F-histoire-systeme)
 
 ## Vague 5
 
+- [ ] F-extra-deck-duel : charger l'Extra Deck du deck actif dans les duels (fusions tirées en booster)
+- [ ] F-bot-regles-histoire : le bot pose toujours un monstre aux règles du Royaume des Duellistes, nom lisible de la carte de règle au lancement
 - [ ] F-histoire-arcs : un ticket par arc (Duelist Kingdom, Battle City, Noah, finales Battle City, Doma, Grand Championship KC, Monde des souvenirs), découpage à caler sur les 6 saisons
-- [ ] F-deploiement-coolify : conteneur serveur + client sur Coolify
+- [ ] F-deploiement-coolify : conteneur serveur + client sur Coolify (le serveur importe client/src/board.ts pour le bot ; router /ws et /api ; base via le réseau Docker du service Supabase)
