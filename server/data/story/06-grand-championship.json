@@ -1,0 +1,288 @@
+{
+  "version": 1,
+  "anime": [],
+  "arcs": [
+    {
+      "id": "grand-championship",
+      "title": "Le Grand Championship de Kaiba Corp",
+      "duels": [
+        {
+          "id": "kcgc-qualif",
+          "title": "Les qualifications",
+          "opponent": "Un candidat des qualifications",
+          "deck": [
+            [6368038, 1],
+            [91152256, 2],
+            [49681811, 1],
+            [51345461, 1],
+            [65475294, 1],
+            [78658564, 1],
+            [32452818, 2],
+            [5053103, 2],
+            [423705, 2],
+            [35215622, 1],
+            [74591968, 1],
+            [11321183, 2],
+            [75953262, 2],
+            [41006930, 1],
+            [40453765, 1],
+            [20394040, 1],
+            [72302403, 1],
+            [40619825, 1],
+            [53129443, 1],
+            [83764718, 1],
+            [12580477, 1],
+            [5318639, 1],
+            [4031928, 1],
+            [17814387, 1],
+            [4206964, 2],
+            [53582587, 1],
+            [56120475, 1],
+            [12607053, 1],
+            [1184620, 1],
+            [11987744, 1],
+            [21887179, 1],
+            [16556849, 1],
+            [76909279, 1],
+            [64501875, 1]
+          ],
+          "rules": {
+            "lp": 4000,
+            "hand": 5
+          },
+          "intro": "Kaiba Corp ouvre son Grand Championship et les meilleurs duellistes du monde s'y pressent. Pour passer les qualifications, Yugi affronte un guerrier obstiné qui mise sur la force brute et sur des attaques répétées.",
+          "outro": "Les qualifications sont franchies. Yugi rejoint le tableau final du tournoi, où l'attendent des duellistes bien plus redoutables.",
+          "rewards": {
+            "boosters": 1
+          },
+          "requires": [
+            "doma"
+          ]
+        },
+        {
+          "id": "kcgc-leon",
+          "title": "Le duelliste de l'ombre",
+          "opponent": "Léon von Schroeder",
+          "deck": [
+            [70781052, 2],
+            [53982768, 1],
+            [11761845, 1],
+            [61370518, 1],
+            [35975813, 2],
+            [9603356, 2],
+            [16475472, 1],
+            [96890582, 1],
+            [73698349, 1],
+            [49881766, 2],
+            [46820049, 1],
+            [41392891, 2],
+            [24611934, 2],
+            [14531242, 1],
+            [78010363, 1],
+            [53129443, 1],
+            [83764718, 1],
+            [12580477, 1],
+            [45986603, 1],
+            [4031928, 1],
+            [14087893, 1],
+            [5318639, 1],
+            [4206964, 2],
+            [44095762, 1],
+            [29401950, 1],
+            [97077563, 1],
+            [62279055, 1],
+            [57579381, 1],
+            [91996584, 1],
+            [71107816, 1],
+            [88472456, 1],
+            [12953226, 1],
+            [76052811, 1]
+          ],
+          "rules": {
+            "lp": 4000,
+            "hand": 5
+          },
+          "intro": "Léon von Schroeder, jeune prodige au sang-froid glacial, entre en lice. Son deck de démons frappe fort et vite, et il ne laisse aucune ouverture à qui hésite.",
+          "outro": "Malgré la pression des démons de Léon, Yugi garde la tête froide et emporte le duel. Le tableau du championnat se resserre.",
+          "rewards": {
+            "boosters": 2,
+            "cards": [
+              9596126
+            ]
+          },
+          "requires": [
+            "kcgc-qualif"
+          ]
+        },
+        {
+          "id": "kcgc-zigfried",
+          "title": "La machine de guerre",
+          "opponent": "Zigfried von Schroeder",
+          "deck": [
+            [81480460, 1],
+            [87322377, 1],
+            [25551951, 1],
+            [51632798, 1],
+            [18891691, 1],
+            [3797883, 1],
+            [47879985, 1],
+            [87511987, 2],
+            [86281779, 2],
+            [90908427, 1],
+            [55998462, 2],
+            [84636823, 1],
+            [44203504, 2],
+            [62651957, 2],
+            [65622692, 2],
+            [64500000, 2],
+            [11384280, 1],
+            [2851070, 1],
+            [53129443, 1],
+            [83764718, 1],
+            [12580477, 1],
+            [19613556, 1],
+            [5318639, 1],
+            [4206964, 1],
+            [53582587, 1],
+            [44095762, 1],
+            [62279055, 1],
+            [41420027, 1],
+            [29172562, 1],
+            [44913552, 1],
+            [98162242, 1],
+            [97923414, 1],
+            [99050989, 1],
+            [2311603, 1]
+          ],
+          "rules": {
+            "lp": 4000,
+            "hand": 5
+          },
+          "intro": "Zigfried von Schroeder, redoutable stratège, aligne des machines sans état d'âme. Il calcule chaque coup et cherche à écraser son adversaire sous le poids de son armée mécanique.",
+          "outro": "La machine de Zigfried s'enraye devant l'adresse de Yugi. La voie est libre vers les demi-finales.",
+          "rewards": {
+            "boosters": 2,
+            "cards": [
+              77585513
+            ]
+          },
+          "requires": [
+            "kcgc-leon"
+          ]
+        },
+        {
+          "id": "kcgc-semi",
+          "title": "La demi-finale",
+          "opponent": "Un finaliste du tournoi",
+          "deck": [
+            [28279543, 2],
+            [17658803, 2],
+            [11091375, 2],
+            [39111158, 1],
+            [66516792, 1],
+            [74677422, 2],
+            [52824910, 1],
+            [73398797, 2],
+            [56789759, 1],
+            [67494157, 1],
+            [31553716, 1],
+            [67724379, 1],
+            [39191307, 1],
+            [30314994, 1],
+            [50045299, 1],
+            [53129443, 1],
+            [83764718, 1],
+            [12580477, 1],
+            [5318639, 1],
+            [4031928, 1],
+            [64047146, 1],
+            [4206964, 2],
+            [44095762, 1],
+            [53582587, 1],
+            [12607053, 1],
+            [17814387, 1],
+            [87564352, 1],
+            [87796900, 1],
+            [55444629, 1],
+            [50939127, 1],
+            [43586926, 1],
+            [62113340, 1],
+            [15960641, 1],
+            [72302403, 1]
+          ],
+          "rules": {
+            "lp": 4000,
+            "hand": 5
+          },
+          "intro": "À une marche de la finale, Yugi fait face à un finaliste qui a bâti son deck autour des dragons. Ses monstres imposants peuvent renverser le duel en un seul tour.",
+          "outro": "Les dragons sont vaincus. Yugi est le dernier duelliste à s'être qualifié pour la finale de Kaiba Corp.",
+          "rewards": {
+            "boosters": 2,
+            "cards": [
+              78193831
+            ]
+          },
+          "requires": [
+            "kcgc-zigfried"
+          ]
+        },
+        {
+          "id": "kcgc-kaiba",
+          "title": "La finale de Kaiba Corp",
+          "opponent": "Seto Kaiba",
+          "deck": [
+            [89631139, 3],
+            [17985575, 1],
+            [5053103, 2],
+            [66602787, 1],
+            [76184692, 1],
+            [24611934, 2],
+            [97590747, 2],
+            [73481154, 1],
+            [30113682, 1],
+            [26378150, 1],
+            [68516705, 1],
+            [67724379, 1],
+            [62397231, 1],
+            [52824910, 1],
+            [53839837, 1],
+            [511600398, 1],
+            [53129443, 1],
+            [83764718, 1],
+            [12580477, 1],
+            [19613556, 1],
+            [5318639, 1],
+            [4031928, 1],
+            [66788016, 1],
+            [4206964, 2],
+            [44095762, 1],
+            [41420027, 1],
+            [62279055, 1],
+            [47879985, 1],
+            [87511987, 1],
+            [55998462, 1],
+            [44203504, 1],
+            [18246479, 1],
+            [84636823, 1],
+            [55144522, 1]
+          ],
+          "rules": {
+            "lp": 4000,
+            "hand": 5
+          },
+          "intro": "Pour la finale de son propre tournoi, Seto Kaiba n'accepte qu'un seul adversaire digne de lui. Ses dragons Blancs aux Yeux Bleus sont prêts, et le titre de champion se joue sur ce duel.",
+          "outro": "Yugi remporte le Grand Championship de Kaiba Corp. Kaiba ne cache pas sa rage, mais sa revanche est déjà en marche.",
+          "rewards": {
+            "boosters": 3,
+            "cards": [
+              72989439
+            ]
+          },
+          "requires": [
+            "kcgc-semi"
+          ]
+        }
+      ]
+    }
+  ]
+}
