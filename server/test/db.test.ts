@@ -50,6 +50,8 @@ describe.skipIf(!hasDocker())("migration yugioh sur Postgres jetable", () => {
       create role anon nologin;
       create role authenticated nologin;`);
     await admin.unsafe(migration);
+    // Étape manuelle du propriétaire, sans mot de passe ici car le conteneur est en trust.
+    await admin.unsafe("alter role yugioh_server login");
     server = openDb(base.replace("%s", "yugioh_server"));
   }, 180_000);
 

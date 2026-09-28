@@ -57,9 +57,9 @@ create table yugioh.story_unlocks (
   primary key (user_id, unlock_id)
 );
 
--- Rôle du serveur, créé sans mot de passe : le propriétaire le définit à la main
--- (alter role yugioh_server password '...'), jamais dans une migration.
-create role yugioh_server login;
+-- Rôle du serveur, sans connexion tant que le propriétaire ne l'active pas à la main
+-- (alter role yugioh_server login password '...'), jamais dans une migration.
+create role yugioh_server nologin;
 grant usage on schema yugioh to yugioh_server;
 grant select, insert, update, delete on
   yugioh.profiles, yugioh.collection, yugioh.decks, yugioh.booster_state,
