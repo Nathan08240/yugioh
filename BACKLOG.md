@@ -44,7 +44,18 @@
 ## Vague 5
 
 - [x] F-cartes-fr : textes des cartes et messages du moteur en français, cartes dessinées avec leur illustration (feat/F-cartes-fr)
-- [ ] F-extra-deck-duel : charger l'Extra Deck du deck actif dans les duels (fusions tirées en booster)
-- [ ] F-bot-regles-histoire : le bot pose toujours un monstre aux règles du Royaume des Duellistes, nom lisible de la carte de règle au lancement
-- [ ] F-histoire-arcs : un ticket par arc (Duelist Kingdom, Battle City, Noah, finales Battle City, Doma, Grand Championship KC, Monde des souvenirs), découpage à caler sur les 6 saisons
-- [ ] F-deploiement-coolify : conteneur serveur + client sur Coolify (le serveur importe client/src/board.ts pour le bot ; router /ws et /api ; base via le réseau Docker du service Supabase ; illustrations sur un volume persistant, téléchargées par `pnpm images` au premier démarrage si absentes, jamais dans git ni Supabase Storage)
+- [x] F-extra-deck-duel : Extra Deck du deck actif chargé dans les duels, fusions jouables (feat/F-extra-deck-duel)
+- [x] F-histoire-duelist-kingdom : arc 1 complet (7 duels), bot aux règles de l'île, nom de la carte de règle (feat/F-histoire-duelist-kingdom)
+- [x] F-histoire-battle-city : arc 2 (5 duels, règles Battle City, Slifer) (feat/F-histoire-battle-city)
+- [x] F-histoire-noah : arc 3 (6 duels, règles Virtual World et Deck Masters) (feat/F-histoire-noah)
+- [x] F-histoire-finales-battle-city : arc 4 (6 duels, Obelisk et Râ) (feat/F-histoire-finales-battle-city)
+- [x] F-histoire-doma : arc 5 (5 duels, Sceau d'Orichalque) (feat/F-histoire-doma)
+- [x] F-histoire-grand-championship : arc 6 (5 duels) (feat/F-histoire-grand-championship)
+- [x] F-histoire-monde-des-souvenirs : arc 7 (5 duels) (feat/F-histoire-monde-des-souvenirs)
+- [x] F-deploiement-coolify : image Docker unique, client servi par le serveur de jeu, volume des illustrations, lien vers le code, réglages dans DEPLOY.md (feat/F-deploiement-coolify)
+
+## Mise en ligne
+
+- [ ] Passer le repo GitHub en public (licence AGPL du moteur)
+- [ ] Créer l'application Coolify selon DEPLOY.md (yugioh.nbrcs.pro, volume, variables, réseau Supabase)
+- [ ] Ajouter https://yugioh.nbrcs.pro aux URL de redirection de Supabase Auth
