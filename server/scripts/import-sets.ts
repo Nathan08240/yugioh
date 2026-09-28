@@ -1,4 +1,4 @@
-// Build data/sets.json from YGOJSON (set lists with rarities, sourced from Yugipedia and YGOPRODeck).
+// Build data/sets.json from YGOJSON (set lists with rarities and booster slots, sourced from Yugipedia and YGOPRODeck).
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -8,7 +8,7 @@ import { readCard } from "../src/cards.ts";
 const CODES = new Set(["LOB", "MRD", "MRL", "PSV", "LON", "LOD", "PGD", "MFC", "DCR", "IOC", "AST", "SOD", "RDS", "FET", "SDY", "SDK", "SDJ", "SDP"]);
 
 type Printing = { card: string; rarity: string };
-type Content = { locales: string[]; cards: Printing[] };
+type Content = { locales: string[]; distrobution?: string; cards: Printing[] };
 type YgoSet = { name: { en: string }; locales?: Record<string, { prefix?: string; date?: string }>; contents: Content[] };
 
 const dir = join(import.meta.dirname, "..", "vendor", "YGOJSON");
@@ -17,7 +17,7 @@ if (existsSync(dir)) {
   git("-C", dir, "pull", "--ff-only", "--depth", "1");
 } else {
   git("clone", "--depth", "1", "--filter=blob:none", "--no-checkout", "-b", "v1/individual", "https://github.com/iconmaster5326/YGOJSON.git", dir);
-  git("-C", dir, "sparse-checkout", "set", "--no-cone", "/sets/*", "/cards/*");
+  git("-C", dir, "sparse-checkout", "set", "--no-cone", "/sets/*", "/cards/*", "/distributions/*");
   git("-C", dir, "checkout");
 }
 
@@ -26,6 +26,16 @@ const readJson = (...path: string[]) => JSON.parse(readFileSync(join(dir, ...pat
 function passcode(card: string): number {
   const codes = (readJson("cards", `${card}.json`) as { passwords: string[] }).passwords.map(Number);
   return codes.find((code) => readCard(code)?.alias === 0) ?? codes[0];
+}
+
+// Booster slots as in YGOJSON; starter decks are "preconstructed" and get none.
+function boosterSlots(distribution?: string): object[] | undefined {
+  if (distribution === "preconstructed") return undefined;
+  const { quotas, slots } = readJson("distributions", `${distribution}.json`);
+  if (quotas || slots.some((slot: Record<string, unknown>) => slot.type !== "pool" || slot.set || slot.cardTypes || slot.duplicates)) {
+    throw new Error(`distribution ${distribution} non gérée`);
+  }
+  return slots;
 }
 
 const found = new Map<string, object>();
@@ -42,7 +52,7 @@ for (const file of readdirSync(join(dir, "sets"))) {
   const content = set.contents.find((c) => c.locales.includes(locale));
   if (!content) throw new Error(`${code} : pas de liste de cartes ${locale}`);
   const cards = content.cards.map((p) => ({ code: passcode(p.card), rarity: p.rarity }));
-  found.set(code, { code, name: set.name.en, date: info.date, cards });
+  found.set(code, { code, name: set.name.en, date: info.date, slots: boosterSlots(content.distrobution), cards });
 }
 
 const missing = [...CODES].filter((code) => !found.has(code));

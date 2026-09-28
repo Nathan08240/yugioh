@@ -3,6 +3,64 @@
     "code": "LOB",
     "name": "Legend of Blue Eyes White Dragon",
     "date": "2002-03-08",
+    "slots": [
+      {
+        "type": "pool",
+        "rarity": [
+          {
+            "rarities": [
+              "shortprint"
+            ],
+            "chance": 3
+          },
+          {
+            "rarities": [
+              "common"
+            ]
+          }
+        ],
+        "qty": 7,
+        "proportionate": true
+      },
+      {
+        "type": "pool",
+        "rarity": [
+          {
+            "rarities": [
+              "rare"
+            ]
+          }
+        ]
+      },
+      {
+        "type": "pool",
+        "rarity": [
+          {
+            "rarities": [
+              "super"
+            ],
+            "chance": 6
+          },
+          {
+            "rarities": [
+              "ultra"
+            ],
+            "chance": 12
+          },
+          {
+            "rarities": [
+              "secret"
+            ],
+            "chance": 31
+          },
+          {
+            "rarities": [
+              "common"
+            ]
+          }
+        ]
+      }
+    ],
     "cards": [
       {
         "code": 39111158,
@@ -514,6 +572,64 @@
     "code": "MRD",
     "name": "Metal Raiders",
     "date": "2002-06-26",
+    "slots": [
+      {
+        "type": "pool",
+        "rarity": [
+          {
+            "rarities": [
+              "shortprint"
+            ],
+            "chance": 3
+          },
+          {
+            "rarities": [
+              "common"
+            ]
+          }
+        ],
+        "qty": 7,
+        "proportionate": true
+      },
+      {
+        "type": "pool",
+        "rarity": [
+          {
+            "rarities": [
+              "rare"
+            ]
+          }
+        ]
+      },
+      {
+        "type": "pool",
+        "rarity": [
+          {
+            "rarities": [
+              "super"
+            ],
+            "chance": 6
+          },
+          {
+            "rarities": [
+              "ultra"
+            ],
+            "chance": 12
+          },
+          {
+            "rarities": [
+              "secret"
+            ],
+            "chance": 31
+          },
+          {
+            "rarities": [
+              "common"
+            ]
+          }
+        ]
+      }
+    ],
     "cards": [
       {
         "code": 25833572,
@@ -1097,6 +1213,64 @@
     "code": "MRL",
     "name": "Spell Ruler",
     "date": "2002-09-16",
+    "slots": [
+      {
+        "type": "pool",
+        "rarity": [
+          {
+            "rarities": [
+              "shortprint"
+            ],
+            "chance": 3
+          },
+          {
+            "rarities": [
+              "common"
+            ]
+          }
+        ],
+        "qty": 7,
+        "proportionate": true
+      },
+      {
+        "type": "pool",
+        "rarity": [
+          {
+            "rarities": [
+              "rare"
+            ]
+          }
+        ]
+      },
+      {
+        "type": "pool",
+        "rarity": [
+          {
+            "rarities": [
+              "super"
+            ],
+            "chance": 6
+          },
+          {
+            "rarities": [
+              "ultra"
+            ],
+            "chance": 12
+          },
+          {
+            "rarities": [
+              "secret"
+            ],
+            "chance": 31
+          },
+          {
+            "rarities": [
+              "common"
+            ]
+          }
+        ]
+      }
+    ],
     "cards": [
       {
         "code": 53183600,
@@ -1520,6 +1694,64 @@
     "code": "PSV",
     "name": "Pharaoh's Servant",
     "date": "2002-10-20",
+    "slots": [
+      {
+        "type": "pool",
+        "rarity": [
+          {
+            "rarities": [
+              "shortprint"
+            ],
+            "chance": 3
+          },
+          {
+            "rarities": [
+              "common"
+            ]
+          }
+        ],
+        "qty": 7,
+        "proportionate": true
+      },
+      {
+        "type": "pool",
+        "rarity": [
+          {
+            "rarities": [
+              "rare"
+            ]
+          }
+        ]
+      },
+      {
+        "type": "pool",
+        "rarity": [
+          {
+            "rarities": [
+              "super"
+            ],
+            "chance": 6
+          },
+          {
+            "rarities": [
+              "ultra"
+            ],
+            "chance": 12
+          },
+          {
+            "rarities": [
+              "secret"
+            ],
+            "chance": 31
+          },
+          {
+            "rarities": [
+              "common"
+            ]
+          }
+        ]
+      }
+    ],
     "cards": [
       {
         "code": 77585513,
@@ -1947,6 +2179,64 @@
     "code": "LON",
     "name": "Labyrinth of Nightmare",
     "date": "2003-03-01",
+    "slots": [
+      {
+        "type": "pool",
+        "rarity": [
+          {
+            "rarities": [
+              "shortprint"
+            ],
+            "chance": 3
+          },
+          {
+            "rarities": [
+              "common"
+            ]
+          }
+        ],
+        "qty": 7,
+        "proportionate": true
+      },
+      {
+        "type": "pool",
+        "rarity": [
+          {
+            "rarities": [
+              "rare"
+            ]
+          }
+        ]
+      },
+      {
+        "type": "pool",
+        "rarity": [
+          {
+            "rarities": [
+              "super"
+            ],
+            "chance": 6
+          },
+          {
+            "rarities": [
+              "ultra"
+            ],
+            "chance": 12
+          },
+          {
+            "rarities": [
+              "secret"
+            ],
+            "chance": 31
+          },
+          {
+            "rarities": [
+              "common"
+            ]
+          }
+        ]
+      }
+    ],
     "cards": [
       {
         "code": 69140098,
@@ -2374,6 +2664,64 @@
     "code": "LOD",
     "name": "Legacy of Darkness",
     "date": "2003-06-06",
+    "slots": [
+      {
+        "type": "pool",
+        "rarity": [
+          {
+            "rarities": [
+              "shortprint"
+            ],
+            "chance": 3
+          },
+          {
+            "rarities": [
+              "common"
+            ]
+          }
+        ],
+        "qty": 7,
+        "proportionate": true
+      },
+      {
+        "type": "pool",
+        "rarity": [
+          {
+            "rarities": [
+              "rare"
+            ]
+          }
+        ]
+      },
+      {
+        "type": "pool",
+        "rarity": [
+          {
+            "rarities": [
+              "super"
+            ],
+            "chance": 6
+          },
+          {
+            "rarities": [
+              "ultra"
+            ],
+            "chance": 12
+          },
+          {
+            "rarities": [
+              "secret"
+            ],
+            "chance": 31
+          },
+          {
+            "rarities": [
+              "common"
+            ]
+          }
+        ]
+      }
+    ],
     "cards": [
       {
         "code": 3078576,
@@ -2785,6 +3133,64 @@
     "code": "PGD",
     "name": "Pharaonic Guardian",
     "date": "2003-07-18",
+    "slots": [
+      {
+        "type": "pool",
+        "rarity": [
+          {
+            "rarities": [
+              "shortprint"
+            ],
+            "chance": 3
+          },
+          {
+            "rarities": [
+              "common"
+            ]
+          }
+        ],
+        "qty": 7,
+        "proportionate": true
+      },
+      {
+        "type": "pool",
+        "rarity": [
+          {
+            "rarities": [
+              "rare"
+            ]
+          }
+        ]
+      },
+      {
+        "type": "pool",
+        "rarity": [
+          {
+            "rarities": [
+              "super"
+            ],
+            "chance": 6
+          },
+          {
+            "rarities": [
+              "ultra"
+            ],
+            "chance": 12
+          },
+          {
+            "rarities": [
+              "secret"
+            ],
+            "chance": 31
+          },
+          {
+            "rarities": [
+              "common"
+            ]
+          }
+        ]
+      }
+    ],
     "cards": [
       {
         "code": 83555666,
@@ -3224,6 +3630,64 @@
     "code": "MFC",
     "name": "Magician's Force",
     "date": "2003-10-10",
+    "slots": [
+      {
+        "type": "pool",
+        "rarity": [
+          {
+            "rarities": [
+              "shortprint"
+            ],
+            "chance": 3
+          },
+          {
+            "rarities": [
+              "common"
+            ]
+          }
+        ],
+        "qty": 7,
+        "proportionate": true
+      },
+      {
+        "type": "pool",
+        "rarity": [
+          {
+            "rarities": [
+              "rare"
+            ]
+          }
+        ]
+      },
+      {
+        "type": "pool",
+        "rarity": [
+          {
+            "rarities": [
+              "super"
+            ],
+            "chance": 6
+          },
+          {
+            "rarities": [
+              "ultra"
+            ],
+            "chance": 12
+          },
+          {
+            "rarities": [
+              "secret"
+            ],
+            "chance": 31
+          },
+          {
+            "rarities": [
+              "common"
+            ]
+          }
+        ]
+      }
+    ],
     "cards": [
       {
         "code": 38033121,
@@ -3663,6 +4127,64 @@
     "code": "DCR",
     "name": "Dark Crisis",
     "date": "2003-12-01",
+    "slots": [
+      {
+        "type": "pool",
+        "rarity": [
+          {
+            "rarities": [
+              "shortprint"
+            ],
+            "chance": 3
+          },
+          {
+            "rarities": [
+              "common"
+            ]
+          }
+        ],
+        "qty": 7,
+        "proportionate": true
+      },
+      {
+        "type": "pool",
+        "rarity": [
+          {
+            "rarities": [
+              "rare"
+            ]
+          }
+        ]
+      },
+      {
+        "type": "pool",
+        "rarity": [
+          {
+            "rarities": [
+              "super"
+            ],
+            "chance": 6
+          },
+          {
+            "rarities": [
+              "ultra"
+            ],
+            "chance": 12
+          },
+          {
+            "rarities": [
+              "secret"
+            ],
+            "chance": 31
+          },
+          {
+            "rarities": [
+              "common"
+            ]
+          }
+        ]
+      }
+    ],
     "cards": [
       {
         "code": 53839837,
@@ -4094,6 +4616,64 @@
     "code": "IOC",
     "name": "Invasion of Chaos",
     "date": "2004-03-01",
+    "slots": [
+      {
+        "type": "pool",
+        "rarity": [
+          {
+            "rarities": [
+              "shortprint"
+            ],
+            "chance": 3
+          },
+          {
+            "rarities": [
+              "common"
+            ]
+          }
+        ],
+        "qty": 7,
+        "proportionate": true
+      },
+      {
+        "type": "pool",
+        "rarity": [
+          {
+            "rarities": [
+              "rare"
+            ]
+          }
+        ]
+      },
+      {
+        "type": "pool",
+        "rarity": [
+          {
+            "rarities": [
+              "super"
+            ],
+            "chance": 6
+          },
+          {
+            "rarities": [
+              "ultra"
+            ],
+            "chance": 12
+          },
+          {
+            "rarities": [
+              "secret"
+            ],
+            "chance": 31
+          },
+          {
+            "rarities": [
+              "common"
+            ]
+          }
+        ]
+      }
+    ],
     "cards": [
       {
         "code": 82301904,
@@ -4549,6 +5129,64 @@
     "code": "AST",
     "name": "Ancient Sanctuary",
     "date": "2004-06-01",
+    "slots": [
+      {
+        "type": "pool",
+        "rarity": [
+          {
+            "rarities": [
+              "shortprint"
+            ],
+            "chance": 3
+          },
+          {
+            "rarities": [
+              "common"
+            ]
+          }
+        ],
+        "qty": 7,
+        "proportionate": true
+      },
+      {
+        "type": "pool",
+        "rarity": [
+          {
+            "rarities": [
+              "rare"
+            ]
+          }
+        ]
+      },
+      {
+        "type": "pool",
+        "rarity": [
+          {
+            "rarities": [
+              "super"
+            ],
+            "chance": 6
+          },
+          {
+            "rarities": [
+              "ultra"
+            ],
+            "chance": 12
+          },
+          {
+            "rarities": [
+              "secret"
+            ],
+            "chance": 31
+          },
+          {
+            "rarities": [
+              "common"
+            ]
+          }
+        ]
+      }
+    ],
     "cards": [
       {
         "code": 65403020,
@@ -5004,6 +5642,64 @@
     "code": "SOD",
     "name": "Soul of the Duelist",
     "date": "2004-10-01",
+    "slots": [
+      {
+        "type": "pool",
+        "rarity": [
+          {
+            "rarities": [
+              "shortprint"
+            ],
+            "chance": 3
+          },
+          {
+            "rarities": [
+              "common"
+            ]
+          }
+        ],
+        "qty": 7,
+        "proportionate": true
+      },
+      {
+        "type": "pool",
+        "rarity": [
+          {
+            "rarities": [
+              "rare"
+            ]
+          }
+        ]
+      },
+      {
+        "type": "pool",
+        "rarity": [
+          {
+            "rarities": [
+              "super"
+            ],
+            "chance": 6
+          },
+          {
+            "rarities": [
+              "ultra"
+            ],
+            "chance": 24
+          },
+          {
+            "rarities": [
+              "ultimate"
+            ],
+            "chance": 12
+          },
+          {
+            "rarities": [
+              "common"
+            ]
+          }
+        ]
+      }
+    ],
     "cards": [
       {
         "code": 13179332,
@@ -5351,6 +6047,64 @@
     "code": "RDS",
     "name": "Rise of Destiny",
     "date": "2004-12-01",
+    "slots": [
+      {
+        "type": "pool",
+        "rarity": [
+          {
+            "rarities": [
+              "shortprint"
+            ],
+            "chance": 3
+          },
+          {
+            "rarities": [
+              "common"
+            ]
+          }
+        ],
+        "qty": 7,
+        "proportionate": true
+      },
+      {
+        "type": "pool",
+        "rarity": [
+          {
+            "rarities": [
+              "rare"
+            ]
+          }
+        ]
+      },
+      {
+        "type": "pool",
+        "rarity": [
+          {
+            "rarities": [
+              "super"
+            ],
+            "chance": 6
+          },
+          {
+            "rarities": [
+              "ultra"
+            ],
+            "chance": 24
+          },
+          {
+            "rarities": [
+              "ultimate"
+            ],
+            "chance": 12
+          },
+          {
+            "rarities": [
+              "common"
+            ]
+          }
+        ]
+      }
+    ],
     "cards": [
       {
         "code": 35322812,
@@ -5698,6 +6452,64 @@
     "code": "FET",
     "name": "Flaming Eternity",
     "date": "2005-03-01",
+    "slots": [
+      {
+        "type": "pool",
+        "rarity": [
+          {
+            "rarities": [
+              "shortprint"
+            ],
+            "chance": 3
+          },
+          {
+            "rarities": [
+              "common"
+            ]
+          }
+        ],
+        "qty": 7,
+        "proportionate": true
+      },
+      {
+        "type": "pool",
+        "rarity": [
+          {
+            "rarities": [
+              "rare"
+            ]
+          }
+        ]
+      },
+      {
+        "type": "pool",
+        "rarity": [
+          {
+            "rarities": [
+              "super"
+            ],
+            "chance": 6
+          },
+          {
+            "rarities": [
+              "ultra"
+            ],
+            "chance": 24
+          },
+          {
+            "rarities": [
+              "ultimate"
+            ],
+            "chance": 12
+          },
+          {
+            "rarities": [
+              "common"
+            ]
+          }
+        ]
+      }
+    ],
     "cards": [
       {
         "code": 36119641,
