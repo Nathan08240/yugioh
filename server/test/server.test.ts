@@ -9,6 +9,7 @@ import { POOL } from "../src/pool.ts";
 import type { CardInfo, ClientMessage, ServerMessage, Wire } from "../src/protocol.ts";
 import { respond } from "../src/respond.ts";
 import { advance, creditWinner, startServer, type Accounts, type Room } from "../src/server.ts";
+import { STORY } from "../src/story.ts";
 
 type Received = Wire<ServerMessage>;
 type Answer = (question: OcgMessage, retry: boolean) => OcgResponse | undefined;
@@ -161,7 +162,7 @@ describe("serveur de partie", () => {
   it("sert les données des cartes du pool en français et leurs illustrations, pas celles hors pool ou absentes", async () => {
     const http = url.replace("ws:", "http:");
     const cards: Record<string, CardInfo> = await (await fetch(`${http}/api/cards`)).json();
-    expect(Object.keys(cards)).toHaveLength(POOL.size);
+    expect(Object.keys(cards)).toHaveLength(new Set([...POOL, ...STORY.anime]).size);
     expect(cards[46986414]).toMatchObject({ name: "Magicien Sombre", level: 7, attribute: 32, atk: 2500, def: 2100, image: true });
     expect(cards[46986414]).toMatchObject({ attributeName: "TÉNÈBRES", typeLine: "Magicien / Normal" });
     expect(cards[55144522].desc).toBe("Piochez 2 cartes.");
