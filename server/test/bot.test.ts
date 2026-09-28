@@ -8,8 +8,9 @@ import { KAIBA, YUGI } from "../src/decks.ts";
 import { runDuel, STARTING_LP, type Player, type Seed } from "../src/duel.ts";
 import type { ClientMessage, Seat, ServerMessage, Wire } from "../src/protocol.ts";
 import { respond } from "../src/respond.ts";
-import { startServer, type Accounts } from "../src/server.ts";
+import { startServer } from "../src/server.ts";
 import { hideCards, visibleTo } from "../src/visibility.ts";
+import { fakeAccounts } from "./fakes.ts";
 
 const seeds: Seed[] = Array.from({ length: 40 }, (_, i) => [BigInt(i + 1), 2n, 3n, 4n]);
 const firstOption: Player = (question) => respond(question);
@@ -42,14 +43,8 @@ describe("bot", () => {
   });
 
   it("joue un duel complet dans une salle contre un humain, sans recevoir d'information cachée", { timeout: 30_000 }, async () => {
-    const accounts: Accounts = {
-      verify: async (token) => token,
-      findProfile: async (userId) => ({ userId, pseudo: userId }),
-      createProfile: async () => undefined,
-      storyProgress: async () => new Set(),
-      completeStory: async () => undefined,
-    };
-    const wss = startServer(0, accounts, () => [5n, 2n, 3n, 4n], 0);
+    const credit = vi.fn(async () => {});
+    const wss = startServer(0, fakeAccounts({ creditBoosters: credit }), () => [5n, 2n, 3n, 4n], 0);
     onTestFinished(() => wss.close());
     await once(wss, "listening");
     const answer = vi.spyOn(Bot.prototype, "answer");
@@ -70,7 +65,9 @@ describe("bot", () => {
     await vi.waitFor(() => expect(messages()).toContainEqual(expect.objectContaining({ type: OcgMessageType.WIN })), { timeout: 25_000 });
     socket.close();
 
-    expect(received).toContainEqual(expect.objectContaining({ type: "joined", seat: 0 }));
+    // The player's active deck against the bot's, and no booster for a duel against the bot.
+    expect(received).toContainEqual(expect.objectContaining({ type: "joined", seat: 0, decks: [YUGI.length, KAIBA.length] }));
+    expect(credit).not.toHaveBeenCalled();
     for (const msg of received) if (msg.type === "question") expect(msg.question).toMatchObject({ player: 0 });
     expect(answer).toHaveBeenCalled();
     const log = answer.mock.lastCall?.[1] ?? [];

@@ -57,6 +57,7 @@ export function cardInfo(code: number): Omit<CardInfo, "image"> | undefined {
   while (strings.at(-1) === "") strings.pop();
   return {
     name: row.name ?? `#${code}`,
+    alias: Number(row.alias),
     desc: row.desc ?? "",
     type: Number(row.type),
     level: Number(row.level & 0xffn),

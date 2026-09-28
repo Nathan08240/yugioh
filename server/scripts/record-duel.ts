@@ -17,8 +17,8 @@ let field: OcgFieldState | undefined;
 const room: Room = {
   code: "FIXTURE",
   players: [
-    { id: "a", socket: recorder, log: [] },
-    { id: "b", log: [] },
+    { id: "a", socket: recorder, log: [], deck: YUGI },
+    { id: "b", log: [], deck: KAIBA },
   ],
   duel: {
     handle,

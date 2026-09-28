@@ -40,7 +40,7 @@ export function frame(type: number): string {
   return "normal";
 }
 
-const ATTRIBUTES = new Map<number, string>([
+export const ATTRIBUTES = new Map<number, string>([
   [OcgAttribute.EARTH, "TERRE"],
   [OcgAttribute.WATER, "EAU"],
   [OcgAttribute.FIRE, "FEU"],

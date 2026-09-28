@@ -9,8 +9,9 @@ import { YUGI } from "../src/decks.ts";
 import { runDuel, type Player } from "../src/duel.ts";
 import type { ClientMessage, Rewards, ServerMessage, Wire } from "../src/protocol.ts";
 import { respond } from "../src/respond.ts";
-import { startServer, type Accounts } from "../src/server.ts";
+import { startServer } from "../src/server.ts";
 import { completeDuel, completedDuels, STORY, STORY_DUELS, storyDeck, storyRules, storyView, validateStory, type Story, type StoryDuel } from "../src/story.ts";
+import { fakeAccounts } from "./fakes.ts";
 import { hasDocker, type Pg, startPostgres } from "./pg.ts";
 
 const [weevil, mako, mai] = ["dk-weevil", "dk-mako", "dk-mai"].map((id) => STORY_DUELS.get(id) as StoryDuel);
@@ -75,10 +76,7 @@ describe("duel d'histoire sur le serveur", () => {
   type Received = Wire<ServerMessage>;
   const won: string[] = [];
   const completed = new Set<string>();
-  const accounts: Accounts = {
-    verify: async (token) => token,
-    findProfile: async (userId) => ({ userId, pseudo: userId }),
-    createProfile: async () => undefined,
+  const accounts = fakeAccounts({
     storyProgress: async () => completed,
     completeStory: async (_userId, duel) => {
       won.push(duel.id);
@@ -86,7 +84,7 @@ describe("duel d'histoire sur le serveur", () => {
       completed.add(duel.id);
       return first ? duel.rewards : undefined;
     },
-  };
+  });
 
   async function play(seed: bigint, send: (socket: WebSocket, received: Received[]) => void) {
     const wss = startServer(0, accounts, () => [seed, 2n, 3n, 4n], 0);

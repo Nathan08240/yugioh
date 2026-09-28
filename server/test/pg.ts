@@ -1,12 +1,13 @@
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { type Db, openDb } from "../src/db.ts";
 
-const migration = readFileSync(
-  join(import.meta.dirname, "..", "..", "supabase", "migrations", "20260928120000_yugioh_init.sql"),
-  "utf8",
-);
+const migrationsDir = join(import.meta.dirname, "..", "..", "supabase", "migrations");
+const migrations = readdirSync(migrationsDir)
+  .filter((file) => file.endsWith(".sql"))
+  .sort()
+  .map((file) => readFileSync(join(migrationsDir, file), "utf8"));
 const docker = (...args: string[]) => execFileSync("docker", args, { encoding: "utf8" }).trim();
 
 export function hasDocker(): boolean {
@@ -47,7 +48,7 @@ export async function startPostgres(): Promise<Pg> {
       create table auth.users (id uuid primary key);
       create role anon nologin;
       create role authenticated nologin;`);
-    await admin.unsafe(migration);
+    for (const migration of migrations) await admin.unsafe(migration);
     // Étape manuelle du propriétaire, sans mot de passe ici car le conteneur est en trust.
     await admin.unsafe("alter role yugioh_server login");
     const server = openDb(base.replace("%s", "yugioh_server"));
