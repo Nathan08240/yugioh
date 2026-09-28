@@ -158,14 +158,30 @@ describe("serveur de partie", () => {
     expect(c.send).toHaveBeenCalledWith(expect.stringContaining('"question"'));
   });
 
-  it("sert les données des cartes du pool, et pas d'image hors pool ou absente", async () => {
+  it("sert les données des cartes du pool en français et leurs illustrations, pas celles hors pool ou absentes", async () => {
     const http = url.replace("ws:", "http:");
     const cards: Record<string, CardInfo> = await (await fetch(`${http}/api/cards`)).json();
     expect(Object.keys(cards)).toHaveLength(POOL.size);
-    expect(cards[46986414]).toMatchObject({ name: "Dark Magician", level: 7, attribute: 32, atk: 2500, def: 2100 });
-    expect(cards[55144522].desc).toContain("Draw 2 cards");
-    expect((await fetch(`${http}/api/images/1.jpg`)).status).toBe(404);
-    expect((await fetch(`${http}/api/images/..%2F..%2Fpackage.json`)).status).toBe(404);
+    expect(cards[46986414]).toMatchObject({ name: "Magicien Sombre", level: 7, attribute: 32, atk: 2500, def: 2100, image: true });
+    expect(cards[46986414]).toMatchObject({ attributeName: "TÉNÈBRES", typeLine: "Magicien / Normal" });
+    expect(cards[55144522].desc).toBe("Piochez 2 cartes.");
+    const art = await fetch(`${http}/api/art/46986414.jpg`);
+    expect(art.status).toBe(200);
+    expect(art.headers.get("content-type")).toBe("image/jpeg");
+    expect(art.headers.get("cache-control")).toContain("max-age");
+    expect((await art.arrayBuffer()).byteLength).toBeGreaterThan(0);
+    // Ash Blossom & Joyous Spring: a card outside the pool; 1: no such card.
+    expect((await fetch(`${http}/api/art/14558127.jpg`)).status).toBe(404);
+    expect((await fetch(`${http}/api/art/1.jpg`)).status).toBe(404);
+    expect((await fetch(`${http}/api/art/..%2F..%2Fpackage.json`)).status).toBe(404);
+    expect((await fetch(`${http}/api/images/46986414.jpg`)).status).toBe(404);
+  });
+
+  it("sert les chaînes système du moteur en français", async () => {
+    const http = url.replace("ws:", "http:");
+    const strings: Record<string, string> = await (await fetch(`${http}/api/strings`)).json();
+    expect(strings[1015]).toBe("TÉNÈBRES");
+    expect(strings[31]).toBe("Attaquer Directement?");
   });
 
   it("utilise le deck actif de chaque joueur pour le duel, pas des decks fixes", async () => {

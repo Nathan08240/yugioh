@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { COPIES_MAX, countBy, deckError, EXTRA_MAX, isFusion, MAIN_MAX, MAIN_MIN, NAME_MAX, type DeckCard, type DeckDraft } from "../../server/src/deckcheck.ts";
 import type { ClientMessage, Deck } from "../../server/src/protocol.ts";
 import { CardDetail, CardView } from "./Card.tsx";
-import { ATTRIBUTES, cardName, DuelView, useCards, useDuelView } from "./cards.ts";
+import { cardName, DuelView, useCards, useDuelView } from "./cards.ts";
 import { filterCollection, noFilters, type Filters, type Kind } from "./collection.ts";
 import type { DeckList } from "./lobby.ts";
 
@@ -108,6 +108,12 @@ function CollectionPanel({ collection, draft, onAdd }: Readonly<CollectionProps>
 }
 
 function FilterBar({ filters, onChange }: Readonly<{ filters: Filters; onChange: (filters: Filters) => void }>) {
+  const { cards } = useDuelView();
+  // The attributes of the pool in engine order, named by the server.
+  const attributes = useMemo(
+    () => [...new Map([...cards.values()].map((card) => [card.attribute, card.attributeName]))].filter(([value]) => value).sort(([a], [b]) => a - b),
+    [cards],
+  );
   const set = (patch: Partial<Filters>) => onChange({ ...filters, ...patch });
   return (
     <div className="filters">
@@ -120,7 +126,7 @@ function FilterBar({ filters, onChange }: Readonly<{ filters: Filters; onChange:
       </select>
       <select aria-label="Attribut" value={filters.attribute} onChange={(event) => set({ attribute: Number(event.target.value) })}>
         <option value={0}>Tous les attributs</option>
-        {[...ATTRIBUTES].map(([value, label]) => (
+        {attributes.map(([value, label]) => (
           <option key={value} value={value}>
             {label}
           </option>

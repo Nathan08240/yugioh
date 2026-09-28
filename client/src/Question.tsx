@@ -13,12 +13,12 @@ import type { ReactNode } from "react";
 import { respond as automatic } from "../../server/src/respond.ts";
 import type { Board, Message, Place } from "./board.ts";
 import type { Targets } from "./Board.tsx";
-import { cardName, effectText, has, useDuelView, type Cards } from "./cards.ts";
+import { cardName, effectText, has, useDuelView, type Cards, type Strings } from "./cards.ts";
 import { freePlaces, placeKey } from "./question.ts";
 
 type Q<T extends OcgMessageType> = Extract<Message, { type: T }>;
 type Located = Place & { code: number };
-export type Ctx = { board: Board; cards: Cards; picked: string[]; setPicked: (keys: string[]) => void; respond: (response: OcgResponse) => void };
+export type Ctx = { board: Board; cards: Cards; strings: Strings; picked: string[]; setPicked: (keys: string[]) => void; respond: (response: OcgResponse) => void };
 export type Ui = Omit<Targets, "picked"> & { panel: ReactNode };
 
 const NONE: ReadonlySet<string> = new Set();
@@ -47,10 +47,10 @@ export function interaction(question: Message | undefined, ctx: Ctx): Ui {
       return position(question, ctx);
     case OcgMessageType.SELECT_EFFECTYN: {
       const title = `Activer l'effet de ${cardName(ctx.cards, question.code)} ?`;
-      return yesNo(title, effectText(ctx.cards, question.description), ctx, OcgResponseType.SELECT_EFFECTYN, [question]);
+      return yesNo(title, effectText(ctx.cards, ctx.strings, question.description), ctx, OcgResponseType.SELECT_EFFECTYN, [question]);
     }
     case OcgMessageType.SELECT_YESNO: {
-      const title = effectText(ctx.cards, question.description) ?? `Confirmer ? (message du jeu n°${question.description})`;
+      const title = effectText(ctx.cards, ctx.strings, question.description) ?? "Confirmer ?";
       return yesNo(title, undefined, ctx, OcgResponseType.SELECT_YESNO, []);
     }
     case OcgMessageType.SELECT_OPTION:
@@ -105,8 +105,8 @@ function Buttons({ actions, ctx }: Readonly<{ actions: Action[]; ctx: Ctx }>) {
   );
 }
 
-const activateLabel = (cards: Cards, description: string) => {
-  const text = effectText(cards, description);
+const activateLabel = (ctx: Ctx, description: string) => {
+  const text = effectText(ctx.cards, ctx.strings, description);
   return text ? `Activer : ${text}` : "Activer";
 };
 
@@ -127,7 +127,7 @@ function idle(q: Q<OcgMessageType.SELECT_IDLECMD>, ctx: Ctx): Ui {
     ...q.activates.map((card, index) => ({
       place: card,
       id: `activate-${index}`,
-      label: activateLabel(ctx.cards, card.description),
+      label: activateLabel(ctx, card.description),
       response: idleResponse(SelectIdleCMDAction.SELECT_ACTIVATE, index),
     })),
   ];
@@ -144,7 +144,7 @@ function battle(q: Q<OcgMessageType.SELECT_BATTLECMD>, ctx: Ctx): Ui {
     ...q.chains.map((card, index) => ({
       place: card,
       id: `chain-${index}`,
-      label: activateLabel(ctx.cards, card.description),
+      label: activateLabel(ctx, card.description),
       response: battleResponse(SelectBattleCMDAction.SELECT_CHAIN, index),
     })),
   ];
@@ -158,7 +158,7 @@ function chain(q: Q<OcgMessageType.SELECT_CHAIN>, ctx: Ctx): Ui {
   const choices = q.selects.map((card, index) => ({
     place: card,
     id: String(index),
-    label: activateLabel(ctx.cards, card.description),
+    label: activateLabel(ctx, card.description),
     response: { type: OcgResponseType.SELECT_CHAIN, index } as const,
   }));
   const actions: Action[] = q.forced ? [] : [{ label: "Ne pas enchaîner", response: { type: OcgResponseType.SELECT_CHAIN, index: null } }];
@@ -306,7 +306,7 @@ function yesNo(title: string, text: string | undefined, ctx: Ctx, type: OcgRespo
 
 function option(q: Q<OcgMessageType.SELECT_OPTION>, ctx: Ctx): Ui {
   const actions = q.options.map((description, index) => ({
-    label: effectText(ctx.cards, description) ?? `Option ${index + 1}`,
+    label: effectText(ctx.cards, ctx.strings, description) ?? `Option ${index + 1}`,
     response: { type: OcgResponseType.SELECT_OPTION, index } as OcgResponse,
   }));
   return { targets: NONE, panel: <><h3>Choisissez une option</h3><Buttons actions={actions} ctx={ctx} /></> };

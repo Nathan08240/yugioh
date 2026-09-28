@@ -4,7 +4,7 @@ import type { CardInfo } from "../../server/src/protocol.ts";
 import { filterCollection, noFilters, type Filters } from "./collection.ts";
 
 const card = (name: string, type: number, stats: Partial<CardInfo> = {}): CardInfo => ({
-  name, alias: 0, desc: "", type, level: 0, attribute: 0, race: 0, atk: 0, def: 0, strings: [], image: false, ...stats,
+  name, alias: 0, desc: "", type, level: 0, attribute: 0, race: 0, atk: 0, def: 0, strings: [], attributeName: "", typeLine: "", image: false, ...stats,
 });
 const cards = new Map([
   [1, card("Dark Magician", OcgType.MONSTER | OcgType.NORMAL, { level: 7, attribute: OcgAttribute.DARK, atk: 2500, def: 2100 })],

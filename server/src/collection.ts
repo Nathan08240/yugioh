@@ -1,5 +1,5 @@
 import postgres from "postgres";
-import { cardInfo } from "./cards.ts";
+import { clientCard } from "./cards.ts";
 import type { Db } from "./db.ts";
 import { deckError, type CardLookup, type DeckDraft } from "./deckcheck.ts";
 import { isAllowed } from "./pool.ts";
@@ -51,7 +51,7 @@ export async function deckReply(store: DeckStore, userId: string, msg: DeckMessa
 }
 
 // Card data of the allowed pool only.
-export const poolCard: CardLookup = (code) => (isAllowed(code) ? cardInfo(code) : undefined);
+export const poolCard: CardLookup = (code) => (isAllowed(code) ? clientCard(code) : undefined);
 
 // Owned cards as [passcode, quantity].
 export async function readCollection(db: Db, userId: string): Promise<[number, number][]> {
