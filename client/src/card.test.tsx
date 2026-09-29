@@ -3,7 +3,7 @@ import type { ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, it } from "vitest";
 import type { CardInfo } from "../../server/src/protocol.ts";
-import { CardView } from "./Card.tsx";
+import { CardDetail, CardView } from "./Card.tsx";
 import { DuelView, effectText, strongest } from "./cards.ts";
 
 const magician: CardInfo = {
@@ -46,6 +46,15 @@ it("affiche les stats courantes d'un monstre, en vert au-dessus de l'imprimé et
   expect(boosted).toContain('ATK<b class="est-hausse">2700</b>');
   expect(boosted).toContain('DEF<b class="est-baisse">1600</b>');
   expect(render(<CardView code={46986414} atk={2500} />)).toContain("ATK<b>2500</b>");
+});
+
+it("montre dans la fiche les stats courantes avec leur couleur, et l'imprimé en rappel quand il diffère", () => {
+  const detail = render(<CardDetail code={46986414} atk={2700} def={1600} />);
+  expect(detail).toContain('ATK <b class="est-hausse">2700</b><small class="detail__imprime">(2500)</small>');
+  expect(detail).toContain('DEF <b class="est-baisse">1600</b><small class="detail__imprime">(2100)</small>');
+  const printed = render(<CardDetail code={46986414} atk={2500} />);
+  expect(printed).toContain('ATK <b>2500</b> DEF <b>2100</b>');
+  expect(printed).not.toContain("detail__imprime");
 });
 
 it("ajoute le texte dans la version complète, en italique pour un monstre normal", () => {

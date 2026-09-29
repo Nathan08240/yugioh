@@ -58,7 +58,7 @@ function Slot({ place, card, ui, label }: Readonly<{ place: Place; card: Card | 
   if (target) classes.push("target");
   if (ui.picked.includes(key)) classes.push("picked");
   if (!card && !target) return <div className={classes.join(" ")}>{label && <span className="zone-label">{label}</span>}</div>;
-  const reveal = () => card && show(card.code);
+  const reveal = () => card && show(card.code, key);
   return (
     <button
       type="button"

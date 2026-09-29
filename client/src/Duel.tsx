@@ -76,22 +76,24 @@ function useSpectacle(board: Board, feed: Feed | undefined, cards: Cards, regie:
   return { shown, idle: playing === 0 };
 }
 
-// Code of the card at a 3D zone: a card of the field, the top of a Graveyard or of the banished cards.
-function codeAt(board: Board, id: string): number {
+// Card at a 3D zone: a card of the field, the top of a Graveyard or of the banished cards.
+function zoneCard(board: Board, id: string): Card | undefined {
   const [controller, location, sequence] = id.split(":").map(Number);
-  if (sequence !== undefined) return cardAt(board, { controller, location: location as OcgLocation, sequence })?.code ?? 0;
+  if (sequence !== undefined) return cardAt(board, { controller, location: location as OcgLocation, sequence });
   const side = board.players[controller];
-  if (location === GRAVE) return side.grave.at(-1)?.code ?? 0;
-  if (location === REMOVED) return side.banished.at(-1)?.code ?? 0;
-  return 0;
+  if (location === GRAVE) return side.grave.at(-1);
+  if (location === REMOVED) return side.banished.at(-1);
+  return undefined;
 }
+
+const codeAt = (board: Board, id: string) => zoneCard(board, id)?.code ?? 0;
 
 // The end of the duel (Fin.tsx) is drawn over the board by the lobby.
 export function Duel({ board, seat, asked, respond, leave, feed, lp, pseudo, rules }: Readonly<Props>) {
   const cards = useCards();
   const strings = useSystemStrings();
-  const [detail, setDetail] = useState<number>();
-  const view = useMemo(() => ({ cards, show: setDetail, seat }), [cards, seat]);
+  const [detail, setDetail] = useState<{ code: number; place?: string }>();
+  const view = useMemo(() => ({ cards, show: (code: number, place?: string) => setDetail({ code, place }), seat }), [cards, seat]);
   const regie = useRef<Regie>({}).current;
   const hud = useHud(regie, seat, cards);
   const { shown, idle } = useSpectacle(board, feed, cards, regie, asked !== undefined);
@@ -135,12 +137,15 @@ export function Duel({ board, seat, asked, respond, leave, feed, lp, pseudo, rul
     const location = Number(id.split(":")[1]);
     if (location === GRAVE || location === REMOVED) setPile(id);
     else if (ui.targets.has(id)) ui.onPick?.(id, point);
-    else if (codeAt(shown, id)) setDetail(codeAt(shown, id));
+    else if (codeAt(shown, id)) setDetail({ code: codeAt(shown, id), place: id });
   };
   const onSurvol = (id: string | undefined) => {
     const code = id ? codeAt(shown, id) : 0;
-    if (code) setDetail(code);
+    if (code) setDetail({ code, place: id });
   };
+  // Current stats of the shown card while it stays on the field, followed live.
+  const enJeu = detail?.place ? zoneCard(shown, detail.place) : undefined;
+  const stats = enJeu?.code === detail?.code ? enJeu : undefined;
   const targets: Targets = { ...ui, picked };
 
   return (
@@ -183,7 +188,7 @@ export function Duel({ board, seat, asked, respond, leave, feed, lp, pseudo, rul
           <Turn board={shown} seat={seat} leave={leave} />
           <aside className="colonne colonne--gauche">
             <div className="panneau colonne__detail">
-              <CardDetail code={detail} />
+              <CardDetail code={detail?.code} atk={stats?.atk} def={stats?.def} />
             </div>
             <Plaque board={shown} player={seat} start={start} name={pseudo ?? "Vous"} refs={hud.refs} />
           </aside>
