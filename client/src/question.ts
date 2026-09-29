@@ -1,5 +1,6 @@
-import { OcgLocation, OcgMessageType, OcgResponseType, type OcgResponse } from "@n1xx1/ocgcore-wasm";
-import type { EngineMessage, Message, Place } from "./board.ts";
+import { OcgLocation, OcgMessageType, OcgPosition, OcgResponseType, SelectBattleCMDAction, type OcgResponse } from "@n1xx1/ocgcore-wasm";
+import type { Card, EngineMessage, Message, Place } from "./board.ts";
+import type { Cards } from "./cards.ts";
 
 // Cards outside the duel (location 0, such as the Deck Masters to declare) all have sequence 0: their code tells them apart.
 export const placeKey = (place: Place & { code?: number }) => `${place.controller}:${place.location}:${place.location ? place.sequence : place.code}`;
@@ -40,7 +41,7 @@ export function pointDe(event: { detail: number; clientX: number; clientY: numbe
 }
 
 // System string 31: asked when a monster that can attack directly also has monsters to attack.
-const ATTAQUE_DIRECTE = "31";
+export const ATTAQUE_DIRECTE = "31";
 
 // The answer a drop already gave to the next question: the zone or the monster it landed on, or a direct attack (visee without a zone, the opponent's number).
 export function reponseVisee(question: EngineMessage, visee: string): OcgResponse | undefined {
@@ -59,4 +60,44 @@ export function reponseVisee(question: EngineMessage, visee: string): OcgRespons
     default:
       return undefined;
   }
+}
+
+// Current stats of a monster, else the printed ones (a negative value is a "?" ATK/DEF).
+const stat = (cards: Cards, card: Card, key: "atk" | "def") => {
+  const value = card[key] ?? cards.get(card.code)?.[key];
+  return value === undefined || value < 0 ? undefined : value;
+};
+const degats = (n: number) => `${n} ${n > 1 ? "dégâts" : "dégât"}`;
+
+function contreAttaque(atk: number, cible: number, adversaire: string): string {
+  if (atk === cible) return "Les deux monstres sont détruits, pas de dégâts.";
+  if (atk > cible) return `Le monstre adverse est détruit, ${degats(atk - cible)} à ${adversaire}.`;
+  return `Votre monstre est détruit, ${degats(cible - atk)} pour vous.`;
+}
+
+function contreDefense(atk: number, cible: number): string {
+  if (atk > cible) return "Le monstre adverse est détruit, pas de dégâts.";
+  if (atk === cible) return "Aucun monstre détruit, pas de dégâts.";
+  return `Aucun monstre détruit, ${degats(cible - atk)} pour vous.`;
+}
+
+// What a battle would give from the current stats, card effects left aside. `cible` null: a direct attack. Undefined when a stat is unknown.
+export function apercuCombat(cards: Cards, attaquant: Card, cible: Card | null, adversaire: string): string | undefined {
+  const atk = stat(cards, attaquant, "atk");
+  if (atk === undefined) return undefined;
+  if (!cible) return `${degats(atk)} à ${adversaire}.`;
+  if (cible.position & OcgPosition.FACEDOWN) return "Monstre face cachée : DEF inconnue (?). Restez prudent.";
+  const defense = (cible.position & OcgPosition.DEFENSE) !== 0;
+  const valeur = stat(cards, cible, defense ? "def" : "atk");
+  if (valeur === undefined) return undefined;
+  return defense ? contreDefense(atk, valeur) : contreAttaque(atk, valeur, adversaire);
+}
+
+// The attacker (zone key) once a battle command, or the direct-attack question that follows it, is answered: the target question comes next.
+export function attaquantChoisi(question: EngineMessage | undefined, response: OcgResponse, courant?: string): string | undefined {
+  if (question?.type === OcgMessageType.SELECT_BATTLECMD) {
+    if (response.type !== OcgResponseType.SELECT_BATTLECMD || response.action !== SelectBattleCMDAction.SELECT_BATTLE || response.index === null) return undefined;
+    return placeKey(question.attacks[response.index]);
+  }
+  return question?.type === OcgMessageType.SELECT_YESNO && question.description === ATTAQUE_DIRECTE ? courant : undefined;
 }
