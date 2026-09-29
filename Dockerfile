@@ -39,4 +39,6 @@ RUN mkdir server/vendor/art && chown node:node server/vendor/art
 USER node
 WORKDIR /app/server
 EXPOSE 3001
+# Image slim sans curl ni wget : Coolify reprend ce healthcheck à la place du sien.
+HEALTHCHECK --interval=5s --timeout=5s --start-period=5s --retries=10 CMD node -e "fetch('http://localhost:' + process.env.PORT).then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"
 CMD ["node", "src/server.ts"]
