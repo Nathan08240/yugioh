@@ -25,6 +25,8 @@ RUN pnpm install --frozen-lockfile --prod --ignore-scripts
 
 FROM node:24-slim
 ENV NODE_ENV=production PORT=3001
+# Le healthcheck de Coolify appelle curl, absent de l'image slim.
+RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=deps /app ./
 COPY server/src server/src
@@ -39,6 +41,4 @@ RUN mkdir server/vendor/art && chown node:node server/vendor/art
 USER node
 WORKDIR /app/server
 EXPOSE 3001
-# Image slim sans curl ni wget : Coolify reprend ce healthcheck à la place du sien.
-HEALTHCHECK --interval=5s --timeout=5s --start-period=5s --retries=10 CMD node -e "fetch('http://localhost:' + process.env.PORT).then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"
 CMD ["node", "src/server.ts"]
