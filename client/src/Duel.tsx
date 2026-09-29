@@ -196,8 +196,8 @@ export function Duel({ board, seat, asked, respond, leave, feed, lp, pseudo, opp
           <Hand hand={shown.players[seat].hand} seat={seat} ui={targets} main={hud.refs.mains[seat]} appui={appui} />
           <aside className="colonne colonne--droite">
             {rules?.length ? <RulesBadge rules={rules} /> : null}
-            {shown.chain.length > 0 && <Chain chain={shown.chain} seat={seat} />}
-            <Log log={shown.log} />
+            {shown.chain.length > 0 && <Chain chain={shown.chain} seat={seat} opponent={opponent} />}
+            <Log log={shown.log} opponent={opponent} />
             <section className="panneau question" aria-live="polite">
               <p className="surtitre surtitre--or">{asked && idle ? "À vous de répondre" : "Duel en cours"}</p>
               {asked?.retry && idle && <p className="error">Choix refusé par le moteur : essayez autre chose.</p>}
@@ -584,7 +584,7 @@ function Hand({ hand, seat, ui, main, appui }: Readonly<{ hand: Card[]; seat: nu
   );
 }
 
-function Chain({ chain, seat }: Readonly<{ chain: Board["chain"]; seat: number }>) {
+function Chain({ chain, seat, opponent }: Readonly<{ chain: Board["chain"]; seat: number; opponent?: string }>) {
   const { cards } = useDuelView();
   return (
     <section className="panneau chaine" aria-label="Chaîne en cours">
@@ -602,7 +602,7 @@ function Chain({ chain, seat }: Readonly<{ chain: Board["chain"]; seat: number }
               <CardView code={link.code} />
               <p>
                 <b>{cardName(cards, link.code)}</b>
-                <span>{mine ? "Vous" : "Adversaire"}</span>
+                <span>{mine ? "Vous" : (opponent ?? "Adversaire")}</span>
               </p>
             </li>
           );
@@ -613,7 +613,7 @@ function Chain({ chain, seat }: Readonly<{ chain: Board["chain"]; seat: number }
   );
 }
 
-function Log({ log }: Readonly<{ log: LogEntry[] }>) {
+function Log({ log, opponent }: Readonly<{ log: LogEntry[]; opponent?: string }>) {
   return (
     <section className="panneau journal" aria-label="Journal du duel">
       <h2 className="titre-bloc">
@@ -625,7 +625,7 @@ function Log({ log }: Readonly<{ log: LogEntry[] }>) {
         <ol>
           {/* Entries are only ever appended: their position is their identity. */}
           {[...log.keys()].map((i) => (
-            <Entry key={i} entry={log[i]} />
+            <Entry key={i} entry={log[i]} opponent={opponent} />
           ))}
         </ol>
       </div>
@@ -633,13 +633,13 @@ function Log({ log }: Readonly<{ log: LogEntry[] }>) {
   );
 }
 
-function Entry({ entry }: Readonly<{ entry: LogEntry }>) {
+function Entry({ entry, opponent }: Readonly<{ entry: LogEntry; opponent?: string }>) {
   const { seat } = useDuelView();
   const first = entry.parts[0];
   const turn = entry.parts.length === 1 && typeof first === "string" && first.startsWith("Tour ");
   let who: string | undefined;
   if (entry.player === seat) who = "Vous";
-  else if (entry.player !== undefined) who = "Adversaire";
+  else if (entry.player !== undefined) who = opponent ?? "Adversaire";
   if (turn) {
     return (
       <li className="journal__tour">
@@ -649,7 +649,7 @@ function Entry({ entry }: Readonly<{ entry: LogEntry }>) {
   }
   return (
     <li>
-      {who && <b className={who === "Vous" ? "moi" : "adverse"}>{who} </b>}
+      {who && <b className={entry.player === seat ? "moi" : "adverse"}>{who} </b>}
       {[...entry.parts.keys()].map((i) => {
         const part = entry.parts[i];
         return typeof part === "string" ? part : <CardName key={i} code={part.code} />;
