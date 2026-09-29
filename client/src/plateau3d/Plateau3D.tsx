@@ -6,6 +6,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject }
 import type { PerspectiveCamera } from "three";
 import type { Board } from "../board.ts";
 import type { Cards } from "../cards.ts";
+import { pointDe, type Appui, type Point } from "../question.ts";
 import { etatScene, pileId, zones, ZONE, type EtatScene, type Zone } from "./disposition.ts";
 import { Monde, type Qualite } from "./monde.ts";
 import type { Regie } from "./spectacle.ts";
@@ -18,8 +19,11 @@ export type Props = {
   // 3D zones the question lets the player click, and the ones picked.
   cibles: Set<string>;
   choisies: Set<string>;
-  onZone: (id: string) => void;
+  onZone: (id: string, point: Point) => void;
   onSurvol: (id: string | undefined) => void;
+  // A press on a zone, where a drag may start; `sonde` gives the zone under a point of the screen.
+  onAppui: (id: string, event: Appui) => void;
+  sonde: RefObject<((x: number, y: number) => string | undefined) | null>;
   regie: Regie;
   // The frame the HUD leaves for the board.
   cadre: RefObject<HTMLElement | null>;
@@ -56,14 +60,14 @@ export default function Plateau3D(props: Readonly<Props>) {
       {/* Under 45 frames per second for 3 s: low quality, for good. */}
       <PerformanceMonitor ms={300} iterations={10} bounds={() => [45, 1000]} flipflops={1} onDecline={() => setQualite("basse")} />
       <Scene {...props} monde={monde} qualite={qualite} pret={pret} onPret={() => setPret(true)} />
-      {pret && <Etiquettes etat={etat} seat={seat} cibles={cibles} onZone={props.onZone} onSurvol={props.onSurvol} />}
+      {pret && <Etiquettes etat={etat} seat={seat} cibles={cibles} onZone={props.onZone} onSurvol={props.onSurvol} onAppui={props.onAppui} />}
     </Canvas>
   );
 }
 
 type SceneProps = Props & { monde: Monté; qualite: Qualite; pret: boolean; onPret: () => void };
 
-function Scene({ seat, cards, monde, qualite, pret, onPret, cadre, regie, onZone, onSurvol, onPerdu }: Readonly<SceneProps>) {
+function Scene({ seat, cards, monde, qualite, pret, onPret, cadre, regie, onZone, onSurvol, onAppui, sonde, onPerdu }: Readonly<SceneProps>) {
   const { gl, scene, camera, size } = useThree();
 
   useEffect(() => {
@@ -119,10 +123,12 @@ function Scene({ seat, cards, monde, qualite, pret, onPret, cadre, regie, onZone
 
   useEffect(() => {
     const canvas = gl.domElement;
-    const sous = (event: PointerEvent) => {
+    const sousPoint = (x: number, y: number) => {
       const r = canvas.getBoundingClientRect();
-      return monde.current?.toucher(((event.clientX - r.left) / r.width) * 2 - 1, -((event.clientY - r.top) / r.height) * 2 + 1);
+      return monde.current?.toucher(((x - r.left) / r.width) * 2 - 1, -((y - r.top) / r.height) * 2 + 1);
     };
+    const sous = (event: PointerEvent) => sousPoint(event.clientX, event.clientY);
+    sonde.current = sousPoint;
     const move = (event: PointerEvent) => {
       const id = sous(event);
       monde.current?.survol(id);
@@ -135,7 +141,11 @@ function Scene({ seat, cards, monde, qualite, pret, onPret, cadre, regie, onZone
     };
     const click = (event: MouseEvent) => {
       const id = sous(event as PointerEvent);
-      if (id) onZone(id);
+      if (id) onZone(id, { x: event.clientX, y: event.clientY });
+    };
+    const down = (event: PointerEvent) => {
+      const id = sous(event);
+      if (id) onAppui(id, event);
     };
     const lost = (event: Event) => {
       event.preventDefault();
@@ -144,14 +154,17 @@ function Scene({ seat, cards, monde, qualite, pret, onPret, cadre, regie, onZone
     canvas.addEventListener("pointermove", move);
     canvas.addEventListener("pointerleave", leave);
     canvas.addEventListener("click", click);
+    canvas.addEventListener("pointerdown", down);
     canvas.addEventListener("webglcontextlost", lost);
     return () => {
+      sonde.current = null;
+      canvas.removeEventListener("pointerdown", down);
       canvas.removeEventListener("pointermove", move);
       canvas.removeEventListener("pointerleave", leave);
       canvas.removeEventListener("click", click);
       canvas.removeEventListener("webglcontextlost", lost);
     };
-  }, [gl, monde, onZone, onSurvol, onPerdu]);
+  }, [gl, monde, onZone, onSurvol, onAppui, sonde, onPerdu]);
 
   return null;
 }
@@ -159,10 +172,10 @@ function Scene({ seat, cards, monde, qualite, pret, onPret, cadre, regie, onZone
 const NOMS: Record<string, string> = { monstre: "Zone Monstre", magie: "Zone Magie/Piège", terrain: "Zone Terrain", cimetiere: "Cimetière", deck: "Deck", extra: "Extra Deck" };
 const nomZone = (zone: Zone) => `${NOMS[zone.type]}${zone.type === "monstre" || zone.type === "magie" ? ` ${zone.col}` : ""}${zone.camp === 0 ? "" : " adverse"}`;
 
-type EtiquettesProps = { etat: EtatScene; seat: number; cibles: Set<string>; onZone: (id: string) => void; onSurvol: (id: string | undefined) => void };
+type EtiquettesProps = Pick<Props, "onZone" | "onSurvol" | "onAppui"> & { etat: EtatScene; seat: number; cibles: Set<string> };
 
 // Pile counters, banished cards beside the Graveyard, and one focusable button per zone to choose (keyboard, screen reader).
-function Etiquettes({ etat, seat, cibles, onZone, onSurvol }: Readonly<EtiquettesProps>) {
+function Etiquettes({ etat, seat, cibles, onZone, onSurvol, onAppui }: Readonly<EtiquettesProps>) {
   const liste = useMemo(() => zones(seat), [seat]);
   return (
     <>
@@ -190,7 +203,8 @@ function Etiquettes({ etat, seat, cibles, onZone, onSurvol }: Readonly<Etiquette
                   type="button"
                   className="zone-3d"
                   aria-label={`Choisir : ${nomZone(zone)}`}
-                  onClick={() => onZone(zone.id)}
+                  onClick={(event) => onZone(zone.id, pointDe(event))}
+                  onPointerDown={(event) => onAppui(zone.id, event)}
                   onFocus={() => onSurvol(zone.id)}
                   onPointerEnter={() => onSurvol(zone.id)}
                 />
@@ -203,15 +217,15 @@ function Etiquettes({ etat, seat, cibles, onZone, onSurvol }: Readonly<Etiquette
   );
 }
 
-function Cimetiere({ zone, etat, cibles, onZone }: Readonly<{ zone: Zone; etat: EtatScene; cibles: Set<string>; onZone: (id: string) => void }>) {
+function Cimetiere({ zone, etat, cibles, onZone }: Readonly<{ zone: Zone; etat: EtatScene; cibles: Set<string>; onZone: (id: string, point: Point) => void }>) {
   const bannies = pileId(zone.joueur, OcgLocation.REMOVED);
   const qui = zone.camp === 0 ? "" : " adverse";
   return (
     <span className="etiquette__piles">
-      <button type="button" className={cibles.has(zone.id) ? "etiquette__bouton est-cible" : "etiquette__bouton"} aria-label={`Cimetière${qui} : ${etat.piles.get(zone.id)?.nombre ?? 0} cartes, voir la liste`} onClick={() => onZone(zone.id)}>
+      <button type="button" className={cibles.has(zone.id) ? "etiquette__bouton est-cible" : "etiquette__bouton"} aria-label={`Cimetière${qui} : ${etat.piles.get(zone.id)?.nombre ?? 0} cartes, voir la liste`} onClick={(event) => onZone(zone.id, pointDe(event))}>
         Cimetière <b className="chiffres">{etat.piles.get(zone.id)?.nombre ?? 0}</b>
       </button>
-      <button type="button" className={cibles.has(bannies) ? "etiquette__bouton est-cible" : "etiquette__bouton"} aria-label={`Bannies${qui} : ${etat.piles.get(bannies)?.nombre ?? 0} cartes, voir la liste`} onClick={() => onZone(bannies)}>
+      <button type="button" className={cibles.has(bannies) ? "etiquette__bouton est-cible" : "etiquette__bouton"} aria-label={`Bannies${qui} : ${etat.piles.get(bannies)?.nombre ?? 0} cartes, voir la liste`} onClick={(event) => onZone(bannies, pointDe(event))}>
         Bannies <b className="chiffres">{etat.piles.get(bannies)?.nombre ?? 0}</b>
       </button>
     </span>

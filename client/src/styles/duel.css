@@ -131,6 +131,11 @@
   grid-area: 1 / 1;
 }
 
+/* Un monstre glissé peut attaquer directement : on le lâche sur la plaque adverse */
+.plaque.est-visee {
+  box-shadow: var(--lueur-holo-forte);
+}
+
 .plaque--adverse .avatar {
   background: linear-gradient(160deg, var(--camp-adverse), #6b2a7a);
 }
@@ -329,6 +334,12 @@
   box-shadow: var(--ombre-3);
 }
 
+/* Glisser une carte au doigt sans faire défiler la page */
+.main__carte,
+.plateau-3d {
+  touch-action: none;
+}
+
 .main__carte:is(:hover, :focus-visible) {
   z-index: 1;
   translate: 0 -34px;
@@ -525,6 +536,44 @@
 .question .chip.picked {
   background: rgb(255 197 61 / 0.12);
   box-shadow: inset 0 0 0 2px var(--choisi);
+}
+
+/* Bulle d'actions posée sur la carte choisie, et carte qui suit le pointeur pendant un glisser-déposer */
+.bulle {
+  position: fixed;
+  z-index: var(--z-question);
+  display: flex;
+  flex-direction: column;
+  gap: var(--e-2);
+  inline-size: max-content;
+  max-inline-size: min(18rem, calc(100vw - 16px));
+  margin: 0;
+  padding: var(--e-2);
+  border: 0;
+  color: inherit;
+  animation: bulle var(--duree-2) var(--courbe-sortie);
+}
+
+@keyframes bulle {
+  from {
+    opacity: 0;
+    scale: 0.92;
+  }
+}
+
+.fantome {
+  position: fixed;
+  inset: 0 auto auto 0;
+  z-index: var(--z-question);
+  pointer-events: none;
+}
+
+.fantome .carte {
+  --carte-l: 72px;
+  translate: -50% -50%;
+  rotate: -4deg;
+  opacity: 0.9;
+  box-shadow: var(--ombre-3);
 }
 
 /* Liste d'un Cimetière ou des cartes bannies, ouverte depuis le plateau */

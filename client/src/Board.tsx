@@ -2,10 +2,10 @@ import { OcgLocation } from "@n1xx1/ocgcore-wasm";
 import type { Board, Card, Place, Side } from "./board.ts";
 import { CardView } from "./Card.tsx";
 import { cardName, phaseName, useDuelView } from "./cards.ts";
-import { placeKey } from "./question.ts";
+import { placeKey, pointDe, type Point } from "./question.ts";
 
 // Cards or zones the current question lets the player click.
-export type Targets = { targets: ReadonlySet<string>; picked: readonly string[]; onPick?: (key: string) => void };
+export type Targets = { targets: ReadonlySet<string>; picked: readonly string[]; onPick?: (key: string, point: Point) => void };
 
 const FIVE = [0, 1, 2, 3, 4];
 
@@ -65,7 +65,7 @@ function Slot({ place, card, ui, label }: Readonly<{ place: Place; card: Card | 
       className={classes.join(" ")}
       onMouseEnter={reveal}
       onFocus={reveal}
-      onClick={() => (target ? ui.onPick?.(key) : reveal())}
+      onClick={(event) => (target ? ui.onPick?.(key, pointDe(event)) : reveal())}
     >
       {card ? <CardView code={card.code} position={card.position} location={place.location} atk={card.atk} def={card.def} /> : <span className="zone-label">{label}</span>}
     </button>

@@ -1,7 +1,10 @@
-import { OcgHintTiming, OcgLocation, OcgMessageType, OcgResponseType } from "@n1xx1/ocgcore-wasm";
+import { OcgHintTiming, OcgLocation, OcgMessageType, OcgPosition, OcgResponseType, OcgType } from "@n1xx1/ocgcore-wasm";
 import { expect, it } from "vitest";
-import type { Message } from "./board.ts";
-import { autoAnswer, freePlaces, placeKey } from "./question.ts";
+import type { CardInfo } from "../../server/src/protocol.ts";
+import { newBoard, type EngineMessage, type Message } from "./board.ts";
+import type { Cards } from "./cards.ts";
+import { interaction } from "./Question.tsx";
+import { autoAnswer, freePlaces, placeKey, reponseVisee } from "./question.ts";
 
 const { MZONE, SZONE } = OcgLocation;
 
@@ -24,4 +27,86 @@ it("distingue par leur code les cartes hors du duel, toutes en séquence 0", () 
   const outside = [153000001, 153000004].map((code) => placeKey({ controller: 0, location: 0 as OcgLocation, sequence: 0, code }));
   expect(new Set(outside).size).toBe(2);
   expect(placeKey({ controller: 1, location: MZONE, sequence: 2 })).toBe(`1:${MZONE}:2`);
+});
+
+const { HAND } = OcgLocation;
+const key = (controller: number, location: OcgLocation, sequence: number) => placeKey({ controller, location, sequence });
+const at = (controller: number, location: OcgLocation, sequence: number, code: number) => ({ controller: controller as 0 | 1, location, sequence, code });
+const cards: Cards = new Map([
+  [10, { type: OcgType.MONSTER } as CardInfo],
+  [20, { type: OcgType.SPELL } as CardInfo],
+  [30, { type: OcgType.MONSTER | OcgType.EFFECT } as CardInfo],
+]);
+
+function ui(question: EngineMessage, picked: string[] = [], cible?: string) {
+  const board = newBoard(8000, [40, 40]);
+  board.players[0].monsters[0] = { code: 10, position: OcgPosition.FACEUP_ATTACK };
+  board.players[1].monsters[2] = { code: 10, position: OcgPosition.FACEUP_ATTACK };
+  return interaction(question, { board, cards, strings: new Map(), picked, cible, setPicked: () => {}, respond: () => {} });
+}
+const labels = (choices: { label: string }[] | undefined) => choices?.map((choice) => choice.label);
+
+it("retient au dépôt d'une carte de la main les actions qui la mènent à cette zone libre", () => {
+  const idle: EngineMessage = {
+    type: OcgMessageType.SELECT_IDLECMD,
+    player: 0,
+    summons: [at(0, HAND, 0, 10)],
+    special_summons: [],
+    pos_changes: [at(0, MZONE, 0, 10)],
+    monster_sets: [at(0, HAND, 0, 10)],
+    spell_sets: [at(0, HAND, 1, 20)],
+    activates: [
+      { ...at(0, HAND, 1, 20), description: "0", client_mode: 0 },
+      { ...at(0, HAND, 2, 30), description: "0", client_mode: 0 },
+    ],
+    to_bp: true,
+    to_ep: true,
+    shuffle: false,
+  };
+  const { deposer } = ui(idle);
+  expect(labels(deposer?.(key(0, HAND, 0), key(0, MZONE, 1)))).toEqual(["Invoquer", "Poser"]);
+  for (const zone of [key(0, MZONE, 0), key(0, SZONE, 1), key(1, MZONE, 1)]) expect(deposer?.(key(0, HAND, 0), zone)).toEqual([]);
+  expect(labels(deposer?.(key(0, HAND, 1), key(0, SZONE, 2)))).toEqual(["Poser", "Activer"]);
+  // Only a Field Spell goes to the Field Zone; a monster's effect goes to no zone; a card of the field does not move.
+  expect(deposer?.(key(0, HAND, 1), key(0, SZONE, 5))).toEqual([]);
+  expect(deposer?.(key(0, HAND, 2), key(0, SZONE, 2))).toEqual([]);
+  expect(deposer?.(key(0, MZONE, 0), key(0, MZONE, 1))).toEqual([]);
+  // The bubble shows every action of the picked card, or only the ones of the zone it was dropped on.
+  expect(labels(ui(idle, [key(0, HAND, 0)]).bulle)).toEqual(["Invoquer", "Poser"]);
+  expect(labels(ui(idle, [key(0, HAND, 1)], key(0, SZONE, 2)).bulle)).toEqual(["Poser", "Activer"]);
+  expect(ui(idle).bulle).toEqual([]);
+});
+
+it("attaque le monstre adverse sur lequel on lâche, ou directement ailleurs du côté adverse si c'est permis", () => {
+  const battle: EngineMessage = {
+    type: OcgMessageType.SELECT_BATTLECMD,
+    player: 0,
+    chains: [],
+    attacks: [
+      { ...at(0, MZONE, 0, 10), can_direct: false },
+      { ...at(0, MZONE, 1, 10), can_direct: true },
+    ],
+    to_m2: true,
+    to_ep: true,
+  };
+  const { deposer } = ui(battle);
+  expect(labels(deposer?.(key(0, MZONE, 0), key(1, MZONE, 2)))).toEqual(["Attaquer"]);
+  for (const cible of ["1", key(1, MZONE, 3), key(0, MZONE, 3)]) expect(deposer?.(key(0, MZONE, 0), cible)).toEqual([]);
+  for (const cible of ["1", key(1, MZONE, 3), `1:${OcgLocation.GRAVE}`]) expect(labels(deposer?.(key(0, MZONE, 1), cible))).toEqual(["Attaquer"]);
+});
+
+it("répond à la question suivante avec la zone ou la cible du dépôt, si elle la propose", () => {
+  const place: EngineMessage = { type: OcgMessageType.SELECT_PLACE, player: 0, count: 1, field_mask: ~(1 << 1) >>> 0 };
+  expect(reponseVisee(place, key(0, MZONE, 1))).toEqual({ type: OcgResponseType.SELECT_PLACE, places: [{ player: 0, location: MZONE, sequence: 1 }] });
+  expect(reponseVisee(place, key(0, MZONE, 2))).toBeUndefined();
+  expect(reponseVisee({ ...place, count: 2 }, key(0, MZONE, 1))).toBeUndefined();
+  const target: EngineMessage = { type: OcgMessageType.SELECT_CARD, player: 0, can_cancel: false, min: 1, max: 1, selects: [1, 2].map((sequence) => ({ ...at(1, MZONE, sequence, 10), position: OcgPosition.FACEUP_ATTACK })) };
+  expect(reponseVisee(target, key(1, MZONE, 2))).toEqual({ type: OcgResponseType.SELECT_CARD, indicies: [1] });
+  expect(reponseVisee(target, key(1, MZONE, 3))).toBeUndefined();
+  // "Attack directly?": yes for a drop beside the monsters, no for a drop on one of them.
+  const direct: EngineMessage = { type: OcgMessageType.SELECT_YESNO, player: 0, description: "31" };
+  expect(reponseVisee(direct, "1")).toEqual({ type: OcgResponseType.SELECT_YESNO, yes: true });
+  expect(reponseVisee(direct, key(1, MZONE, 2))).toEqual({ type: OcgResponseType.SELECT_YESNO, yes: false });
+  expect(reponseVisee({ ...direct, description: "30" }, "1")).toBeUndefined();
+  expect(reponseVisee({ type: OcgMessageType.SELECT_POSITION, player: 0, code: 10, positions: OcgPosition.FACEUP_ATTACK }, "1")).toBeUndefined();
 });
