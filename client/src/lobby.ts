@@ -91,3 +91,13 @@ export function reduce(state: LobbyState, action: Action): LobbyState {
       return { ...state, won: action };
   }
 }
+
+const pad = (n: number) => String(n).padStart(2, "0");
+
+// "" once the free booster is due, else a HH:MM:SS countdown.
+export function countdown(nextFreeAt: string, now: number): string {
+  const remaining = Math.max(0, new Date(nextFreeAt).getTime() - now);
+  if (remaining === 0) return "";
+  const totalSeconds = Math.floor(remaining / 1000);
+  return `${pad(Math.floor(totalSeconds / 3600))}:${pad(Math.floor(totalSeconds / 60) % 60)}:${pad(totalSeconds % 60)}`;
+}

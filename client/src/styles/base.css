@@ -1,0 +1,692 @@
+/* Styles de base et composants partagés de la charte « Duel Disk ». Jetons dans tokens.css. */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--nuit-0);
+}
+
+body {
+  margin: 0;
+  font: 400 var(--taille-m) / 1.5 var(--police-texte);
+  color: var(--texte);
+  background: var(--nuit-0);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3,
+p,
+ol,
+ul,
+dl,
+dd,
+figure {
+  margin: 0;
+}
+
+ol,
+ul {
+  padding: 0;
+  list-style: none;
+}
+
+img {
+  display: block;
+  max-inline-size: 100%;
+}
+
+button,
+input,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+a {
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--holo);
+  outline-offset: 3px;
+}
+
+.sr {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.chiffres {
+  font-family: var(--police-chiffres);
+  font-variant-numeric: tabular-nums;
+}
+
+.texte-2 {
+  color: var(--texte-2);
+}
+
+.texte-3 {
+  color: var(--texte-3);
+}
+
+.moi {
+  color: var(--camp-moi);
+}
+
+.adverse {
+  color: var(--camp-adverse);
+}
+
+/* Typographie ------------------------------------------------------------ */
+
+.surtitre {
+  font: 600 var(--taille-s) / 1.2 var(--police-etroite);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--holo);
+}
+
+.surtitre--or {
+  color: var(--or);
+}
+
+.titre {
+  font: 800 var(--taille-2xl) / 1 var(--police-titre);
+  font-stretch: 82%;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+  text-wrap: balance;
+}
+
+.titre-panneau,
+.titre-bloc {
+  display: flex;
+  align-items: center;
+  gap: var(--e-2);
+  font: 700 var(--taille-l) / 1.15 var(--police-titre);
+  font-stretch: 88%;
+  text-transform: uppercase;
+}
+
+.titre-bloc {
+  font-size: var(--taille-m);
+  letter-spacing: 0.04em;
+  color: var(--texte-2);
+}
+
+.titre-bloc--petit {
+  font-size: var(--taille-s);
+}
+
+.titre-bloc .ic {
+  color: var(--holo);
+}
+
+/* Composants ------------------------------------------------------------- */
+
+/* Panneau : projection du Duel Disk, coins biseautés en diagonale */
+.panneau {
+  position: relative;
+  border-radius: var(--r-4) var(--r-1);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--trait), var(--ombre-2);
+  backdrop-filter: blur(14px);
+}
+
+.panneau--holo {
+  background:
+    var(--trame-holo),
+    linear-gradient(160deg, rgb(67 240 255 / 0.12), transparent 40%),
+    var(--surface);
+  box-shadow: inset 0 0 0 1px rgb(67 240 255 / 0.4), 0 0 40px rgb(67 240 255 / 0.12), var(--ombre-2);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--e-2);
+  min-block-size: 44px;
+  padding: 0 var(--e-5);
+  border: 0;
+  border-radius: var(--r-3) var(--r-1);
+  background: var(--degrade-or);
+  box-shadow: var(--lueur-or);
+  font: 700 var(--taille-m) / 1 var(--police-etroite);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-decoration: none;
+  white-space: nowrap;
+  color: var(--texte-inverse);
+  cursor: pointer;
+  transition: translate var(--duree-1), box-shadow var(--duree-2), filter var(--duree-2);
+}
+
+.btn:hover {
+  filter: brightness(1.08);
+  translate: 0 -1px;
+}
+
+.btn--holo {
+  background: var(--holo-fond);
+  box-shadow: inset 0 0 0 1px rgb(67 240 255 / 0.6);
+  color: var(--holo-2);
+}
+
+.btn--holo:hover {
+  box-shadow: var(--lueur-holo);
+}
+
+.btn--fantome {
+  background: rgb(6 8 23 / 0.6);
+  box-shadow: inset 0 0 0 1px var(--trait-fort);
+  color: var(--texte-2);
+}
+
+.btn--grand {
+  min-block-size: 56px;
+  padding-inline: var(--e-6);
+  font-size: var(--taille-l);
+}
+
+.btn:disabled {
+  background: var(--nuit-3);
+  box-shadow: none;
+  color: var(--texte-3);
+  cursor: not-allowed;
+  translate: none;
+}
+
+.btn-icone {
+  display: inline-grid;
+  place-items: center;
+  inline-size: 40px;
+  block-size: 40px;
+  border: 0;
+  border-radius: var(--r-2) var(--r-1);
+  background: rgb(255 255 255 / 0.04);
+  box-shadow: inset 0 0 0 1px var(--trait);
+  color: var(--texte-2);
+  cursor: pointer;
+}
+
+.btn-icone:hover {
+  color: var(--holo);
+  box-shadow: inset 0 0 0 1px var(--holo);
+}
+
+.btn-icone--petit {
+  inline-size: 28px;
+  block-size: 28px;
+}
+
+.lien {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--holo-2);
+  text-decoration: underline;
+  text-decoration-color: rgb(125 247 255 / 0.4);
+  text-underline-offset: 4px;
+  cursor: pointer;
+}
+
+.lien--retour {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--e-2);
+  text-decoration: none;
+}
+
+.puces {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--e-2);
+}
+
+.puce {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: var(--r-2) var(--r-1);
+  background: rgb(255 255 255 / 0.06);
+  box-shadow: inset 0 0 0 1px var(--trait-fort);
+  font: 600 var(--taille-s) / 1.2 var(--police-etroite);
+  letter-spacing: 0.03em;
+  color: var(--texte-2);
+}
+
+.puce--holo {
+  background: var(--holo-fond);
+  box-shadow: inset 0 0 0 1px rgb(67 240 255 / 0.55);
+  color: var(--holo-2);
+}
+
+.puce--or {
+  background: rgb(255 197 61 / 0.12);
+  box-shadow: inset 0 0 0 1px rgb(255 197 61 / 0.6);
+  color: var(--or-2);
+}
+
+.puce--succes {
+  background: rgb(61 220 151 / 0.12);
+  box-shadow: inset 0 0 0 1px rgb(61 220 151 / 0.55);
+  color: var(--succes);
+}
+
+.pastille {
+  display: inline-grid;
+  place-items: center;
+  min-inline-size: 20px;
+  block-size: 20px;
+  padding: 0 6px;
+  border-radius: var(--r-rond);
+  background: var(--or);
+  font: 800 12px / 1 var(--police-chiffres);
+  color: var(--texte-inverse);
+  vertical-align: 2px;
+}
+
+/* Compteurs : icône et chiffre, en ligne (main, deck, cimetière...) */
+.compteurs {
+  display: flex;
+  gap: var(--e-3);
+  font: 700 var(--taille-s) / 1.3 var(--police-chiffres);
+  color: var(--texte-2);
+}
+
+.compteurs > span {
+  display: inline-flex;
+  gap: 3px;
+  align-items: center;
+}
+
+.compteurs .ic {
+  inline-size: 1.05em;
+  block-size: 1.05em;
+  color: var(--texte-3);
+}
+
+/* Avatar hexagonal : pas d'image de personnage, une initiale */
+.avatar {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  inline-size: 36px;
+  aspect-ratio: 1 / 1.1;
+  background: linear-gradient(160deg, var(--holo), var(--ombre-violet));
+  clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+  font: 800 var(--taille-m) / 1 var(--police-titre);
+  color: var(--nuit-0);
+}
+
+.avatar--grand {
+  inline-size: 72px;
+  font-size: var(--taille-2xl);
+}
+
+.avatar--adverse {
+  background: linear-gradient(160deg, var(--camp-adverse), #6b2a7a);
+}
+
+.message {
+  padding: var(--e-2) var(--e-3);
+  border-radius: var(--r-2) var(--r-1);
+  font-size: var(--taille-s);
+}
+
+.message--erreur {
+  background: rgb(255 77 109 / 0.12);
+  box-shadow: inset 3px 0 0 var(--danger);
+  color: #ffb3c1;
+}
+
+.message--succes {
+  background: rgb(61 220 151 / 0.1);
+  box-shadow: inset 3px 0 0 var(--succes);
+  color: #a9f0cf;
+}
+
+.champ {
+  display: grid;
+  gap: 6px;
+  font: 600 var(--taille-s) / 1.2 var(--police-etroite);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--texte-2);
+}
+
+.champ__aide {
+  font: 400 var(--taille-xs) / 1.4 var(--police-texte);
+  letter-spacing: normal;
+  text-transform: none;
+  color: var(--texte-2);
+}
+
+.champ__saisie {
+  display: flex;
+  align-items: center;
+  gap: var(--e-2);
+  min-block-size: 48px;
+  padding: 0 var(--e-3);
+  border-radius: var(--r-2) var(--r-1);
+  background: rgb(6 8 23 / 0.6);
+  box-shadow: inset 0 0 0 1px var(--trait-fort);
+  color: var(--texte-3);
+}
+
+.champ__saisie:focus-within {
+  box-shadow: inset 0 0 0 2px var(--holo), 0 0 16px rgb(67 240 255 / 0.25);
+  color: var(--holo);
+}
+
+.champ__saisie input {
+  flex: 1;
+  min-inline-size: 0;
+  border: 0;
+  background: none;
+  font: 400 var(--taille-m) / 1 var(--police-texte);
+  letter-spacing: normal;
+  text-transform: none;
+  color: var(--texte);
+  outline: none;
+}
+
+.choix select {
+  min-block-size: 40px;
+  padding: 0 var(--e-3);
+  border: 0;
+  border-radius: var(--r-2) var(--r-1);
+  background: rgb(6 8 23 / 0.6);
+  box-shadow: inset 0 0 0 1px var(--trait-fort);
+  color: var(--texte);
+}
+
+/* Badge de rareté (Rarity dans ui.tsx) */
+.rarete {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: var(--r-rond);
+  box-shadow: inset 0 0 0 1px currentColor;
+  font: 700 12px / 1 var(--police-etroite);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.rarete--commune { color: var(--rar-commune); }
+.rarete--rare { color: var(--rar-rare); }
+.rarete--super { color: var(--rar-super); }
+.rarete--ultra { color: var(--rar-ultra); }
+.rarete--ultimate { color: var(--rar-ultimate); }
+
+.rarete--secret {
+  color: var(--rar-secret);
+  background: linear-gradient(90deg, rgb(255 90 138 / 0.15), rgb(67 240 255 / 0.15));
+}
+
+/* Récompenses (Rewards dans ui.tsx) : boosters en mini-paquets, cartes gagnées */
+.recompenses {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--e-6);
+  align-items: end;
+}
+
+.recompense {
+  display: grid;
+  gap: var(--e-2);
+  justify-items: center;
+  font: 600 var(--taille-s) / 1.2 var(--police-etroite);
+}
+
+.recompense .carte {
+  --carte-l: 92px;
+}
+
+.recompense:has(.mini-paquet) {
+  grid-template-columns: auto auto;
+}
+
+.recompense:has(.mini-paquet) b {
+  grid-column: 1 / -1;
+}
+
+.mini-paquet {
+  inline-size: 46px;
+  aspect-ratio: 5 / 8;
+  border-radius: 3px;
+  background:
+    linear-gradient(115deg, transparent 32%, rgb(255 255 255 / 0.4) 44%, transparent 56%),
+    linear-gradient(165deg, hsl(222 85% 58%), hsl(222 75% 24%) 60%, hsl(272 70% 28%));
+  box-shadow: inset 0 5px 0 hsl(222 50% 70%), inset 0 -5px 0 hsl(222 50% 70%), var(--ombre-2);
+}
+
+.mini-paquet + .mini-paquet {
+  margin-inline-start: -24px;
+  rotate: 8deg;
+}
+
+/* Biseaux vrais là où le navigateur sait les dessiner, arrondis sinon */
+@supports (corner-shape: bevel) {
+  .panneau,
+  .btn,
+  .btn-icone,
+  .puce,
+  .champ__saisie,
+  .choix select,
+  .message {
+    corner-shape: bevel;
+  }
+}
+
+/* Écrans pas encore refaits (plateau, collection, boosters, histoire) : leurs anciennes classes, à la charte.
+   Chaque écran porte la classe `ancien` sur sa racine ; ce bloc part avec le dernier écran refait. */
+.ancien :is(h2, h3) {
+  font-family: var(--police-titre);
+  font-stretch: 88%;
+  text-transform: uppercase;
+}
+
+.ancien h2 {
+  font-size: var(--taille-xl);
+  line-height: 1.1;
+}
+
+.ancien h3 {
+  font-size: var(--taille-m);
+  letter-spacing: 0.04em;
+  color: var(--texte-2);
+}
+
+.ancien.stack,
+.ancien .stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--e-4);
+}
+
+.ancien .row {
+  display: flex;
+  gap: var(--e-2);
+}
+
+.ancien .row :is(input, select) {
+  flex: 1;
+  min-inline-size: 0;
+}
+
+.ancien .center {
+  align-items: center;
+  text-align: center;
+}
+
+.ancien .muted {
+  color: var(--texte-2);
+}
+
+.ancien .error {
+  padding: var(--e-2) var(--e-3);
+  border-radius: var(--r-2) var(--r-1);
+  background: rgb(255 77 109 / 0.12);
+  box-shadow: inset 3px 0 0 var(--danger);
+  font-size: var(--taille-s);
+  color: #ffb3c1;
+}
+
+.ancien label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font: 600 var(--taille-s) / 1.2 var(--police-etroite);
+  letter-spacing: 0.04em;
+  color: var(--texte-2);
+}
+
+.ancien :is(input, select) {
+  min-block-size: 40px;
+  padding: 0 var(--e-3);
+  border: 0;
+  border-radius: var(--r-2) var(--r-1);
+  background: rgb(6 8 23 / 0.6);
+  box-shadow: inset 0 0 0 1px var(--trait-fort);
+  color: var(--texte);
+}
+
+.ancien :is(input, select):focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--holo), 0 0 16px rgb(67 240 255 / 0.25);
+}
+
+.ancien :is(button:not([class]), button.secondary) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-block-size: 40px;
+  padding: 0 var(--e-4);
+  border: 0;
+  border-radius: var(--r-3) var(--r-1);
+  background: var(--degrade-or);
+  box-shadow: var(--lueur-or);
+  font: 700 var(--taille-s) / 1.1 var(--police-etroite);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--texte-inverse);
+  cursor: pointer;
+}
+
+.ancien button.secondary {
+  background: var(--holo-fond);
+  box-shadow: inset 0 0 0 1px rgb(67 240 255 / 0.6);
+  color: var(--holo-2);
+}
+
+.ancien :is(button:not([class]), button.secondary):disabled {
+  background: var(--nuit-3);
+  box-shadow: none;
+  color: var(--texte-3);
+  cursor: not-allowed;
+}
+
+.ancien button.link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--holo-2);
+  text-decoration: underline;
+  text-decoration-color: rgb(125 247 255 / 0.4);
+  text-underline-offset: 4px;
+  cursor: pointer;
+}
+
+.ancien .actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--e-2);
+}
+
+.ancien .actions:empty {
+  display: none;
+}
+
+.ancien .chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.ancien .chip {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 4px 10px;
+  border: 0;
+  border-radius: var(--r-2) var(--r-1);
+  background: rgb(255 255 255 / 0.06);
+  box-shadow: inset 0 0 0 1px var(--trait-fort);
+  font: 600 var(--taille-s) / 1.25 var(--police-etroite);
+  color: var(--texte);
+}
+
+.ancien button.chip {
+  cursor: pointer;
+}
+
+.ancien .chip small {
+  font: 400 var(--taille-xs) / 1.3 var(--police-texte);
+  color: var(--texte-2);
+}
+
+.ancien .chip.picked {
+  background: rgb(255 197 61 / 0.12);
+  box-shadow: inset 0 0 0 2px var(--choisi);
+}
+
+.ancien .count {
+  display: flex;
+  flex-direction: column;
+  padding: var(--e-2) var(--e-3);
+  border-radius: var(--r-2) var(--r-1);
+  background: rgb(6 8 23 / 0.6);
+  box-shadow: inset 0 0 0 1px var(--trait);
+  font: 600 var(--taille-xs) / 1.3 var(--police-etroite);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--texte-2);
+}
+
+.ancien .count strong {
+  font: 800 var(--taille-xl) / 1.1 var(--police-chiffres);
+  color: var(--texte);
+}
+
+.ancien .count.bad strong {
+  color: var(--danger);
+}
+
+.ancien .side {
+  position: sticky;
+  inset-block-start: var(--e-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--e-3);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}

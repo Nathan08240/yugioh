@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { ClientMessage, Rewards, StoryArcView, StoryDuelView, StoryStatus } from "../../server/src/protocol.ts";
 import { cardName, useCards, type Cards } from "./cards.ts";
+import "./styles/histoire.css";
 
 const STATUS: Record<StoryStatus, string> = { locked: "Verrouillé", available: "Disponible", done: "Gagné" };
 
@@ -57,11 +58,11 @@ export function Story({ arcs, send, close }: Readonly<Props>) {
   // Progression may have changed since the last visit (a duel just won).
   useEffect(() => send({ type: "story" }), []);
 
-  if (!arcs) return <p className="muted">Chargement de l'histoire…</p>;
+  if (!arcs) return <p className="ecran-message">Chargement de l'histoire…</p>;
   const duel = arcs.flatMap((arc) => arc.duels).find((candidate) => candidate.id === picked);
   if (duel) return <Briefing duel={duel} back={() => setPicked(undefined)} start={() => send({ type: "story_duel", duel: duel.id })} />;
   return (
-    <div className="stack">
+    <div className="stack story ancien">
       <div className="story-head">
         <h2>Mode Histoire</h2>
         <button type="button" className="link" onClick={close}>
@@ -95,7 +96,7 @@ function Briefing({ duel, back, start }: Readonly<{ duel: StoryDuelView; back: (
   const cards = useCards();
   const rules = duel.special.flatMap((name) => RULES.get(name) ?? []);
   return (
-    <div className="stack">
+    <div className="stack story ancien">
       <div className="story-head">
         <h2>{duel.title}</h2>
         <button type="button" className="link" onClick={back}>

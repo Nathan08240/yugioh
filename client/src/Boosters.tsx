@@ -2,35 +2,16 @@ import { useEffect, useMemo, useState } from "react";
 import type { ClientMessage } from "../../server/src/protocol.ts";
 import { isDone, startReveal, stepReveal, type RevealState } from "./boosterReveal.ts";
 import { CardView } from "./Card.tsx";
-import { DuelView, useCards } from "./cards.ts";
-import type { LobbyState } from "./lobby.ts";
+import { DuelView, rarityLabel, useCards } from "./cards.ts";
+import { countdown, type LobbyState } from "./lobby.ts";
+import "./styles/boosters.css";
 
 type Send = (msg: ClientMessage) => void;
 type BoosterSet = { code: string; name: string; date: string };
 type Opened = NonNullable<LobbyState["opened"]>;
 
 const HIGH_RARITY: ReadonlySet<string> = new Set(["rare", "super", "ultra", "ultimate", "secret"]);
-const RARITY_LABELS = new Map([
-  ["common", "Commune"],
-  ["shortprint", "Peu commune"],
-  ["rare", "Rare"],
-  ["super", "Super Rare"],
-  ["ultra", "Ultra Rare"],
-  ["ultimate", "Ultimate Rare"],
-  ["secret", "Secret Rare"],
-]);
-const rarityLabel = (rarity: string) => RARITY_LABELS.get(rarity) ?? rarity;
-
 const REVEAL_INTERVAL_MS = 450;
-const pad = (n: number) => String(n).padStart(2, "0");
-
-// "" once the free booster is due, else a HH:MM:SS countdown.
-function countdown(nextFreeAt: string, now: number): string {
-  const remaining = Math.max(0, new Date(nextFreeAt).getTime() - now);
-  if (remaining === 0) return "";
-  const totalSeconds = Math.floor(remaining / 1000);
-  return `${pad(Math.floor(totalSeconds / 3600))}:${pad(Math.floor(totalSeconds / 60) % 60)}:${pad(totalSeconds % 60)}`;
-}
 
 // Boosters screen: free-booster countdown, earned count, set choice and the opening animation.
 export function Boosters({ state, send }: Readonly<{ state: LobbyState; send: Send }>) {
@@ -77,7 +58,7 @@ export function Boosters({ state, send }: Readonly<{ state: LobbyState; send: Se
           }}
         />
       ) : (
-        <div className="stack boosters">
+        <div className="stack boosters ancien">
           <div className="booster-status">
             <div className="count">
               <span>Prochain gratuit</span>
@@ -119,7 +100,7 @@ function BoosterOpening({ opened, onDone }: Readonly<{ opened: Opened; onDone: (
   }, [reveal]);
 
   return (
-    <div className="stack booster-opening">
+    <div className="stack booster-opening ancien">
       <div className="pack-open" aria-hidden="true" />
       <h2>Booster {opened.set}</h2>
       <ul className="reveal-grid">
@@ -129,7 +110,7 @@ function BoosterOpening({ opened, onDone }: Readonly<{ opened: Opened; onDone: (
           return (
             <li key={index} className="reveal-card">
               <div className={classes}>
-                <CardView code={shown ? card.code : 0} />
+                <CardView code={shown ? card.code : 0} rarity={card.rarity} />
                 {shown && <span className="reveal-rarity">{rarityLabel(card.rarity)}</span>}
               </div>
             </li>

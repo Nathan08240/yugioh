@@ -1,0 +1,153 @@
+/* Collection et deck (DeckBuilder.tsx) : l'ancienne mise en page, à la charte, en attendant l'écran refait. */
+
+.builder {
+  display: grid;
+  flex: 1;
+  grid-template-columns: minmax(0, 1fr) 24rem;
+  gap: var(--e-5);
+  align-items: start;
+  inline-size: 100%;
+  max-inline-size: var(--largeur-max);
+  margin-inline: auto;
+  padding: var(--e-4) var(--marge-ecran) var(--e-5);
+}
+
+@media (max-width: 1100px) {
+  .builder {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--e-2);
+  align-items: center;
+}
+
+.filters input[type="search"] {
+  flex: 1 1 14rem;
+}
+
+.range {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  font: 600 var(--taille-s) / 1 var(--police-etroite);
+  color: var(--texte-2);
+}
+
+.range input {
+  inline-size: 5.2rem;
+}
+
+.collection-grid {
+  --carte-l: 7rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--carte-l), 1fr));
+  gap: var(--e-3);
+  max-block-size: 72vh;
+  padding: var(--e-3);
+  overflow: auto;
+  border-radius: var(--r-4) var(--r-1);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--trait);
+}
+
+button.owned {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+button.owned:hover .carte {
+  translate: 0 -3px;
+}
+
+button.owned.spent {
+  cursor: default;
+}
+
+button.owned.spent .carte {
+  filter: grayscale(0.75) brightness(0.65);
+  translate: none;
+}
+
+.owned-count {
+  position: absolute;
+  inset: auto 4px 4px auto;
+  padding: 2px 6px;
+  border-radius: var(--r-1);
+  background: rgb(6 8 23 / 0.85);
+  font: 700 var(--taille-xs) / 1.2 var(--police-chiffres);
+  color: var(--or-2);
+}
+
+.builder .side .detail {
+  padding: var(--e-3);
+  border-radius: var(--r-4) var(--r-1);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--trait);
+}
+
+.deck-panel {
+  padding: var(--e-3) var(--e-4);
+  border-radius: var(--r-4) var(--r-1);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--trait);
+}
+
+.counts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--e-2);
+}
+
+.rule {
+  font-size: var(--taille-s);
+}
+
+.rule.bad {
+  color: #ffb3c1;
+}
+
+.deck-cards {
+  gap: 6px;
+}
+
+.deck-list {
+  max-block-size: 16rem;
+  overflow: auto;
+}
+
+.deck-list:empty {
+  display: none;
+}
+
+button.deck-line {
+  inline-size: 100%;
+  padding: 3px 6px;
+  border: 0;
+  border-radius: var(--r-1);
+  background: none;
+  font-size: var(--taille-s);
+  text-align: start;
+  color: var(--texte);
+  cursor: pointer;
+}
+
+button.deck-line:hover {
+  background: rgb(255 77 109 / 0.12);
+}
+
+.copies {
+  display: inline-block;
+  min-inline-size: 1.8rem;
+  font-family: var(--police-chiffres);
+  color: var(--or-2);
+}

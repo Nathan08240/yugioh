@@ -5,6 +5,7 @@ import { CardDetail, CardView } from "./Card.tsx";
 import { cardName, DuelView, useCards, useDuelView } from "./cards.ts";
 import { filterCollection, noFilters, type Filters, type Kind } from "./collection.ts";
 import type { DeckList } from "./lobby.ts";
+import "./styles/collection.css";
 
 type Send = (msg: ClientMessage) => void;
 type Props = { collection?: [number, number][]; decks?: DeckList; send: Send };
@@ -37,10 +38,10 @@ export function DeckBuilder({ collection, decks, send }: Readonly<Props>) {
     });
   }, [decks]);
 
-  if (!collection || !decks || cards.size === 0) return <p className="muted">Chargement de la collection…</p>;
+  if (!collection || !decks || cards.size === 0) return <p className="ecran-message">Chargement de la collection…</p>;
   return (
     <DuelView value={view}>
-      <div className="builder">
+      <div className="builder ancien">
         <CollectionPanel collection={collection} draft={draft} onAdd={(code) => draft && setDraft(add(draft, code, cards.get(code)))} />
         <aside className="side">
           <CardDetail code={shown} />

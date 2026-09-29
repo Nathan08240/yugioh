@@ -1,4 +1,4 @@
-import { OcgPhase, OcgType } from "@n1xx1/ocgcore-wasm";
+import { OcgAttribute, OcgPhase, OcgType } from "@n1xx1/ocgcore-wasm";
 import { createContext, useContext, useEffect, useState } from "react";
 import type { CardInfo } from "../../server/src/protocol.ts";
 
@@ -37,18 +37,59 @@ export function effectText(cards: Cards, strings: Strings, description: string):
 
 export const has = (mask: number, flag: number) => (mask & flag) !== 0;
 
+// Sprite of the house icons (public/icons.svg): `${ICONS}#attr-feu`.
+export const ICONS = `${import.meta.env.BASE_URL}icons.svg`;
+
+// Frame of the card (cartes.css t-* classes).
 export function frame(type: number): string {
-  if (has(type, OcgType.TRAP)) return "trap";
-  if (has(type, OcgType.SPELL)) return "spell";
-  if (has(type, OcgType.TOKEN)) return "token";
+  if (has(type, OcgType.TRAP)) return "piege";
+  if (has(type, OcgType.SPELL)) return "magie";
+  if (has(type, OcgType.TOKEN)) return "jeton";
   if (has(type, OcgType.FUSION)) return "fusion";
-  if (has(type, OcgType.RITUAL)) return "ritual";
-  if (has(type, OcgType.EFFECT)) return "effect";
+  if (has(type, OcgType.RITUAL)) return "rituel";
+  if (has(type, OcgType.EFFECT)) return "effet";
   return "normal";
 }
 
+// Attribute of a monster (cartes.css a-* classes, icons.svg attr-* icons).
+const ATTRIBUTES = new Map<number, string>([
+  [OcgAttribute.EARTH, "terre"],
+  [OcgAttribute.WATER, "eau"],
+  [OcgAttribute.FIRE, "feu"],
+  [OcgAttribute.WIND, "vent"],
+  [OcgAttribute.LIGHT, "lumiere"],
+  [OcgAttribute.DARK, "tenebres"],
+  [OcgAttribute.DIVINE, "divin"],
+]);
+export const attributeKey = (attribute: number) => ATTRIBUTES.get(attribute);
+
+// Printing rarities of the server (server/src/pool.ts): their treatment (r-* and rarete--* classes) and their name.
+const RARITIES = new Map<string, [string, string]>([
+  ["common", ["commune", "Commune"]],
+  ["shortprint", ["commune", "Peu commune"]],
+  ["rare", ["rare", "Rare"]],
+  ["super", ["super", "Super Rare"]],
+  ["ultra", ["ultra", "Ultra Rare"]],
+  ["ultimate", ["ultimate", "Ultimate Rare"]],
+  ["secret", ["secret", "Secret Rare"]],
+]);
+export const rarityKey = (rarity: string) => RARITIES.get(rarity)?.[0] ?? "commune";
+export const rarityLabel = (rarity: string) => RARITIES.get(rarity)?.[1] ?? rarity;
+
 // -2 in BabelCDB is a "?" stat.
 export const stat = (value: number) => (value === -2 ? "?" : String(value));
+
+// The `count` strongest monsters of a deck, by ATK then level, each one once: the cards a deck is shown with.
+export function strongest(codes: readonly number[], cards: Cards, count: number): number[] {
+  const power = (code: number) => {
+    const card = cards.get(code);
+    return card ? card.atk * 100 + card.level : -1;
+  };
+  return [...new Set(codes)]
+    .filter((code) => has(cards.get(code)?.type ?? 0, OcgType.MONSTER))
+    .sort((a, b) => power(b) - power(a))
+    .slice(0, count);
+}
 
 const PHASES = new Map<number, string>([
   [OcgPhase.DRAW, "Draw Phase"],
