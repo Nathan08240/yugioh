@@ -1,7 +1,7 @@
 import { OcgLocation, OcgPosition, OcgType } from "@n1xx1/ocgcore-wasm";
 import type { PointerEvent } from "react";
 import type { CardInfo } from "../../server/src/protocol.ts";
-import { attributeKey, frame, has, ICONS, rarityKey, stat, useDuelView } from "./cards.ts";
+import { attributeKey, frame, has, ICONS, rarityKey, stat, statChange, useDuelView } from "./cards.ts";
 import { prefersReduced } from "./motion.ts";
 
 type Props = {
@@ -15,13 +15,16 @@ type Props = {
   rarity?: string;
   // Game states of cartes.css: est-cible, est-choisie, est-inactive, est-activee.
   className?: string;
+  // Current stats of a monster on the field, the printed ones otherwise.
+  atk?: number;
+  def?: number;
 };
 
 const SHINY: ReadonlySet<string> = new Set(["super", "ultra", "ultimate", "secret"]);
 
 // A card drawn in CSS around its artwork (cartes.css), sized by --carte-l. Code 0 shows the back.
 // Hand and piles show every card upright: only the field turns defense monsters and veils set cards.
-export function CardView({ code, position = 0, location = 0, full = false, rarity, className }: Readonly<Props>) {
+export function CardView({ code, position = 0, location = 0, full = false, rarity, className, atk, def }: Readonly<Props>) {
   const { cards } = useDuelView();
   const classes = ["carte"];
   if (className) classes.push(className);
@@ -73,12 +76,8 @@ export function CardView({ code, position = 0, location = 0, full = false, rarit
         <p className="carte__type">{info?.typeLine}</p>
         {monster && info && (
           <p className="carte__stats">
-            <span>
-              ATK<b>{stat(info.atk)}</b>
-            </span>
-            <span>
-              DEF<b>{stat(info.def)}</b>
-            </span>
+            <Stat label="ATK" current={atk ?? info.atk} printed={info.atk} />
+            <Stat label="DEF" current={def ?? info.def} printed={info.def} />
           </p>
         )}
       </div>
@@ -90,6 +89,17 @@ export function CardView({ code, position = 0, location = 0, full = false, rarit
       {card}
       <Text info={info} name={name} monster={monster} />
     </article>
+  );
+}
+
+// Green above the printed value, red below.
+function Stat({ label, current, printed }: Readonly<{ label: string; current: number; printed: number }>) {
+  const change = statChange(current, printed);
+  return (
+    <span>
+      {label}
+      <b className={change && `est-${change}`}>{stat(current)}</b>
+    </span>
   );
 }
 

@@ -26,7 +26,7 @@ export type Etape = { prelude: Message[]; avant: Effet[]; message?: Message; apr
 const ON_FIELD: ReadonlySet<number> = new Set([OcgLocation.MZONE, OcgLocation.SZONE]);
 const OFF_FIELD: ReadonlySet<number> = new Set([OcgLocation.GRAVE, OcgLocation.REMOVED]);
 // The messages that tell what a card leaving the field was for; the others are skipped when looking ahead.
-const TELLING: ReadonlySet<number> = new Set([
+const TELLING: ReadonlySet<Message["type"]> = new Set([
   OcgMessageType.SUMMONING,
   OcgMessageType.SPSUMMONING,
   OcgMessageType.FLIPSUMMONING,

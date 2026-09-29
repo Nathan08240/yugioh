@@ -24,7 +24,7 @@ import {
 import { cardAt, newBoard, playAll, type Board, type Card, type Message, type Place, type Side } from "../../client/src/board.ts";
 import { announceCard } from "./announce.ts";
 import { cardInfo, readCard, readScript } from "./cards.ts";
-import type { Seat } from "./protocol.ts";
+import type { DuelEvent, Seat } from "./protocol.ts";
 import { respond, tributes } from "./respond.ts";
 
 // A face-down monster the bot cannot see is assumed this strong.
@@ -103,7 +103,7 @@ export class Bot {
     this.delay = delay;
   }
 
-  answer(question: OcgMessage, log: readonly OcgMessage[]): OcgResponse {
+  answer(question: OcgMessage, log: readonly DuelEvent[]): OcgResponse {
     this.see(log.slice(this.seen));
     this.seen = log.length;
     const target = this.target;
@@ -116,14 +116,14 @@ export class Bot {
     }
   }
 
-  private see(messages: readonly OcgMessage[]) {
+  private see(messages: readonly DuelEvent[]) {
     // board.ts reads no bigint field, so the engine form of the messages works as is.
     this.board = playAll(this.board, messages as unknown as Message[]);
     this.board.log = [];
     for (const msg of messages) this.track(msg);
   }
 
-  private track(msg: OcgMessage) {
+  private track(msg: DuelEvent) {
     switch (msg.type) {
       case OcgMessageType.NEW_TURN:
         this.activations = 0;

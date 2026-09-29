@@ -193,17 +193,17 @@ export class Monde {
 
   // State of the board -------------------------------------------------------------------
 
-  private texFace(code: number, voile: boolean) {
-    const cle = `${code}|${voile}`;
+  private texFace(code: number, voile: boolean, atk?: number, def?: number) {
+    const cle = `${code}|${voile}|${atk}|${def}`;
     let tex = this.faces.get(cle);
     if (!tex) {
       const info = this.cards.get(code);
       const c = toile(TEX.l, TEX.h);
-      dessinerFace(c, this.res, info, undefined, voile);
+      dessinerFace(c, this.res, info, undefined, voile, atk, def);
       const made = texture(c);
       art(code, info).then((img) => {
         if (!img) return;
-        dessinerFace(c, this.res, info, img, voile);
+        dessinerFace(c, this.res, info, img, voile, atk, def);
         made.needsUpdate = true;
       });
       this.faces.set(cle, made);
@@ -213,7 +213,7 @@ export class Monde {
   }
 
   private poserCarte(zone: ZoneM, etat: CarteScene) {
-    const face = etat.code ? matCarte(this.texFace(etat.code, etat.voile)) : this.mat.dos.clone();
+    const face = etat.code ? matCarte(this.texFace(etat.code, etat.voile, etat.atk, etat.def)) : this.mat.dos.clone();
     const mesh = new THREE.Mesh(this.geo.carte, [this.mat.tranche, face, this.mat.dos]);
     mesh.userData.cle = zone.id;
     const groupe = new THREE.Group();
@@ -237,8 +237,8 @@ export class Monde {
   }
 
   private majFace(carte: CarteM, etat: CarteScene) {
-    if (carte.code === etat.code && carte.voile === etat.voile) return;
-    const map = etat.code ? this.texFace(etat.code, etat.voile) : this.mat.dos.map;
+    if (carte.code === etat.code && carte.voile === etat.voile && carte.atk === etat.atk && carte.def === etat.def) return;
+    const map = etat.code ? this.texFace(etat.code, etat.voile, etat.atk, etat.def) : this.mat.dos.map;
     carte.face.map = map;
     carte.face.emissiveMap = map;
     carte.face.needsUpdate = true;

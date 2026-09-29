@@ -81,6 +81,12 @@ export const rarityLabel = (rarity: string) => RARITIES.get(rarity)?.[1] ?? rari
 // -2 in BabelCDB is a "?" stat.
 export const stat = (value: number) => (value === -2 ? "?" : String(value));
 
+// A current ATK or DEF above or below the printed one ("?" is never compared).
+export function statChange(current: number, printed: number): "hausse" | "baisse" | undefined {
+  if (printed < 0 || current === printed) return undefined;
+  return current > printed ? "hausse" : "baisse";
+}
+
 // The `count` strongest monsters of a deck, by ATK then level, each one once: the cards a deck is shown with.
 export function strongest(codes: readonly number[], cards: Cards, count: number): number[] {
   const power = (code: number) => {

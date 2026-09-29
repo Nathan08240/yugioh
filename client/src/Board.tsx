@@ -67,7 +67,7 @@ function Slot({ place, card, ui, label }: Readonly<{ place: Place; card: Card | 
       onFocus={reveal}
       onClick={() => (target ? ui.onPick?.(key) : reveal())}
     >
-      {card ? <CardView code={card.code} position={card.position} location={place.location} /> : <span className="zone-label">{label}</span>}
+      {card ? <CardView code={card.code} position={card.position} location={place.location} atk={card.atk} def={card.def} /> : <span className="zone-label">{label}</span>}
     </button>
   );
 }
