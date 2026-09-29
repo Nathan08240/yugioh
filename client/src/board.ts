@@ -26,6 +26,9 @@ export type Board = {
   chain: (Place & { code: number })[];
   winner?: number;
   log: LogEntry[];
+  // The card behind the damage being dealt (the attacker, else the last card activated), and the last damage dealt.
+  source?: number;
+  lastHit?: { player: number; amount: number; code: number };
 };
 
 const side = (lp: number, deck: number, extra: number): Side => ({
@@ -134,8 +137,12 @@ function apply(board: Board, msg: Message) {
       owner.hand = msg.cards.map((code, i) => ({ code, position: owner.hand[i]?.position ?? 0 }));
       break;
     }
+    case OcgMessageType.ATTACK:
+      board.source = cardAt(board, msg.card)?.code;
+      break;
     case OcgMessageType.CHAINING:
       if (msg.code) reveal(board, msg, msg.code, msg.position);
+      board.source = msg.code;
       board.chain.push({ code: msg.code, controller: msg.controller, location: msg.location, sequence: msg.sequence });
       break;
     case OcgMessageType.CHAIN_SOLVED:
@@ -152,6 +159,9 @@ function apply(board: Board, msg: Message) {
       board.phase = msg.phase;
       break;
     case OcgMessageType.DAMAGE:
+      board.lastHit = { player: msg.player, amount: msg.amount, code: board.source ?? 0 };
+      board.players[msg.player].lp -= msg.amount;
+      break;
     case OcgMessageType.PAY_LPCOST:
       board.players[msg.player].lp -= msg.amount;
       break;

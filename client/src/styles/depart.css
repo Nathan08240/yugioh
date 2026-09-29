@@ -1,0 +1,148 @@
+/* Pseudo et deck de départ (Depart.tsx) */
+
+.depart {
+  display: grid;
+  flex: 1;
+  place-items: center;
+  padding: var(--e-6) var(--marge-ecran);
+}
+
+.depart__form {
+  display: grid;
+  gap: var(--e-4);
+  inline-size: min(100%, 440px);
+  padding: var(--e-6);
+}
+
+.starter {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--e-6);
+  inline-size: 100%;
+  max-inline-size: var(--largeur-max);
+  margin-inline: auto;
+  padding: var(--e-5) var(--marge-ecran) var(--e-6);
+}
+
+.starter__tete {
+  display: grid;
+  gap: var(--e-2);
+  justify-items: center;
+  text-align: center;
+}
+
+.starter__choix {
+  display: grid;
+  flex: 1;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--e-6);
+}
+
+.deck-depart {
+  --teinte-deck: var(--attr-tenebres);
+  display: flex;
+  flex-direction: column;
+  gap: var(--e-6);
+  align-items: center;
+  justify-content: center;
+  padding: var(--e-6) var(--e-5) var(--e-5);
+  border-radius: var(--r-4) var(--r-1);
+  background:
+    radial-gradient(70% 60% at 50% 32%, color-mix(in oklab, var(--teinte-deck) 38%, transparent), transparent 70%),
+    var(--surface);
+  box-shadow: inset 0 0 0 1px var(--trait);
+  text-align: center;
+  transition: box-shadow var(--duree-2);
+}
+
+.deck-depart--kaiba {
+  --teinte-deck: #5aa9ff;
+}
+
+.deck-depart:hover,
+.deck-depart:focus-within {
+  box-shadow: inset 0 0 0 2px var(--teinte-deck), 0 0 48px color-mix(in oklab, var(--teinte-deck) 40%, transparent);
+}
+
+.deck-depart__cartes {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-block-start: var(--e-4);
+}
+
+.deck-depart__cartes .carte {
+  --carte-l: clamp(90px, 8vw, 118px);
+  margin-inline: -18px;
+  box-shadow: var(--ombre-2);
+}
+
+.deck-depart__cartes .carte:nth-child(1) { rotate: -12deg; translate: 0 22px; }
+.deck-depart__cartes .carte:nth-child(2) { z-index: 1; rotate: -6deg; translate: 0 6px; }
+.deck-depart__cartes .carte:nth-child(3) { --carte-l: clamp(140px, 12vw, 180px); z-index: 3; }
+.deck-depart__cartes .carte:nth-child(4) { z-index: 2; rotate: 6deg; translate: 0 6px; }
+.deck-depart__cartes .carte:nth-child(5) { z-index: 1; rotate: 12deg; translate: 0 22px; }
+
+.deck-depart__texte {
+  display: grid;
+  gap: var(--e-3);
+  justify-items: center;
+}
+
+.deck-depart h2 {
+  font: 900 var(--taille-3xl) / 0.9 var(--police-titre);
+  font-stretch: 78%;
+  text-transform: uppercase;
+  color: color-mix(in oklab, var(--teinte-deck) 45%, white);
+  text-shadow: 0 0 30px color-mix(in oklab, var(--teinte-deck) 60%, transparent);
+}
+
+.deck-depart p:not(.surtitre) {
+  max-inline-size: 42ch;
+  color: var(--texte-2);
+}
+
+.deck-depart .puces {
+  justify-content: center;
+}
+
+@supports (corner-shape: bevel) {
+  .deck-depart {
+    corner-shape: bevel;
+  }
+}
+
+@media (max-width: 1100px) {
+  .starter__choix {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-height: 760px) {
+  .starter {
+    gap: var(--e-4);
+    padding-block: var(--e-3) var(--e-4);
+  }
+
+  .starter .titre {
+    font-size: 2rem;
+  }
+
+  .deck-depart {
+    gap: var(--e-4);
+    padding-block: var(--e-4);
+  }
+
+  .deck-depart h2 {
+    font-size: var(--taille-2xl);
+  }
+
+  .deck-depart__cartes .carte {
+    --carte-l: min(8vw, 13vh);
+  }
+
+  .deck-depart__cartes .carte:nth-child(3) {
+    --carte-l: min(12vw, 21vh);
+  }
+}

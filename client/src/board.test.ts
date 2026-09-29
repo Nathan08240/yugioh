@@ -75,6 +75,14 @@ describe("plateau reconstruit à partir des messages du moteur", () => {
       { player: 0, parts: ["Attaque : ", { code: DARK_MAGICIAN }, " directement"] },
       { player: 1, parts: ["Perd 2500 LP"] },
     ]);
+    // The end of the duel shows the final blow.
+    expect(board.lastHit).toEqual({ player: 1, amount: 2500, code: DARK_MAGICIAN });
+    const burnt = playAll(board, [
+      { type: OcgMessageType.CHAINING, code: POT_OF_GREED, controller: 1, location: SZONE, sequence: 1, position: FACEUP_ATTACK, triggering_controller: 1, triggering_location: SZONE, triggering_sequence: 1, description: "0", chain_size: 1 },
+      { type: OcgMessageType.PAY_LPCOST, player: 1, amount: 500 },
+      { type: OcgMessageType.DAMAGE, player: 0, amount: 800 },
+    ]);
+    expect(burnt.lastHit).toEqual({ player: 0, amount: 800, code: POT_OF_GREED });
   });
 
   it("envoie au cimetière une carte détruite, et suit la chaîne", () => {

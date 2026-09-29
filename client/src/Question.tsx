@@ -81,7 +81,7 @@ function menu(title: string, choices: Choice[], actions: Action[], ctx: Ctx): Ui
         {own.length > 0 && (
           <div className="actions">
             {own.map((choice) => (
-              <button key={choice.id} type="button" onClick={() => ctx.respond(choice.response)}>
+              <button key={choice.id} type="button" className="btn" onClick={() => ctx.respond(choice.response)}>
                 {choice.label}
               </button>
             ))}
@@ -97,7 +97,7 @@ function Buttons({ actions, ctx }: Readonly<{ actions: Action[]; ctx: Ctx }>) {
   return (
     <div className="actions">
       {actions.map((action) => (
-        <button key={action.label} type="button" className="secondary" onClick={() => ctx.respond(action.response)}>
+        <button key={action.label} type="button" className="btn btn--fantome" onClick={() => ctx.respond(action.response)}>
           {action.label}
         </button>
       ))}
@@ -188,12 +188,12 @@ function pickCards(title: string, q: Pickable, weight: (index: number) => number
         <Chips places={q.selects} picked={ctx.picked} onPick={toggle} />
         <div className="actions">
           {q.max > 1 && (
-            <button type="button" disabled={!valid} onClick={() => answer(indices)}>
+            <button type="button" className="btn" disabled={!valid} onClick={() => answer(indices)}>
               Valider ({indices.length})
             </button>
           )}
           {q.can_cancel && (
-            <button type="button" className="secondary" onClick={() => answer(null)}>
+            <button type="button" className="btn btn--fantome" onClick={() => answer(null)}>
               Annuler
             </button>
           )}
@@ -226,7 +226,7 @@ function unselect(q: Q<OcgMessageType.SELECT_UNSELECT_CARD>, ctx: Ctx): Ui {
         <Chips places={q.unselect_cards} picked={q.unselect_cards.map(placeKey)} onPick={pick} />
         {done && (
           <div className="actions">
-            <button type="button" className="secondary" onClick={() => answer(null)}>
+            <button type="button" className="btn btn--fantome" onClick={() => answer(null)}>
               {q.can_finish ? "Terminer" : "Annuler"}
             </button>
           </div>

@@ -1,0 +1,476 @@
+/* Mode Histoire (Story.tsx) : arcs, parcours des duels, introduction avant le duel, cartes divines gagnées */
+
+.histoire {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--e-5);
+  inline-size: 100%;
+  max-inline-size: var(--largeur-max);
+  margin-inline: auto;
+  padding: var(--e-4) var(--marge-ecran) var(--e-6);
+}
+
+.histoire__tete {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--e-3);
+  align-items: end;
+  justify-content: space-between;
+}
+
+/* Arcs ------------------------------------------------------------------- */
+
+.arcs {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: var(--e-3);
+}
+
+.arc button {
+  position: relative;
+  display: grid;
+  gap: 2px;
+  align-content: end;
+  inline-size: 100%;
+  block-size: clamp(120px, 17vh, 160px);
+  padding: var(--e-3);
+  overflow: hidden;
+  isolation: isolate;
+  border: 0;
+  border-radius: var(--r-3) var(--r-1);
+  background: none;
+  box-shadow: inset 0 0 0 1px var(--trait);
+  text-align: start;
+  cursor: pointer;
+  transition: box-shadow var(--duree-1) var(--courbe-sortie);
+}
+
+.arc button:hover:not(:disabled) {
+  box-shadow: inset 0 0 0 1px var(--holo), 0 0 20px rgb(67 240 255 / 0.2);
+}
+
+.arc button:disabled {
+  cursor: default;
+}
+
+.arc img {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+  opacity: 0.6;
+  mask-image: linear-gradient(to top, transparent 0, #000 100%);
+}
+
+.arc button::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(0deg, var(--nuit-0) 10%, rgb(6 8 23 / 0.2));
+}
+
+.arc__num {
+  font: 700 var(--taille-xs) / 1 var(--police-etroite);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--texte-3);
+}
+
+.arc b {
+  font: 700 var(--taille-s) / 1.15 var(--police-etroite);
+  text-wrap: balance;
+}
+
+.arc__etat {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  font: 700 var(--taille-xs) / 1.2 var(--police-chiffres);
+  color: var(--texte-2);
+}
+
+.arc--fini .arc__etat {
+  color: var(--or);
+}
+
+.arc--encours .arc__etat {
+  color: var(--holo-2);
+}
+
+.arc button[aria-current] {
+  box-shadow: inset 0 0 0 2px var(--holo), 0 0 28px rgb(67 240 255 / 0.35);
+}
+
+.arc--verrou img {
+  filter: grayscale(1) brightness(0.6);
+}
+
+.arc--verrou b,
+.arc--verrou .arc__etat {
+  color: var(--texte-3);
+}
+
+/* Parcours des duels de l'arc ------------------------------------------- */
+
+.parcours {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(var(--n), 1fr);
+  gap: var(--e-4);
+  align-items: start;
+  margin-block: auto;
+  padding-block-start: var(--e-5);
+}
+
+/* Le tracé qui relie les duels : or jusqu'au dernier gagné, cyan jusqu'au duel disponible */
+.parcours::before {
+  content: "";
+  position: absolute;
+  inset: calc(var(--e-5) + 21px) calc(50% / var(--n)) auto;
+  block-size: 3px;
+  background: linear-gradient(90deg, var(--or) 0 var(--fait), var(--holo) var(--fait) var(--dispo), rgb(150 170 255 / 0.2) var(--dispo));
+  box-shadow: 0 0 12px rgb(255 197 61 / 0.4);
+}
+
+.etape {
+  position: relative;
+  display: grid;
+  gap: 6px;
+  justify-items: center;
+  padding: 0 var(--e-3) var(--e-5);
+  border-radius: var(--r-4) var(--r-1);
+  text-align: center;
+}
+
+.etape__num {
+  display: grid;
+  place-items: center;
+  inline-size: 44px;
+  aspect-ratio: 1 / 1.1;
+  margin-block-end: var(--e-2);
+  background: var(--or);
+  clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+  font-size: var(--taille-l);
+  font-weight: 800;
+  color: var(--nuit-0);
+}
+
+.etape h2 {
+  font: 700 var(--taille-l) / 1.15 var(--police-etroite);
+  text-wrap: balance;
+}
+
+.etape__etat {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  font: 700 var(--taille-xs) / 1 var(--police-etroite);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--or);
+}
+
+.etape__gain {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--e-2);
+  align-items: center;
+  justify-content: center;
+  margin-block: var(--e-2);
+  padding: 4px 10px 4px 4px;
+  border-radius: var(--r-2) var(--r-1);
+  background: rgb(6 8 23 / 0.6);
+  box-shadow: inset 0 0 0 1px var(--trait);
+  font: 600 var(--taille-s) / 1.2 var(--police-etroite);
+  color: var(--texte-2);
+}
+
+.etape__gain img {
+  flex: none;
+  inline-size: 36px;
+  block-size: 36px;
+  border-radius: 4px;
+  object-fit: cover;
+}
+
+/* Le libellé passe sous les illustrations quand la colonne est étroite */
+.etape__libelle {
+  flex: 1 1 7em;
+}
+
+.etape__gain .ic {
+  margin-inline-start: 6px;
+  color: var(--or);
+}
+
+/* Un Dieu Égyptien à gagner : liseré d'or divin */
+.etape__gain--divine {
+  box-shadow: inset 0 0 0 1px rgb(255 176 32 / 0.7), 0 0 18px rgb(255 176 32 / 0.25);
+  color: var(--or-2);
+}
+
+.etape--available {
+  padding-block-start: var(--e-2);
+  background: var(--trame-holo), linear-gradient(180deg, rgb(67 240 255 / 0.16), transparent), var(--surface);
+  box-shadow: inset 0 0 0 2px var(--holo), 0 0 40px rgb(67 240 255 / 0.3);
+  translate: 0 -8px;
+}
+
+.etape--available .etape__num {
+  background: var(--holo);
+  box-shadow: 0 0 20px var(--holo);
+}
+
+.etape--available .etape__etat {
+  color: var(--holo-2);
+}
+
+.etape--locked {
+  opacity: 0.62;
+}
+
+.etape--locked .etape__num {
+  background: var(--inactif);
+}
+
+.etape--locked .etape__etat {
+  color: var(--texte-3);
+}
+
+.mystere {
+  flex: none;
+  display: grid;
+  place-items: center;
+  inline-size: 36px;
+  block-size: 36px;
+  border-radius: 4px;
+  background: var(--nuit-3);
+  font: 800 var(--taille-l) / 1 var(--police-titre);
+  color: var(--texte-3);
+}
+
+/* Avant le duel ---------------------------------------------------------- */
+
+.briefing {
+  display: grid;
+  flex: 1;
+  grid-template-columns: 0.9fr 1.1fr;
+  gap: var(--e-7);
+  align-items: center;
+  inline-size: 100%;
+  max-inline-size: var(--largeur-max);
+  margin-inline: auto;
+  padding: var(--e-4) var(--marge-ecran) var(--e-6);
+}
+
+/* L'adversaire projeté par le Duel Disk (projecteur__* dans accueil.css), aux couleurs du camp adverse */
+.briefing__adversaire {
+  position: relative;
+  block-size: min(70vh, 600px);
+}
+
+.projecteur__holo--adverse {
+  inset-block-start: 2%;
+  inline-size: min(26vw, 360px);
+  filter: drop-shadow(0 0 30px rgb(255 106 136 / 0.5));
+}
+
+.projecteur__holo--adverse::after {
+  background:
+    repeating-linear-gradient(0deg, rgb(255 106 136 / 0.2) 0 1px, transparent 1px 3px),
+    linear-gradient(180deg, rgb(255 106 136 / 0.3), transparent 35%, rgb(255 106 136 / 0.3));
+}
+
+.projecteur__faisceau--adverse {
+  background: linear-gradient(0deg, rgb(255 106 136 / 0.45), rgb(255 106 136 / 0.08) 55%, transparent);
+}
+
+.projecteur__socle--adverse {
+  inline-size: 300px;
+  background:
+    radial-gradient(circle, rgb(255 106 136 / 0.3) 0 20%, transparent 21% 30%, rgb(255 106 136 / 0.55) 30.5% 31.5%, transparent 32% 44%, rgb(139 61 255 / 0.55) 44.5% 45.5%, transparent 46%),
+    radial-gradient(circle, rgb(21 28 74 / 0.9) 0 48%, transparent 50%);
+  box-shadow: 0 0 60px rgb(255 106 136 / 0.3);
+}
+
+.avatar--geant {
+  position: absolute;
+  inset: auto auto 4% 10%;
+  z-index: 3;
+  inline-size: 112px;
+  background: linear-gradient(160deg, var(--camp-adverse), #6b2a7a);
+  box-shadow: 0 0 40px rgb(255 106 136 / 0.5);
+  font-size: var(--taille-2xl);
+}
+
+.briefing__texte {
+  display: grid;
+  gap: var(--e-4);
+  justify-items: start;
+}
+
+.briefing__contre {
+  margin-block-start: var(--e-2);
+  font-size: var(--taille-l);
+  color: var(--texte-2);
+}
+
+.briefing__contre b {
+  color: var(--camp-adverse);
+}
+
+.dialogue {
+  inline-size: 100%;
+  padding: var(--e-4) var(--e-5);
+  font-size: var(--taille-m);
+  line-height: 1.6;
+}
+
+/* Duel déjà gagné : la conclusion suit l'introduction */
+.dialogue__suite {
+  margin-block-start: var(--e-3);
+  padding-block-start: var(--e-3);
+  border-block-start: 1px solid var(--trait);
+  font-size: var(--taille-m);
+}
+
+.regles {
+  inline-size: 100%;
+  padding: var(--e-3) var(--e-4);
+}
+
+.regles summary {
+  font: 700 var(--taille-m) / 1.4 var(--police-etroite);
+  letter-spacing: 0.04em;
+  cursor: pointer;
+}
+
+.regles ul {
+  display: grid;
+  gap: 4px;
+  grid-template-columns: repeat(2, 1fr);
+  column-gap: var(--e-6);
+  margin-block-start: var(--e-2);
+  padding-inline-start: var(--e-5);
+  list-style: disc;
+  font-size: var(--taille-s);
+  color: var(--texte-2);
+}
+
+.briefing__gains {
+  display: grid;
+  gap: var(--e-3);
+}
+
+/* Récompenses et lancement du duel sur une même ligne */
+.briefing__bas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--e-4) var(--e-6);
+  align-items: end;
+  justify-content: space-between;
+  inline-size: 100%;
+}
+
+/* Carte divine gagnée (Rewards dans ui.tsx) : aura d'or lente derrière la carte */
+.recompense--divine {
+  position: relative;
+}
+
+.recompense.recompense--divine .carte {
+  box-shadow: 0 0 0 3px var(--attr-divin), 0 0 80px 8px rgb(255 176 32 / 0.65);
+}
+
+.recompense--divine::before {
+  content: "";
+  position: absolute;
+  inset: -25% -45%;
+  z-index: -1;
+  background: radial-gradient(closest-side, rgb(255 197 61 / 0.55), rgb(255 176 32 / 0.15) 60%, transparent);
+  pointer-events: none;
+  animation: aura-divine 3s ease-in-out infinite alternate;
+}
+
+@keyframes aura-divine {
+  from { opacity: 0.5; scale: 0.92; }
+  to { opacity: 1; scale: 1.06; }
+}
+
+@supports (corner-shape: bevel) {
+  .arc button,
+  .etape {
+    corner-shape: bevel;
+  }
+}
+
+/* Tablette : les colonnes s'empilent */
+@media (max-width: 1100px) {
+  .arcs {
+    grid-template-columns: repeat(4, 1fr);
+  }
+
+  .parcours {
+    grid-template-columns: repeat(3, 1fr);
+    row-gap: var(--e-6);
+  }
+
+  .parcours::before {
+    display: none;
+  }
+
+  .etape--available {
+    translate: none;
+  }
+
+  .briefing {
+    grid-template-columns: 1fr;
+    gap: var(--e-5);
+  }
+
+  .briefing__adversaire {
+    block-size: 420px;
+  }
+
+  .projecteur__holo--adverse {
+    inline-size: 230px;
+  }
+}
+
+@media (max-width: 700px) {
+  .arcs {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .parcours,
+  .regles ul {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Écrans bas (1280x720) : on resserre pour tout garder sans défilement */
+@media (max-height: 760px) {
+  .histoire {
+    gap: var(--e-4);
+  }
+
+  .briefing {
+    gap: var(--e-5);
+    padding-block: var(--e-3);
+  }
+
+  .briefing__texte {
+    gap: var(--e-3);
+  }
+
+  .dialogue {
+    padding: var(--e-3) var(--e-4);
+  }
+
+  .briefing .recompense .carte {
+    --carte-l: 72px;
+  }
+}

@@ -1,0 +1,443 @@
+/* Collection et decks (DeckBuilder.tsx) : collection filtrée, détail de la carte, deck en cours. */
+
+/* L'écran tient dans la fenêtre : chaque colonne défile seule. */
+.ecran:has(.atelier) {
+  block-size: 100dvh;
+}
+
+.atelier {
+  display: grid;
+  flex: 1;
+  grid-template-columns: minmax(0, 1fr) clamp(240px, 19vw, 290px) clamp(290px, 23vw, 350px);
+  grid-template-rows: minmax(0, 1fr);
+  gap: var(--e-5);
+  inline-size: 100%;
+  max-inline-size: var(--largeur-max);
+  min-block-size: 0;
+  margin-inline: auto;
+  padding: var(--e-4) var(--marge-ecran) var(--e-5);
+}
+
+.atelier__collection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--e-3);
+  min-block-size: 0;
+}
+
+/* Filtres ----------------------------------------------------------------- */
+
+.filtres {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--e-2);
+  align-items: center;
+}
+
+.filtres__recherche {
+  flex: 1 1 200px;
+  min-block-size: 40px;
+}
+
+.filtres__recherche .ic {
+  flex: none;
+}
+
+.segments {
+  display: flex;
+  padding: 3px;
+  border-radius: var(--r-2) var(--r-1);
+  background: rgb(6 8 23 / 0.6);
+  box-shadow: inset 0 0 0 1px var(--trait);
+}
+
+.segments button,
+.attributs button {
+  min-block-size: 34px;
+  padding: 0 var(--e-3);
+  border: 0;
+  border-radius: var(--r-1);
+  background: none;
+  font: 600 var(--taille-s) / 1 var(--police-etroite);
+  color: var(--texte-2);
+  cursor: pointer;
+  transition: background var(--duree-1), color var(--duree-1), opacity var(--duree-1);
+}
+
+.segments button:hover {
+  color: var(--texte);
+}
+
+.segments [aria-pressed="true"] {
+  background: var(--holo-fond);
+  box-shadow: inset 0 0 0 1px var(--holo);
+  color: var(--holo-2);
+}
+
+.attributs {
+  display: flex;
+  gap: 2px;
+}
+
+.attributs button {
+  display: grid;
+  place-items: center;
+  inline-size: 34px;
+  padding: 0;
+  color: var(--attr);
+  opacity: 0.55;
+}
+
+.attributs button:hover {
+  opacity: 0.85;
+}
+
+.attributs [aria-pressed="true"] {
+  background: color-mix(in oklab, var(--attr) 20%, transparent);
+  box-shadow: inset 0 0 0 1px var(--attr);
+  opacity: 1;
+}
+
+.plage {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  font: 600 var(--taille-s) / 1 var(--police-etroite);
+  color: var(--texte-2);
+}
+
+.plage > span:first-child {
+  margin-inline-end: 2px;
+  letter-spacing: 0.06em;
+}
+
+.plage input {
+  inline-size: 3.6rem;
+  min-block-size: 34px;
+  padding: 0 var(--e-2);
+  border: 0;
+  border-radius: var(--r-2) var(--r-1);
+  background: rgb(6 8 23 / 0.6);
+  box-shadow: inset 0 0 0 1px var(--trait-fort);
+  font: 600 var(--taille-s) / 1 var(--police-chiffres);
+  font-variant-numeric: tabular-nums;
+  color: var(--texte);
+  appearance: textfield;
+}
+
+.plage input::-webkit-inner-spin-button {
+  appearance: none;
+}
+
+.plage input:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--holo);
+}
+
+.atelier__resume {
+  font-size: var(--taille-s);
+}
+
+.atelier__vide {
+  color: var(--texte-2);
+}
+
+/* Grille de la collection --------------------------------------------------- */
+
+.grille-collection {
+  display: grid;
+  flex: 1;
+  grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+  gap: var(--e-4) var(--e-3);
+  align-content: start;
+  min-block-size: 0;
+  padding: 4px 4px var(--e-4);
+  overflow: auto;
+}
+
+.grille-collection li {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px;
+}
+
+.grille-collection button {
+  grid-column: 1 / -1;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-3) var(--r-1);
+  background: none;
+  cursor: pointer;
+}
+
+.grille-collection .carte {
+  --carte-l: 100%;
+
+  transition: translate var(--duree-1) var(--courbe-sortie), box-shadow var(--duree-2);
+}
+
+.grille-collection button:is(:hover, :focus-visible) .carte {
+  box-shadow: 0 0 0 2px var(--holo), 0 0 22px rgb(67 240 255 / 0.45);
+  translate: 0 -4px;
+}
+
+.grille-collection button:active .carte {
+  translate: 0 -1px;
+}
+
+/* Tous les exemplaires possédés sont déjà dans le deck. */
+.est-epuisee button {
+  cursor: default;
+}
+
+.est-epuisee .carte {
+  filter: grayscale(0.7) brightness(0.6);
+}
+
+.qte,
+.dans-deck {
+  justify-self: start;
+  padding: 1px 6px;
+  border-radius: var(--r-1);
+  font: 700 var(--taille-xs) / 1.3 var(--police-chiffres);
+}
+
+.qte {
+  color: var(--texte-2);
+}
+
+.dans-deck {
+  justify-self: end;
+  background: var(--holo-fond);
+  box-shadow: inset 0 0 0 1px rgb(67 240 255 / 0.5);
+  color: var(--holo-2);
+}
+
+/* Détail de la carte -------------------------------------------------------- */
+
+.atelier__detail {
+  align-self: start;
+  max-block-size: 100%;
+  overflow: auto;
+}
+
+.atelier__detail .detail {
+  padding: var(--e-4);
+}
+
+.atelier__detail .detail > .carte {
+  --carte-l: min(100%, 220px);
+}
+
+.atelier__detail .detail-vide {
+  padding: var(--e-5) var(--e-4);
+}
+
+/* Deck en cours ------------------------------------------------------------- */
+
+.atelier__deck {
+  display: flex;
+  flex-direction: column;
+  gap: var(--e-3);
+  min-block-size: 0;
+  padding: var(--e-4);
+}
+
+.deck-tete {
+  display: flex;
+  gap: var(--e-2);
+  align-items: center;
+  justify-content: space-between;
+}
+
+.deck-tete .choix {
+  flex: 1;
+  min-inline-size: 0;
+}
+
+.deck-tete select {
+  inline-size: 100%;
+}
+
+.deck-tete .btn {
+  min-block-size: 34px;
+  padding-inline: var(--e-3);
+  font-size: var(--taille-s);
+}
+
+.atelier__deck .champ__saisie {
+  min-block-size: 40px;
+}
+
+.deck-compteurs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--e-2);
+}
+
+.deck-compteurs p {
+  display: flex;
+  gap: var(--e-2);
+  align-items: center;
+  padding: var(--e-2) var(--e-3);
+  border-radius: var(--r-2) var(--r-1);
+  background: rgb(6 8 23 / 0.5);
+  font: 600 var(--taille-xs) / 1.2 var(--police-etroite);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--texte-2);
+}
+
+.deck-compteurs .chiffres {
+  font-size: var(--taille-xl);
+  font-weight: 800;
+  color: var(--texte);
+}
+
+.deck-compteurs .est-hors-regle {
+  box-shadow: inset 3px 0 0 var(--danger);
+}
+
+.deck-compteurs .est-hors-regle .chiffres {
+  color: #ffb3c1;
+}
+
+.repartition {
+  display: flex;
+  gap: 2px;
+  block-size: 8px;
+}
+
+.repartition span {
+  flex: var(--n);
+  border-radius: 2px;
+}
+
+.repartition--monstre { background: var(--type-effet); }
+.repartition--magie { background: var(--type-magie); }
+.repartition--piege { background: var(--type-piege); }
+
+.repartition__legende {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--taille-xs);
+  color: var(--texte-2);
+}
+
+.liste-deck {
+  display: grid;
+  flex: 1;
+  gap: 4px;
+  align-content: start;
+  min-block-size: 0;
+  overflow: auto;
+}
+
+.liste-deck li {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto auto;
+  gap: var(--e-2);
+  align-items: center;
+  padding: 3px 4px 3px 3px;
+  border-radius: var(--r-1);
+  background: linear-gradient(90deg, color-mix(in oklab, var(--cadre) 22%, transparent), transparent 60%), rgb(6 8 23 / 0.45);
+  box-shadow: inset 3px 0 0 var(--cadre);
+}
+
+.liste-deck img,
+.liste-deck__repli {
+  inline-size: 34px;
+  block-size: 34px;
+  border-radius: 3px;
+  object-fit: cover;
+}
+
+.liste-deck__repli {
+  background: color-mix(in oklab, var(--cadre) 45%, var(--nuit-2));
+}
+
+.liste-deck__nom {
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: 600 var(--taille-s) / 1.2 var(--police-etroite);
+  text-align: start;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--texte);
+  cursor: pointer;
+}
+
+.liste-deck__nom:hover {
+  color: var(--holo-2);
+}
+
+.liste-deck b {
+  font: 800 var(--taille-s) / 1 var(--police-chiffres);
+  color: var(--texte-2);
+}
+
+.liste-deck .btn-icone:hover {
+  color: var(--danger);
+  box-shadow: inset 0 0 0 1px var(--danger);
+}
+
+.liste-deck__vide {
+  flex: 1;
+  font-size: var(--taille-s);
+  color: var(--texte-2);
+}
+
+/* Les règles du serveur commencent en minuscule. */
+.atelier__deck .message::first-letter {
+  text-transform: uppercase;
+}
+
+.deck-actions {
+  display: flex;
+  gap: var(--e-2);
+}
+
+.deck-actions .btn {
+  flex: 1;
+  padding-inline: var(--e-3);
+}
+
+.deck-supprimer {
+  align-self: center;
+  font-size: var(--taille-s);
+  color: #ffb3c1;
+  text-decoration-color: rgb(255 77 109 / 0.5);
+}
+
+.deck-supprimer:disabled {
+  color: var(--texte-3);
+  text-decoration: none;
+  cursor: not-allowed;
+}
+
+/* Sous 1100 px, le détail laisse sa place ; sous 820 px, les colonnes s'empilent et la page défile. */
+@media (max-width: 1100px) {
+  .atelier {
+    grid-template-columns: minmax(0, 1fr) 300px;
+  }
+
+  .atelier__detail {
+    display: none;
+  }
+}
+
+@media (max-width: 820px) {
+  .ecran:has(.atelier) {
+    block-size: auto;
+  }
+
+  .atelier {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: none;
+  }
+
+  .grille-collection {
+    max-block-size: 70dvh;
+  }
+}

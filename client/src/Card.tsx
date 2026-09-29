@@ -1,101 +1,142 @@
 import { OcgLocation, OcgPosition, OcgType } from "@n1xx1/ocgcore-wasm";
+import type { PointerEvent } from "react";
 import type { CardInfo } from "../../server/src/protocol.ts";
-import { frame, has, stat, useDuelView } from "./cards.ts";
+import { attributeKey, frame, has, ICONS, rarityKey, stat, useDuelView } from "./cards.ts";
+import { prefersReduced } from "./motion.ts";
 
-type Props = { code: number; position?: number; location?: number; full?: boolean };
+type Props = {
+  code: number;
+  // Engine position and location: a monster in defense turns sideways, a face-down card on the field gets the veil.
+  position?: number;
+  location?: number;
+  // Adds the text of the card below it, for the detail panels.
+  full?: boolean;
+  // Printing rarity of the server ("common", "super"...), for its holographic treatment.
+  rarity?: string;
+  // Game states of cartes.css: est-cible, est-choisie, est-inactive, est-activee.
+  className?: string;
+};
 
-// A card frame drawn in CSS around the artwork; `full` adds the type line and the text. Code 0 shows the back.
-// `location` is the zone the card sits in on the field: hand and piles show every card upright.
-export function CardView({ code, position = 0, location = 0, full = false }: Readonly<Props>) {
+const SHINY: ReadonlySet<string> = new Set(["super", "ultra", "ultimate", "secret"]);
+
+// A card drawn in CSS around its artwork (cartes.css), sized by --carte-l. Code 0 shows the back.
+// Hand and piles show every card upright: only the field turns defense monsters and veils set cards.
+export function CardView({ code, position = 0, location = 0, full = false, rarity, className }: Readonly<Props>) {
   const { cards } = useDuelView();
-  const classes = ["card"];
-  if (location === OcgLocation.MZONE && has(position, OcgPosition.DEFENSE)) classes.push("defense");
-  if (has(location, OcgLocation.ONFIELD) && has(position, OcgPosition.FACEDOWN)) classes.push("set");
-  if (!code) return <div className={[...classes, "back"].join(" ")} aria-label="carte face cachée" />;
+  const classes = ["carte"];
+  if (className) classes.push(className);
+  if (location === OcgLocation.MZONE && has(position, OcgPosition.DEFENSE)) classes.push("est-defense");
+  if (!code) return <div className={[...classes, "dos"].join(" ")} role="img" aria-label="carte face cachée" />;
+  if (has(location, OcgLocation.ONFIELD) && has(position, OcgPosition.FACEDOWN)) classes.push("est-posee");
   const info = cards.get(code);
-  const monster = has(info?.type ?? 0, OcgType.MONSTER);
-  classes.push(frame(info?.type ?? 0));
-  if (full) classes.push("full");
-  return (
-    <div className={classes.join(" ")}>
-      <div className="face">
-        <div className="face-name">
-          <span>{info?.name ?? `Carte ${code}`}</span>
-          <Attribute info={info} monster={monster} />
-        </div>
-        {monster ? <Level info={info} /> : <p className="face-kind">[{info?.typeLine}]</p>}
-        <Art code={code} info={info} />
-        {full && <Text info={info} monster={monster} />}
-        {!full && monster && (
-          <p className="face-stats">
-            {stat(info?.atk ?? 0)} / {stat(info?.def ?? 0)}
+  const monster = has(info?.type ?? OcgType.MONSTER, OcgType.MONSTER);
+  const attribute = attributeKey(info?.attribute ?? 0);
+  const icon = gem(info?.type ?? 0, monster, attribute);
+  const shine = rarity ? rarityKey(rarity) : "commune";
+  classes.push(`t-${frame(info?.type ?? 0)}`);
+  if (monster && attribute) classes.push(`a-${attribute}`);
+  if (shine !== "commune") classes.push(`r-${shine}`);
+  const name = info?.name ?? `Carte ${code}`;
+  const shiny = SHINY.has(shine);
+
+  const card = (
+    <div className={classes.join(" ")} onPointerMove={shiny ? follow : undefined} onPointerLeave={shiny ? rest : undefined}>
+      <div className="carte__art">
+        {/* Without artwork, or when it fails to load, the icon of the gem fills the frame. */}
+        <svg className="ic carte__repli" aria-hidden="true">
+          <use href={`${ICONS}#${icon}`} />
+        </svg>
+        {info?.image && (
+          <img
+            src={`/api/art/${code}.jpg`}
+            alt=""
+            loading="lazy"
+            draggable={false}
+            onError={(event) => {
+              event.currentTarget.hidden = true;
+            }}
+          />
+        )}
+      </div>
+      <span className="carte__attr" title={monster ? info?.attributeName : info?.typeLine}>
+        <svg className="ic" aria-hidden="true">
+          <use href={`${ICONS}#${icon}`} />
+        </svg>
+      </span>
+      {monster && Boolean(info?.level) && (
+        <span className="carte__niveau" aria-label={`Niveau ${info?.level}`}>
+          {info?.level}
+        </span>
+      )}
+      <div className="carte__infos">
+        <p className="carte__nom">{name}</p>
+        <p className="carte__type">{info?.typeLine}</p>
+        {monster && info && (
+          <p className="carte__stats">
+            <span>
+              ATK<b>{stat(info.atk)}</b>
+            </span>
+            <span>
+              DEF<b>{stat(info.def)}</b>
+            </span>
           </p>
         )}
       </div>
     </div>
   );
-}
-
-function Attribute({ info, monster }: Readonly<{ info?: CardInfo; monster: boolean }>) {
-  if (!info) return null;
-  if (monster) return <span className={`face-attr attr-${info.attribute}`} title={info.attributeName} />;
-  return <span className="face-attr" title={info.typeLine} />;
-}
-
-function Level({ info }: Readonly<{ info?: CardInfo }>) {
-  const level = info?.level ?? 0;
+  if (!full) return card;
   return (
-    <p className="face-level">
-      <span className="face-attr-name">{info?.attributeName}</span>
-      <span className="face-stars" aria-label={`Niveau ${level}`}>
-        {"★".repeat(level)}
-      </span>
-    </p>
+    <article className="detail">
+      {card}
+      <Text info={info} name={name} monster={monster} />
+    </article>
   );
 }
 
-// The type line shows through when the artwork is missing or fails to load.
-function Art({ code, info }: Readonly<{ code: number; info?: CardInfo }>) {
-  return (
-    <div className="face-art">
-      <span>{info?.typeLine}</span>
-      {info?.image && (
-        <img
-          src={`/api/art/${code}.jpg`}
-          alt=""
-          loading="lazy"
-          draggable={false}
-          onError={(event) => {
-            event.currentTarget.hidden = true;
-          }}
-        />
-      )}
-    </div>
-  );
+// Icon of the gem: the attribute of a monster, the kind of a spell or trap.
+function gem(type: number, monster: boolean, attribute: string | undefined): string {
+  if (!monster) return has(type, OcgType.TRAP) ? "type-piege" : "type-magie";
+  return `attr-${attribute ?? "lumiere"}`;
+}
+
+// The glare of the shiny rarities follows the pointer and the card tilts, without the tilt when motion is reduced.
+function follow(event: PointerEvent<HTMLDivElement>) {
+  const card = event.currentTarget;
+  const box = card.getBoundingClientRect();
+  const x = (event.clientX - box.left) / box.width;
+  const y = (event.clientY - box.top) / box.height;
+  card.style.setProperty("--reflet-x", `${x * 100}%`);
+  card.style.setProperty("--reflet-y", `${y * 100}%`);
+  card.style.transform = prefersReduced() ? "" : `perspective(700px) rotateY(${(x - 0.5) * 18}deg) rotateX(${(0.5 - y) * 14}deg)`;
+}
+
+function rest(event: PointerEvent<HTMLDivElement>) {
+  const { style } = event.currentTarget;
+  style.removeProperty("--reflet-x");
+  style.removeProperty("--reflet-y");
+  style.transform = "";
 }
 
 // Normal monsters carry flavor text, in italics as on the printed cards.
-function Text({ info, monster }: Readonly<{ info?: CardInfo; monster: boolean }>) {
+function Text({ info, name, monster }: Readonly<{ info?: CardInfo; name: string; monster: boolean }>) {
   if (!info) return null;
+  const meta = monster ? `${info.attributeName} · Niveau ${info.level} · ${info.typeLine}` : info.typeLine;
   const flavor = monster && has(info.type, OcgType.NORMAL);
   return (
-    <div className="face-text">
-      {monster && <p className="face-type">[{info.typeLine}]</p>}
-      <p className={flavor ? "face-desc flavor" : "face-desc"}>{info.desc}</p>
+    <div className="detail__texte">
+      <h3>{name}</h3>
+      <p className="detail__meta">{meta}</p>
       {monster && (
-        <p className="face-stats">
-          ATK/{stat(info.atk)} DEF/{stat(info.def)}
+        <p className="detail__stats">
+          ATK <b>{stat(info.atk)}</b> DEF <b>{stat(info.def)}</b>
         </p>
       )}
+      <p className={flavor ? "detail__desc saveur" : "detail__desc"}>{info.desc}</p>
     </div>
   );
 }
 
 export function CardDetail({ code }: Readonly<{ code?: number }>) {
-  if (code === undefined) return <p className="muted detail-empty">Survolez une carte pour la voir en détail.</p>;
-  return (
-    <div className="detail">
-      <CardView code={code} full />
-    </div>
-  );
+  if (code === undefined) return <p className="detail-vide">Survolez une carte pour la voir en détail.</p>;
+  return <CardView code={code} full />;
 }

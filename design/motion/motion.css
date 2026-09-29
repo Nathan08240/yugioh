@@ -1,0 +1,813 @@
+/* Démo du mouvement : mise en page de la page et des scènes. Composants repris de ../maquette/maquette.css. */
+
+/* Réduction simulée par la case à cocher : mêmes effets que la préférence système */
+:root.reduit {
+  --duree-1: 0ms;
+  --duree-2: 0ms;
+  --duree-3: 0ms;
+  --duree-4: 0ms;
+}
+
+:root.reduit *,
+:root.reduit *::before,
+:root.reduit *::after {
+  animation: none !important;
+  transition: none !important;
+}
+
+body {
+  background:
+    radial-gradient(80% 40% at 50% 0%, rgb(67 240 255 / 0.08), transparent 70%),
+    linear-gradient(180deg, var(--nuit-0), var(--nuit-1) 60%, var(--nuit-0));
+  background-attachment: fixed;
+}
+
+.page {
+  display: grid;
+  gap: var(--e-7);
+  max-inline-size: var(--largeur-max);
+  margin-inline: auto;
+  padding: var(--e-6) var(--marge-ecran) var(--e-8);
+}
+
+.entete {
+  display: grid;
+  gap: var(--e-3);
+  max-inline-size: 72ch;
+}
+
+.entete .texte-2 {
+  font-size: var(--taille-l);
+}
+
+.sommaire {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--e-2);
+}
+
+.bascule {
+  display: inline-flex;
+  gap: var(--e-2);
+  align-items: center;
+  justify-self: start;
+  padding: var(--e-2) var(--e-4);
+  border-radius: var(--r-3) var(--r-1);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--trait-fort);
+  font: 600 var(--taille-m) / 1.2 var(--police-etroite);
+  cursor: pointer;
+}
+
+.bascule input {
+  inline-size: 18px;
+  block-size: 18px;
+  accent-color: var(--holo);
+}
+
+.demo {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: var(--e-5);
+  align-items: start;
+  scroll-margin-block-start: var(--e-4);
+}
+
+.demo__cote {
+  position: sticky;
+  inset-block-start: var(--e-4);
+  display: grid;
+  gap: var(--e-4);
+}
+
+.demo__cote .texte-2 {
+  font-size: var(--taille-s);
+}
+
+.commandes {
+  display: grid;
+  gap: 6px;
+}
+
+.commandes .surtitre {
+  margin-block: var(--e-2) 2px;
+  font-size: var(--taille-xs);
+}
+
+.commandes .btn {
+  justify-content: flex-start;
+  min-block-size: 38px;
+  padding-inline: var(--e-3);
+  font-size: var(--taille-s);
+}
+
+.etiquette-3d {
+  margin-inline-start: auto;
+  padding: 1px 6px;
+  border-radius: var(--r-1);
+  background: rgb(139 61 255 / 0.25);
+  box-shadow: inset 0 0 0 1px rgb(139 61 255 / 0.7);
+  font: 700 10px / 1.4 var(--police-etroite);
+  letter-spacing: 0.08em;
+  color: var(--texte);
+}
+
+/* Scène : un cadre 16/9, tout est dimensionné en unités de conteneur */
+.scene-demo {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  isolation: isolate;
+  container-type: size;
+  border-radius: var(--r-4) var(--r-1);
+  box-shadow: inset 0 0 0 1px var(--trait), var(--ombre-3);
+}
+
+#scene-duel {
+  background: radial-gradient(70% 60% at 50% 42%, #1b2370 0, #0c1236 55%, var(--nuit-0) 100%);
+}
+
+.scene-booster,
+.scene-fin {
+  background: radial-gradient(70% 70% at 50% 40%, #1d2672 0, var(--nuit-1) 45%, var(--nuit-0) 80%);
+}
+
+.scene-ecrans.fond-ville::before {
+  block-size: 44cqh;
+}
+
+.scene-ecrans.fond-ville::after {
+  block-size: 30cqh;
+}
+
+.scene-demo[aria-busy="true"] {
+  cursor: pointer;
+}
+
+.aide-scene {
+  position: absolute;
+  inset: 1.5cqh auto auto 50%;
+  z-index: 45;
+  font: 600 var(--taille-xs) / 1 var(--police-etroite);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--texte-3);
+  translate: -50% 0;
+  opacity: 0;
+}
+
+.scene-demo[aria-busy="true"] .aide-scene {
+  opacity: 1;
+}
+
+.scene-demo [hidden] {
+  display: none !important;
+}
+
+.couche {
+  position: absolute;
+  inset: 0;
+  z-index: 35;
+  pointer-events: none;
+}
+
+.couche > * {
+  position: absolute;
+}
+
+/* Duel ------------------------------------------------------------------- */
+
+.plateau-demo {
+  position: absolute;
+  inset: 4cqh 23cqi 23cqh 18cqi;
+  display: grid;
+  place-items: center;
+  perspective: 1100px;
+  perspective-origin: 50% 15%;
+}
+
+.plateau-demo::before {
+  content: "";
+  position: absolute;
+  inset: -8cqh -40cqi auto;
+  z-index: -1;
+  block-size: 34cqh;
+  background: url("../maquette/ville.svg") center bottom / auto 80% repeat-x;
+  opacity: 0.3;
+  mask-image: linear-gradient(to bottom, transparent, #000 40%, #000 70%, transparent);
+}
+
+.scene-demo .tapis {
+  --zone: 8.8cqh;
+}
+
+.scene-demo .zone__nb {
+  font-size: 9px;
+}
+
+.scene-demo .zone:not(.zone--adv) .hologramme::after {
+  background:
+    repeating-linear-gradient(0deg, rgb(255 255 255 / 0.16) 0 1px, transparent 1px 3px),
+    linear-gradient(180deg, rgb(67 240 255 / 0.4), transparent 40%);
+}
+
+/* Hologramme d'un Dieu : projeté au-dessus du voile, dans la couche */
+.holo-dieu {
+  overflow: hidden;
+  clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+  mask-image: linear-gradient(to top, transparent 0, #000 40%);
+  transform-origin: 50% 100%;
+}
+
+.holo-dieu img {
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+}
+
+.holo-dieu::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    repeating-linear-gradient(0deg, rgb(255 255 255 / 0.16) 0 1px, transparent 1px 3px),
+    linear-gradient(180deg, rgb(255 84 54 / 0.4), transparent 45%);
+  mix-blend-mode: screen;
+}
+
+.hud-demo > * {
+  position: absolute;
+  z-index: 20;
+}
+
+.scene-demo .plaque {
+  inline-size: min(300px, 30cqi);
+  transition: box-shadow var(--duree-3), opacity var(--duree-3);
+}
+
+.scene-demo .plaque--adverse {
+  inset: 2.5cqh auto auto 2cqi;
+}
+
+.scene-demo .plaque--moi {
+  inset: auto auto 3cqh 2cqi;
+}
+
+.plaque.est-active {
+  box-shadow: inset 0 0 0 1px var(--camp), inset 4px 0 0 var(--camp), 0 0 26px color-mix(in oklab, var(--camp) 40%, transparent);
+}
+
+.lp.est-bas .lp__valeur {
+  color: var(--danger);
+  animation: lp-bas 1.4s ease-in-out infinite;
+}
+
+@keyframes lp-bas {
+  50% {
+    text-shadow: 0 0 26px var(--danger);
+  }
+}
+
+.scene-demo .tour {
+  --camp: var(--camp-moi);
+  inset: 2.5cqh 2cqi auto auto;
+  inline-size: min(330px, 34cqi);
+}
+
+.tour--adverse {
+  --camp: var(--camp-adverse);
+}
+
+.scene-demo .phases li {
+  color: var(--texte-3);
+  transition: flex var(--duree-3) var(--courbe-sortie), background-color var(--duree-2), color var(--duree-2), box-shadow var(--duree-2);
+}
+
+.scene-demo .phases li.passee {
+  color: var(--texte-2);
+}
+
+.scene-demo .phases li[aria-current] {
+  background: var(--camp);
+  box-shadow: 0 0 16px color-mix(in oklab, var(--camp) 55%, transparent);
+  color: var(--nuit-0);
+}
+
+.scene-demo .chaine {
+  inset: 22cqh 2cqi auto auto;
+  inline-size: min(270px, 25cqi);
+}
+
+.scene-demo .chaine ol:empty::after {
+  content: "Aucune chaîne en cours.";
+  font-size: var(--taille-xs);
+  color: var(--texte-3);
+}
+
+.maillon-ligne.est-annule {
+  opacity: 0.5;
+}
+
+.maillon-ligne.est-annule b {
+  text-decoration: line-through;
+}
+
+.main-demo {
+  inset: auto 20cqi -6cqh 34cqi;
+  z-index: 25;
+  display: flex;
+  justify-content: center;
+}
+
+.main-demo .carte {
+  --carte-l: 17cqh;
+  margin-inline: -1cqh;
+  box-shadow: var(--ombre-3);
+  transform-origin: 50% 160%;
+  rotate: var(--rot, 0deg);
+  translate: 0 var(--y, 0);
+  transition: rotate var(--duree-3) var(--courbe-sortie), translate var(--duree-3) var(--courbe-sortie);
+}
+
+/* Effets posés dans la couche ou dans une zone */
+.onde {
+  position: absolute;
+  inset: -10%;
+  z-index: 3;
+  border-radius: 10px 3px;
+  box-shadow: 0 0 0 2px var(--c, var(--holo)), 0 0 24px var(--c, var(--holo));
+  pointer-events: none;
+}
+
+.particule {
+  inline-size: 7px;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: var(--c, var(--holo-2));
+  box-shadow: 0 0 10px 2px var(--c, var(--holo));
+}
+
+.eclat {
+  inline-size: 9px;
+  block-size: 18px;
+  background: var(--c, #fff);
+  clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+}
+
+.vortex {
+  border-radius: 50%;
+  background: conic-gradient(from 0deg, transparent, var(--type-fusion), transparent 40%, var(--ombre-violet), transparent 75%, var(--type-fusion));
+  mask-image: radial-gradient(circle, transparent 18%, #000 20%, #000 60%, transparent 70%);
+}
+
+.aura {
+  border-radius: 50%;
+  background: radial-gradient(circle, rgb(255 84 54 / 0.85), rgb(255 176 32 / 0.35) 40%, transparent 70%);
+}
+
+.rayon-attaque {
+  block-size: 6px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, transparent, var(--c, var(--camp-moi)) 30%, #fff);
+  box-shadow: 0 0 18px var(--c, var(--camp-moi));
+  transform-origin: 0 50%;
+}
+
+.degats {
+  font: 800 clamp(1.6rem, 6cqh, 3rem) / 1 var(--police-chiffres);
+  color: #ffd0da;
+  text-shadow: 0 0 18px var(--danger), 0 2px 0 rgb(0 0 0 / 0.5);
+  white-space: nowrap;
+  translate: -50% -50%;
+}
+
+.moitie {
+  filter: grayscale(0.6) brightness(1.4);
+}
+
+.flash {
+  inset: 0;
+  background: radial-gradient(circle 16cqh at var(--x, 50%) var(--y, 50%), var(--f, #fff), transparent);
+  mix-blend-mode: screen;
+  opacity: 0;
+}
+
+.vignette {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  box-shadow: inset 0 0 12cqh rgb(255 77 109 / 0.75);
+  pointer-events: none;
+  opacity: 0;
+}
+
+.voile {
+  position: absolute;
+  inset: 0;
+  z-index: 15;
+  background: rgb(6 8 23 / 0.72);
+  pointer-events: none;
+  opacity: 0;
+}
+
+.bandes::before,
+.bandes::after {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  block-size: 13cqh;
+  background: #03040c;
+}
+
+.bandes {
+  position: absolute;
+  inset: 0;
+  z-index: 32;
+  pointer-events: none;
+  opacity: 0;
+}
+
+.bandes::before {
+  inset-block-start: 0;
+}
+
+.bandes::after {
+  inset-block-end: 0;
+}
+
+.nom-divin {
+  position: absolute;
+  inset: auto 0 3.5cqh;
+  z-index: 33;
+  font: 900 clamp(1.4rem, 6cqh, 3rem) / 1 var(--police-titre);
+  font-stretch: 78%;
+  letter-spacing: 0.08em;
+  text-align: center;
+  text-transform: uppercase;
+  background: var(--degrade-or);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 0 18px rgb(255 84 54 / 0.7));
+  opacity: 0;
+}
+
+/* Bandeau de phase ou de tour, au milieu du plateau */
+.bandeau {
+  --camp: var(--camp-moi);
+  position: absolute;
+  inset: 40cqh 0 auto;
+  z-index: 31;
+  display: grid;
+  gap: 4px;
+  justify-items: center;
+  padding: 2.2cqh 0;
+  background:
+    var(--trame-holo),
+    linear-gradient(90deg, transparent, color-mix(in oklab, var(--camp) 28%, rgb(6 8 23 / 0.9)) 20%, color-mix(in oklab, var(--camp) 28%, rgb(6 8 23 / 0.9)) 80%, transparent);
+  box-shadow: 0 -1px 0 color-mix(in oklab, var(--camp) 70%, transparent), 0 1px 0 color-mix(in oklab, var(--camp) 70%, transparent);
+  pointer-events: none;
+  opacity: 0;
+  translate: 0 -50%;
+}
+
+.bandeau--adverse {
+  --camp: var(--camp-adverse);
+}
+
+.bandeau__titre {
+  font: 900 clamp(1.6rem, 7.5cqh, 3.4rem) / 1 var(--police-titre);
+  font-stretch: 78%;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #fff;
+  text-shadow: 0 0 24px var(--camp);
+}
+
+.bandeau .surtitre {
+  color: color-mix(in oklab, var(--camp) 60%, white);
+}
+
+/* Boosters --------------------------------------------------------------- */
+
+.scene-booster {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
+  justify-items: center;
+  gap: 1.5cqh;
+  padding: 3cqh 3cqi 6cqh;
+}
+
+.scene-booster .rayons {
+  inset: 42% auto auto 50%;
+  inline-size: 260cqi;
+  opacity: 0;
+}
+
+.rayons--prisme {
+  background: repeating-conic-gradient(rgb(255 122 217 / 0.22) 0 5deg, transparent 5deg 12deg, rgb(67 240 255 / 0.2) 12deg 17deg, transparent 17deg 24deg);
+}
+
+.booster__tete {
+  display: flex;
+  justify-content: space-between;
+  inline-size: 100%;
+}
+
+.booster__centre {
+  position: relative;
+  z-index: 16;
+  display: grid;
+  place-items: center;
+  min-block-size: 0;
+}
+
+.booster__centre > * {
+  grid-area: 1 / 1;
+}
+
+.scene-booster .paquet {
+  inline-size: 29cqh;
+  padding: 5cqh 1.6cqh 5cqh;
+  gap: 1.2cqh;
+}
+
+.scene-booster .paquet__code {
+  font-size: 5.5cqh;
+}
+
+.scene-booster .paquet__nom {
+  font-size: 1.9cqh;
+}
+
+.paquet--ouvert::before {
+  opacity: 0;
+}
+
+.paquet__bande {
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: 1;
+  block-size: 24px;
+  border-radius: 6px 6px 0 0;
+  background:
+    repeating-linear-gradient(90deg, rgb(255 255 255 / 0.28) 0 2px, rgb(0 0 0 / 0.18) 2px 5px),
+    hsl(var(--teinte) 50% 70%);
+}
+
+.dechirure {
+  position: absolute;
+  inset: 24px 0 auto;
+  z-index: 2;
+  block-size: 3px;
+  background: #fff;
+  box-shadow: 0 0 12px 2px var(--holo-2);
+  transform-origin: 0 50%;
+  scale: 0 1;
+}
+
+.pile {
+  display: grid;
+  cursor: pointer;
+}
+
+.pile > .carte {
+  --carte-l: 25cqh;
+  grid-area: 1 / 1;
+  translate: calc(var(--i) * -2px) calc(var(--i) * -2px);
+}
+
+.pile > .carte:last-child {
+  box-shadow: 0 0 0 1px rgb(67 240 255 / 0.4), var(--ombre-3);
+}
+
+.scene-booster .revelation {
+  min-block-size: 9cqh;
+  gap: 1cqh;
+}
+
+.scene-booster .revelation__rarete {
+  font-size: clamp(1.4rem, 5.6cqh, 2.5rem);
+}
+
+.revelation__rarete[data-r="commune"] {
+  background: none;
+  color: var(--rar-commune);
+  filter: none;
+}
+
+.revelation__rarete[data-r="rare"] {
+  background: var(--degrade-argent);
+  -webkit-background-clip: text;
+  background-clip: text;
+  filter: drop-shadow(0 0 12px rgb(223 230 245 / 0.5));
+}
+
+.revelation__rarete[data-r="super"] {
+  background: none;
+  color: var(--rar-super);
+  filter: drop-shadow(0 0 14px rgb(67 240 255 / 0.6));
+}
+
+.revelation__rarete[data-r="secret"] {
+  background: var(--degrade-prisme);
+  -webkit-background-clip: text;
+  background-clip: text;
+  filter: drop-shadow(0 0 14px rgb(255 122 217 / 0.6));
+}
+
+.scene-booster .tirage li {
+  inline-size: 8.6cqh;
+  aspect-ratio: var(--carte-ratio);
+  border-radius: 6% / 4.1%;
+  box-shadow: inset 0 0 0 1px var(--trait-fort);
+}
+
+.scene-booster .tirage .carte {
+  --carte-l: 8.6cqh;
+}
+
+.balai-argent {
+  border-radius: 6% / 4.1%;
+  background: linear-gradient(100deg, transparent 35%, rgb(255 255 255 / 0.8) 50%, transparent 65%) 0 0 / 250% 100% no-repeat;
+  mix-blend-mode: overlay;
+}
+
+.anneau-prisme {
+  border-radius: 50%;
+  background: conic-gradient(#ff5a8a, #ffc53d, #6dff9e, #43f0ff, #8b7dff, #ff5ad9, #ff5a8a);
+  mask-image: radial-gradient(circle, transparent 58%, #000 61%, #000 67%, transparent 70%);
+}
+
+.booster__aide {
+  font: 600 var(--taille-s) / 1.2 var(--police-etroite);
+  letter-spacing: 0.06em;
+  color: var(--texte-2);
+}
+
+.survol {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--e-5);
+  justify-content: center;
+  padding: var(--e-5);
+  border-radius: var(--r-4) var(--r-1);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--trait);
+}
+
+.survol figure {
+  display: grid;
+  gap: var(--e-2);
+  justify-items: center;
+}
+
+.survol .carte {
+  --carte-l: 150px;
+  transition: --reflet-x var(--duree-2) linear, --reflet-y var(--duree-2) linear, transform var(--duree-2) var(--courbe-sortie);
+}
+
+/* Écrans et fin de duel -------------------------------------------------- */
+
+.scene-ecrans .mini-ecran {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-rows: auto 1fr;
+}
+
+.mini-barre {
+  display: flex;
+  gap: var(--e-5);
+  align-items: center;
+  padding: 2.5cqh 3cqi;
+  background: rgb(6 8 23 / 0.6);
+  box-shadow: 0 1px 0 var(--trait);
+  font: 600 var(--taille-s) / 1 var(--police-etroite);
+  color: var(--texte-2);
+}
+
+.mini-barre b {
+  font: 800 var(--taille-m) / 1 var(--police-titre);
+  font-stretch: 82%;
+  text-transform: uppercase;
+  color: var(--texte);
+}
+
+.mini-barre [aria-current] {
+  color: var(--holo);
+}
+
+.mini-corps {
+  display: grid;
+  gap: 2.5cqh;
+  align-content: center;
+  justify-items: start;
+  padding: 0 7cqi;
+}
+
+.mini-modes {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1.6cqi;
+  inline-size: 100%;
+}
+
+.mini-mode {
+  display: grid;
+  gap: 1cqh;
+  padding: 2.4cqh 1.6cqi;
+  border-radius: var(--r-4) var(--r-1);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--trait-fort);
+  font: 700 var(--taille-m) / 1.1 var(--police-etroite);
+}
+
+.mini-mode .ic {
+  inline-size: 28px;
+  block-size: 28px;
+  color: var(--holo);
+}
+
+.mini-paquets {
+  display: flex;
+  gap: 3cqi;
+  justify-content: center;
+  inline-size: 100%;
+}
+
+.mini-paquets .paquet {
+  inline-size: 20cqh;
+  padding: 4cqh 1cqh;
+  gap: 1cqh;
+}
+
+.mini-paquets .paquet__code {
+  font-size: 4cqh;
+}
+
+.mini-paquets .paquet__nom {
+  font-size: 1.6cqh;
+}
+
+.balayage {
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: 5;
+  block-size: 3px;
+  background: var(--holo-2);
+  box-shadow: 0 0 22px 6px rgb(67 240 255 / 0.55);
+  pointer-events: none;
+  opacity: 0;
+}
+
+.scene-fin {
+  display: grid;
+  place-items: center;
+}
+
+.scene-fin .rayons {
+  inset: 40% auto auto 50%;
+  inline-size: 260cqi;
+  opacity: 0;
+}
+
+.scene-fin .fin {
+  gap: 2cqh;
+  padding: 0;
+}
+
+.scene-fin .fin__titre {
+  font-size: clamp(3rem, 20cqh, 8rem);
+  transform-origin: 50% 60%;
+}
+
+.scene-fin .recompense--vedette .carte {
+  --carte-l: 16cqh;
+}
+
+.scene-fin .fin__coup .carte {
+  --carte-l: 11cqh;
+}
+
+.scene-fin.ecran--defaite {
+  background: radial-gradient(70% 70% at 50% 40%, #2c1236 0, #120b24 50%, var(--nuit-0) 85%);
+}
+
+@media (max-width: 1100px) {
+  .demo {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .demo__cote {
+    position: static;
+  }
+
+  .commandes {
+    grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  }
+
+  .commandes .surtitre {
+    grid-column: 1 / -1;
+  }
+}

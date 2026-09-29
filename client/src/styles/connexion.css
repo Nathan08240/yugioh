@@ -1,0 +1,86 @@
+/* Connexion (Connexion.tsx) */
+
+.connexion {
+  display: grid;
+  flex: 1;
+  grid-template-columns: 1.25fr minmax(340px, 420px);
+  gap: var(--e-8);
+  align-items: center;
+  inline-size: 100%;
+  max-inline-size: 1240px;
+  margin-inline: auto;
+  padding: var(--e-7) var(--marge-ecran);
+}
+
+.connexion__titre {
+  position: relative;
+  display: grid;
+  gap: var(--e-4);
+}
+
+.logotype {
+  font: 900 clamp(4.5rem, 9.5vw, 8.5rem) / 0.84 var(--police-titre);
+  font-stretch: 78%;
+  text-transform: uppercase;
+  background:
+    repeating-linear-gradient(0deg, rgb(6 8 23 / 0.28) 0 1px, transparent 1px 4px),
+    linear-gradient(180deg, #fff 25%, var(--holo-2) 55%, var(--holo) 72%, #2f6dff);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 0 28px rgb(67 240 255 / 0.35));
+}
+
+.connexion__accroche {
+  max-inline-size: 30ch;
+  font-size: var(--taille-l);
+  color: var(--texte-2);
+}
+
+.eventail {
+  display: flex;
+  margin-block-start: var(--e-4);
+  padding-inline-start: var(--e-4);
+}
+
+.eventail .carte {
+  --carte-l: clamp(110px, 12vw, 150px);
+  margin-inline-end: -26px;
+  transform-origin: 50% 120%;
+  box-shadow: var(--ombre-3);
+}
+
+.eventail .carte:nth-child(1) { rotate: -10deg; }
+.eventail .carte:nth-child(2) { z-index: 1; translate: 0 -14px; }
+.eventail .carte:nth-child(3) { rotate: 10deg; }
+
+.connexion__form {
+  display: grid;
+  gap: var(--e-4);
+  padding: var(--e-6);
+}
+
+.connexion__form .lien {
+  justify-self: center;
+}
+
+@media (max-width: 1100px) {
+  .connexion {
+    grid-template-columns: 1fr;
+    gap: var(--e-6);
+  }
+}
+
+@media (max-height: 760px) {
+  .connexion {
+    padding-block: var(--e-5);
+  }
+
+  .logotype {
+    font-size: clamp(4rem, 8vw, 6.5rem);
+  }
+
+  .eventail .carte {
+    --carte-l: clamp(100px, 10vw, 128px);
+  }
+}

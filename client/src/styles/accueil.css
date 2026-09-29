@@ -1,0 +1,396 @@
+/* Accueil et salle en ligne (Accueil.tsx) */
+
+.accueil {
+  position: relative;
+  display: grid;
+  flex: 1;
+  grid-template-columns: minmax(420px, 540px) 1fr;
+  gap: var(--e-6);
+  align-items: center;
+  inline-size: 100%;
+  max-inline-size: var(--largeur-max);
+  margin-inline: auto;
+  padding: var(--e-5) var(--marge-ecran) var(--e-6);
+}
+
+.accueil__menu {
+  display: flex;
+  flex-direction: column;
+  gap: var(--e-3);
+}
+
+.accueil__menu .titre {
+  margin-block-end: var(--e-3);
+}
+
+.mode {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: var(--e-4);
+  align-items: center;
+  padding: var(--e-3) var(--e-5);
+  border: 0;
+  border-radius: var(--r-4) var(--r-1);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--trait);
+  text-align: start;
+  text-decoration: none;
+  color: var(--texte);
+  backdrop-filter: blur(10px);
+  transition: translate var(--duree-2) var(--courbe-sortie), box-shadow var(--duree-2);
+}
+
+button.mode {
+  cursor: pointer;
+}
+
+button.mode:hover {
+  box-shadow: inset 0 0 0 1px var(--holo), 0 0 24px rgb(67 240 255 / 0.2);
+  translate: 6px 0;
+}
+
+.mode h2,
+.mode__titre {
+  display: block;
+  font: 700 var(--taille-l) / 1.1 var(--police-titre);
+  font-stretch: 88%;
+  text-transform: uppercase;
+}
+
+.mode p,
+.mode__desc {
+  display: block;
+  font-size: var(--taille-s);
+  color: var(--texte-2);
+}
+
+.mode__ic {
+  inline-size: 36px;
+  block-size: 36px;
+  color: var(--holo);
+}
+
+.mode__fleche {
+  color: var(--texte-3);
+}
+
+.mode--principal {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  padding: var(--e-5);
+  background:
+    var(--trame-holo),
+    linear-gradient(120deg, rgb(67 240 255 / 0.18), rgb(139 61 255 / 0.18)),
+    var(--surface);
+  box-shadow: inset 0 0 0 1px rgb(67 240 255 / 0.5), 0 0 40px rgb(67 240 255 / 0.12);
+}
+
+.mode--principal h2 {
+  font-size: var(--taille-xl);
+}
+
+.mode__tete {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--e-4);
+  align-items: center;
+}
+
+.mode__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--e-3);
+  margin-block-start: var(--e-4);
+}
+
+.rejoindre {
+  display: flex;
+  gap: var(--e-2);
+}
+
+.saisie-code {
+  inline-size: 8ch;
+  min-block-size: 44px;
+  padding: 0 var(--e-3);
+  border: 0;
+  border-radius: var(--r-2) var(--r-1);
+  background: rgb(6 8 23 / 0.7);
+  box-shadow: inset 0 0 0 1px var(--trait-fort);
+  font: 700 var(--taille-l) / 1 var(--police-chiffres);
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+}
+
+.saisie-code::placeholder {
+  color: var(--texte-3);
+}
+
+.jauge {
+  display: block;
+  block-size: 4px;
+  margin-block-start: 6px;
+  border-radius: var(--r-rond);
+  background: linear-gradient(90deg, var(--holo) var(--v), rgb(255 255 255 / 0.1) var(--v));
+}
+
+/* Projection du Duel Disk : la carte posée sur le socle projette son monstre */
+.projecteur {
+  position: relative;
+  display: grid;
+  place-items: center;
+  block-size: min(74vh, 660px);
+}
+
+.projecteur__holo {
+  position: absolute;
+  inset: 0 auto auto 50%;
+  z-index: 1;
+  inline-size: min(30vw, 400px);
+  aspect-ratio: 1 / 1.1;
+  translate: -50% 0;
+  filter: drop-shadow(0 0 2px var(--holo-2)) drop-shadow(0 0 30px rgb(67 240 255 / 0.55));
+  opacity: 0.9;
+}
+
+.projecteur__holo img,
+.projecteur__holo::after {
+  clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+  mask-image: linear-gradient(to top, transparent 0, #000 42%);
+}
+
+.projecteur__holo img {
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+  filter: saturate(1.2);
+}
+
+.projecteur__holo::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    repeating-linear-gradient(0deg, rgb(67 240 255 / 0.18) 0 1px, transparent 1px 3px),
+    linear-gradient(180deg, rgb(67 240 255 / 0.25), transparent 30%, rgb(67 240 255 / 0.35));
+  mix-blend-mode: screen;
+}
+
+.projecteur__faisceau {
+  position: absolute;
+  inset: 22% 14% 30%;
+  background: linear-gradient(0deg, rgb(67 240 255 / 0.45), rgb(67 240 255 / 0.08) 55%, transparent);
+  clip-path: polygon(42% 100%, 58% 100%, 100% 0, 0 0);
+  filter: blur(6px);
+}
+
+.projecteur__socle {
+  position: absolute;
+  inset: auto auto 4% 50%;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  inline-size: 360px;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle, rgb(67 240 255 / 0.3) 0 20%, transparent 21% 30%, rgb(67 240 255 / 0.5) 30.5% 31.5%, transparent 32% 44%, rgb(139 61 255 / 0.55) 44.5% 45.5%, transparent 46%),
+    radial-gradient(circle, rgb(21 28 74 / 0.9) 0 48%, transparent 50%);
+  transform: translateX(-50%) perspective(700px) rotateX(70deg);
+  box-shadow: 0 0 60px rgb(67 240 255 / 0.35);
+}
+
+.projecteur__socle .carte {
+  --carte-l: 110px;
+  box-shadow: 0 0 30px rgb(67 240 255 / 0.6);
+}
+
+.projecteur__legende {
+  position: absolute;
+  inset: auto var(--marge-ecran) var(--e-6) auto;
+  display: grid;
+  gap: 2px;
+  justify-items: end;
+  text-align: end;
+}
+
+.projecteur__legende b {
+  font: 700 var(--taille-xl) / 1.1 var(--police-titre);
+  font-stretch: 85%;
+  text-transform: uppercase;
+}
+
+.projecteur__legende .chiffres {
+  color: var(--texte-2);
+}
+
+/* Salle -------------------------------------------------------------------- */
+
+.salle {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--e-3);
+  align-items: center;
+  justify-content: center;
+  padding: var(--e-6) var(--marge-ecran);
+  text-align: center;
+}
+
+.code-salle {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--e-5);
+  align-items: center;
+  justify-content: center;
+  margin-block-start: var(--e-4);
+}
+
+.code-salle__lettres {
+  display: flex;
+  gap: var(--e-2);
+}
+
+.code-salle__lettres span[aria-hidden] {
+  display: grid;
+  place-items: center;
+  inline-size: 72px;
+  block-size: 88px;
+  border-radius: var(--r-3) var(--r-1);
+  background: var(--trame-holo), var(--holo-fond);
+  box-shadow: inset 0 0 0 1px rgb(67 240 255 / 0.55), inset 0 0 24px rgb(67 240 255 / 0.18), 0 0 24px rgb(67 240 255 / 0.15);
+  font-size: 3rem;
+  font-weight: 800;
+  color: var(--holo-2);
+  text-shadow: 0 0 18px var(--holo);
+}
+
+.face-a-face {
+  display: flex;
+  gap: var(--e-7);
+  align-items: stretch;
+  margin-block: var(--e-6) var(--e-4);
+}
+
+.duelliste {
+  display: flex;
+  flex-direction: column;
+  gap: var(--e-2);
+  align-items: center;
+  inline-size: 260px;
+  padding: var(--e-5);
+  border-radius: var(--r-4) var(--r-1);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px rgb(67 240 255 / 0.4);
+  backdrop-filter: blur(10px);
+}
+
+.duelliste b {
+  font: 700 var(--taille-l) / 1.2 var(--police-etroite);
+}
+
+.duelliste--attente {
+  background: rgb(17 23 62 / 0.4);
+  box-shadow: inset 0 0 0 1px var(--trait-fort);
+}
+
+.vs {
+  align-self: center;
+  font: 900 italic 3.5rem / 1 var(--police-titre);
+  font-stretch: 75%;
+  color: var(--or);
+  text-shadow: 0 0 24px rgb(255 197 61 / 0.55);
+}
+
+.radar {
+  position: relative;
+  inline-size: 72px;
+  block-size: 72px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px var(--trait-fort);
+}
+
+.radar::before,
+.radar::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px var(--holo);
+  animation: ping 2.4s var(--courbe-sortie) infinite;
+}
+
+.radar::after {
+  animation-delay: 1.2s;
+}
+
+@keyframes ping {
+  from { opacity: 0.9; scale: 0.3; }
+  to { opacity: 0; scale: 1.25; }
+}
+
+@supports (corner-shape: bevel) {
+  .mode,
+  .code-salle__lettres span,
+  .duelliste {
+    corner-shape: bevel;
+  }
+}
+
+@media (max-width: 1100px) {
+  .accueil {
+    grid-template-columns: 1fr;
+  }
+
+  .projecteur {
+    block-size: 420px;
+  }
+
+  .projecteur__holo {
+    inline-size: min(60vw, 360px);
+  }
+}
+
+@media (max-width: 700px) {
+  .face-a-face {
+    flex-direction: column;
+    gap: var(--e-3);
+  }
+
+  .code-salle__lettres span[aria-hidden] {
+    inline-size: 52px;
+    block-size: 64px;
+    font-size: 2.2rem;
+  }
+}
+
+@media (max-height: 760px) {
+  .accueil .titre,
+  .salle .titre {
+    font-size: 2rem;
+  }
+
+  .accueil {
+    padding-block: var(--e-3);
+  }
+
+  .accueil__menu {
+    gap: var(--e-2);
+  }
+
+  .mode {
+    padding-block: var(--e-2);
+  }
+
+  .mode--principal {
+    padding-block: var(--e-4);
+  }
+
+  .projecteur {
+    block-size: min(70vh, 520px);
+  }
+
+  .face-a-face {
+    margin-block: var(--e-4) var(--e-2);
+  }
+}

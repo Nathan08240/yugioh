@@ -4,3 +4,4 @@ dist/
 *.log
 server/vendor/
 .claude/settings.local.json
+design/assets/

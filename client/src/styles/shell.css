@@ -1,0 +1,201 @@
+/* Habillage : écrans, fonds, barre du haut, transitions (Shell.tsx). */
+
+.ecran {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-block-size: 100dvh;
+  overflow-x: clip;
+  isolation: isolate;
+}
+
+.ecran__corps {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-block-size: 0;
+}
+
+/* Fonds ------------------------------------------------------------------ */
+
+.fond-ville,
+.fond-nuit {
+  background:
+    radial-gradient(90% 55% at 50% 108%, rgb(139 61 255 / 0.42), transparent 65%),
+    radial-gradient(60% 40% at 85% 0%, rgb(67 240 255 / 0.1), transparent 70%),
+    linear-gradient(180deg, var(--nuit-0), var(--nuit-1) 50%, var(--nuit-2));
+}
+
+/* Battle City de nuit : silhouette de la ville et sol holographique */
+.fond-ville::before,
+.fond-ville::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  pointer-events: none;
+}
+
+.fond-ville::before {
+  inset: auto 0 0;
+  block-size: 44vh;
+  background: url("../assets/ville.svg") center bottom / auto 100% repeat-x;
+  opacity: 0.9;
+}
+
+.fond-ville::after {
+  inset: auto -30% 0;
+  block-size: 30vh;
+  background:
+    repeating-linear-gradient(90deg, rgb(67 240 255 / 0.16) 0 1px, transparent 1px 72px),
+    repeating-linear-gradient(0deg, rgb(67 240 255 / 0.16) 0 1px, transparent 1px 72px);
+  transform: perspective(420px) rotateX(62deg);
+  transform-origin: bottom;
+  mask-image: linear-gradient(to top, #000 10%, transparent 85%);
+}
+
+.ecran--scene {
+  background: radial-gradient(70% 70% at 50% 40%, #1d2672 0, var(--nuit-1) 45%, var(--nuit-0) 80%);
+}
+
+/* Balayage cyan de la transition d'écran */
+.balayage {
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: var(--z-bandeau);
+  block-size: 3px;
+  background: var(--holo-2);
+  box-shadow: 0 0 22px 6px rgb(67 240 255 / 0.55);
+  pointer-events: none;
+  opacity: 0;
+}
+
+/* Barre du haut ------------------------------------------------------------ */
+
+.barre {
+  display: flex;
+  align-items: center;
+  gap: var(--e-6);
+  block-size: 64px;
+  padding: 0 var(--marge-ecran);
+  background: linear-gradient(180deg, rgb(6 8 23 / 0.85), rgb(6 8 23 / 0.35));
+  box-shadow: inset 0 -1px 0 var(--trait);
+}
+
+.marque {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--e-2);
+  padding: 0;
+  border: 0;
+  background: none;
+  font: 800 var(--taille-l) / 1 var(--police-titre);
+  font-stretch: 80%;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+button.marque {
+  cursor: pointer;
+}
+
+.marque .ic {
+  inline-size: 28px;
+  block-size: 28px;
+  color: var(--holo);
+}
+
+.barre__nav {
+  display: flex;
+  gap: var(--e-1);
+}
+
+.barre__nav button {
+  position: relative;
+  padding: var(--e-2) var(--e-3);
+  border: 0;
+  background: none;
+  font: 600 var(--taille-m) / 1 var(--police-etroite);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  color: var(--texte-2);
+  cursor: pointer;
+}
+
+.barre__nav button:hover,
+.barre__nav button[aria-current] {
+  color: var(--texte);
+}
+
+.barre__nav button[aria-current]::after {
+  content: "";
+  position: absolute;
+  inset: auto var(--e-3) -12px;
+  block-size: 2px;
+  background: var(--holo);
+  box-shadow: 0 0 10px var(--holo);
+}
+
+.barre__joueur {
+  display: flex;
+  align-items: center;
+  gap: var(--e-3);
+  margin-inline-start: auto;
+  font: 600 var(--taille-m) / 1 var(--police-etroite);
+}
+
+/* Mentions : lien vers le code (licence AGPL du moteur) et propriété des cartes */
+.mentions {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--e-2) var(--e-5);
+  padding: var(--e-3) var(--marge-ecran);
+  background: linear-gradient(0deg, var(--nuit-0) 30%, transparent);
+  font-size: var(--taille-xs);
+  color: var(--texte-2);
+}
+
+/* Messages plein écran (chargement, connexion perdue) et erreur du serveur */
+.ecran-message {
+  display: grid;
+  flex: 1;
+  gap: var(--e-4);
+  place-content: center;
+  justify-items: center;
+  padding: var(--e-6) var(--marge-ecran);
+  text-align: center;
+  color: var(--texte-2);
+}
+
+.alerte-globale {
+  position: fixed;
+  inset: var(--e-4) auto auto 50%;
+  z-index: var(--z-modale);
+  inline-size: max-content;
+  max-inline-size: min(560px, calc(100vw - 2 * var(--marge-ecran)));
+  background: linear-gradient(rgb(255 77 109 / 0.16), rgb(255 77 109 / 0.16)), var(--nuit-1);
+  box-shadow: inset 3px 0 0 var(--danger), var(--ombre-2);
+  translate: -50% 0;
+}
+
+@media (max-width: 900px) {
+  .barre {
+    gap: var(--e-4);
+  }
+
+  .barre__pseudo {
+    display: none;
+  }
+
+  .barre__nav button {
+    padding-inline: var(--e-2);
+    font-size: var(--taille-s);
+  }
+}
+
+@media (max-width: 700px) {
+  .barre__nav {
+    display: none;
+  }
+}

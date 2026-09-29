@@ -1,0 +1,160 @@
+/* Jetons de la charte « Duel Disk ». Sombre uniquement : le jeu se joue de nuit, à Battle City. */
+@import url("https://fonts.googleapis.com/css2?family=Tektur:wdth,wght@75..100,500..900&family=Barlow:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Barlow+Condensed:wght@500;600;700&family=Oxanium:wght@600..800&display=swap");
+
+:root {
+  color-scheme: dark;
+
+  /* Fonds : ciel de Domino City, du zénith à l'horizon */
+  --nuit-0: #060817;
+  --nuit-1: #0b1030;
+  --nuit-2: #141a45;
+  --nuit-3: #1f2760;
+  --horizon: #3a1f6e;
+  --surface: rgb(17 23 62 / 0.82);
+  --surface-forte: #151c4a;
+  --trait: rgb(150 170 255 / 0.18);
+  --trait-fort: rgb(150 170 255 / 0.36);
+
+  /* Texte */
+  --texte: #eef1ff;
+  --texte-2: #b4bce3;
+  --texte-3: #8790c2;
+  --texte-inverse: #150f00;
+
+  /* Signature : hologramme du Duel Disk, or du Millénium */
+  --holo: #43f0ff;
+  --holo-2: #7df7ff;
+  --holo-fond: rgb(67 240 255 / 0.1);
+  --or: #ffc53d;
+  --or-2: #ffe08a;
+  --or-fonce: #b8860b;
+  --ombre-violet: #8b3dff;
+
+  /* États */
+  --succes: #3ddc97;
+  --danger: #ff4d6d;
+  --alerte: #ffb020;
+  --info: var(--holo);
+  --inactif: #5b6394;
+  --cible: var(--holo);
+  --choisi: var(--or);
+
+  /* Camps du duel : vous en cyan, l'adversaire en corail */
+  --camp-moi: var(--holo);
+  --camp-adverse: #ff6a88;
+
+  /* Attributs */
+  --attr-lumiere: #ffe066;
+  --attr-tenebres: #a45cff;
+  --attr-terre: #d19a55;
+  --attr-eau: #3aa7ff;
+  --attr-feu: #ff5436;
+  --attr-vent: #46e08a;
+  --attr-divin: #ffb020;
+
+  /* Types de cartes (couleur du cadre) */
+  --type-normal: #e2ad4b;
+  --type-effet: #ee7a33;
+  --type-rituel: #4a7dff;
+  --type-fusion: #9b5cff;
+  --type-magie: #17b89b;
+  --type-piege: #e0457f;
+  --type-jeton: #9aa3b5;
+
+  /* Raretés */
+  --rar-commune: #9aa3b5;
+  --rar-rare: #dfe6f5;
+  --rar-super: var(--holo);
+  --rar-ultra: var(--or);
+  --rar-ultimate: #f0d49b;
+  --rar-secret: #ff7ad9;
+  --degrade-prisme: linear-gradient(115deg, #ff5a8a, #ffc53d, #6dff9e, #43f0ff, #8b7dff, #ff5ad9);
+  --degrade-argent: linear-gradient(100deg, #9aa7c7, #ffffff 45%, #b8c3de 60%, #f4f7ff);
+  --degrade-or: linear-gradient(100deg, #b8860b, #ffe08a 40%, #ffc53d 60%, #fff3c4);
+
+  /* Typographies */
+  --police-titre: "Tektur", "Barlow Condensed", system-ui, sans-serif;
+  --police-texte: "Barlow", system-ui, sans-serif;
+  --police-etroite: "Barlow Condensed", "Barlow", system-ui, sans-serif;
+  --police-chiffres: "Oxanium", "Tektur", ui-monospace, monospace;
+
+  --taille-xs: 0.75rem;
+  --taille-s: 0.875rem;
+  --taille-m: 1rem;
+  --taille-l: 1.25rem;
+  --taille-xl: 1.75rem;
+  --taille-2xl: 2.5rem;
+  --taille-3xl: 4rem;
+  --taille-lp: clamp(2rem, 4.2vh, 2.75rem);
+
+  /* Espacements (base 4 px) et grille */
+  --e-1: 4px;
+  --e-2: 8px;
+  --e-3: 12px;
+  --e-4: 16px;
+  --e-5: 24px;
+  --e-6: 32px;
+  --e-7: 48px;
+  --e-8: 64px;
+  --marge-ecran: clamp(16px, 2.2vw, 32px);
+  --gouttiere: 24px;
+  --largeur-max: 1440px;
+
+  /* Rayons : coins biseautés partout où corner-shape est pris en charge */
+  --r-1: 4px;
+  --r-2: 8px;
+  --r-3: 12px;
+  --r-4: 20px;
+  --r-rond: 999px;
+
+  /* Ombres et lueurs */
+  --ombre-1: 0 2px 8px rgb(0 0 0 / 0.35);
+  --ombre-2: 0 10px 30px rgb(0 0 0 / 0.45);
+  --ombre-3: 0 24px 60px rgb(0 0 0 / 0.55);
+  --lueur-holo: 0 0 0 1px rgb(67 240 255 / 0.55), 0 0 18px rgb(67 240 255 / 0.35);
+  --lueur-holo-forte: 0 0 0 2px var(--holo), 0 0 28px rgb(67 240 255 / 0.6);
+  --lueur-or: 0 0 0 1px rgb(255 197 61 / 0.6), 0 0 22px rgb(255 197 61 / 0.4);
+  --lueur-danger: 0 0 0 1px rgb(255 77 109 / 0.6), 0 0 22px rgb(255 77 109 / 0.4);
+  --trame-holo: repeating-linear-gradient(0deg, rgb(67 240 255 / 0.1) 0 1px, transparent 1px 4px);
+  --focus: 0 0 0 2px var(--nuit-0), 0 0 0 4px var(--holo);
+
+  /* Cartes */
+  --carte-ratio: 59 / 86;
+  --carte-main: clamp(92px, 15vh, 132px);
+  --carte-terrain: clamp(64px, 12.5vh, 104px);
+  --carte-detail: clamp(220px, 34vh, 300px);
+
+  /* Plateau : zones réservées au HUD, le plateau 3D se cadre entre elles */
+  --hud-haut: clamp(72px, 11vh, 100px);
+  --hud-bas: clamp(150px, 24vh, 210px);
+  --hud-gauche: clamp(250px, 21vw, 310px);
+  --hud-droite: clamp(230px, 19vw, 290px);
+
+  /* Couches */
+  --z-plateau: 0;
+  --z-hologramme: 5;
+  --z-hud: 10;
+  --z-main: 20;
+  --z-question: 30;
+  --z-bandeau: 40;
+  --z-modale: 50;
+
+  /* Mouvement (repris et détaillé par l'agent motion) */
+  --duree-1: 120ms;
+  --duree-2: 220ms;
+  --duree-3: 420ms;
+  --duree-4: 900ms;
+  --courbe-sortie: cubic-bezier(0.16, 1, 0.3, 1);
+  --courbe-ressort: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --courbe-elan: cubic-bezier(0.5, 0, 0.75, 0); /* accélère vers un impact ou une sortie */
+  --duree-fondu: 150ms; /* seul mouvement gardé en réduction : un fondu d'opacité */
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duree-1: 0ms;
+    --duree-2: 0ms;
+    --duree-3: 0ms;
+    --duree-4: 0ms;
+  }
+}

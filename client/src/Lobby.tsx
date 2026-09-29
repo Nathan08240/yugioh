@@ -1,14 +1,17 @@
 import type { OcgResponse } from "@n1xx1/ocgcore-wasm";
-import { useEffect, useMemo, useReducer, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import type { ClientMessage } from "../../server/src/protocol.ts";
+import { Accueil, Salle } from "./Accueil.tsx";
 import { Boosters } from "./Boosters.tsx";
-import { CardView } from "./Card.tsx";
 import { DuelView, useCards } from "./cards.ts";
 import { DeckBuilder } from "./DeckBuilder.tsx";
+import { PseudoForm, StarterChoice } from "./Depart.tsx";
 import { Duel } from "./Duel.tsx";
+import { Fin } from "./Fin.tsx";
 import { initialLobby, reduce, type Action, type LobbyState } from "./lobby.ts";
 import { autoAnswer } from "./question.ts";
-import { Story } from "./Story.tsx";
+import { Shell, type Page } from "./Shell.tsx";
+import { duelLabel, Story } from "./Story.tsx";
 import { supabase } from "./supabase.ts";
 
 // Same origin as the page: Vite proxies /ws to the game server in dev.
@@ -16,17 +19,17 @@ const SERVER_URL = `${location.protocol === "https:" ? "wss" : "ws"}://${locatio
 
 type Send = (msg: ClientMessage) => void;
 
-// Reads one text field from a submitted form.
-function field(event: FormEvent<HTMLFormElement>, name: string): string {
-  event.preventDefault();
-  return (new FormData(event.currentTarget).get(name) as string).trim();
-}
-
 export function Lobby() {
   const [state, dispatch] = useReducer(reduce, initialLobby);
   const [attempt, setAttempt] = useState(0);
+  const [page, setPage] = useState<Page>("accueil");
   const socket = useRef<WebSocket>(null);
   const rejoin = useRef<string>(undefined);
+  // Rooms against the bot (story duels included) earn no booster.
+  const vsBot = useRef(false);
+  const storyDuel = useRef<string>(undefined);
+  const cards = useCards();
+  const view = useMemo(() => ({ cards, show: () => {}, seat: 0 }), [cards]);
 
   useEffect(() => {
     const ws = new WebSocket(SERVER_URL);
@@ -51,7 +54,12 @@ export function Lobby() {
     };
   }, [attempt]);
 
-  const send: Send = (msg) => socket.current?.send(JSON.stringify(msg));
+  const send: Send = (msg) => {
+    if (msg.type === "bot" || msg.type === "story_duel") vsBot.current = true;
+    if (msg.type === "story_duel") storyDuel.current = msg.duel;
+    if (msg.type === "create" || msg.type === "join") vsBot.current = false;
+    socket.current?.send(JSON.stringify(msg));
+  };
   const reconnect = () => {
     rejoin.current = state.room;
     dispatch({ type: "connecting" });
@@ -68,167 +76,100 @@ export function Lobby() {
     send({ type: "respond", response });
     dispatch({ type: "answered" });
   };
+  // The story screen stays open across its duels: it lives in the lobby state.
+  const go = (next: Page) => {
+    dispatch({ type: "story_menu", open: next === "histoire" });
+    if (next !== "histoire") setPage(next);
+  };
 
   return (
-    <>
+    <DuelView value={view}>
       {state.error && (
-        <p className="error" role="alert">
+        <p className="message message--erreur alerte-globale" role="alert">
           {state.error}
         </p>
       )}
-      <Screen state={state} send={send} reconnect={reconnect} leave={leave} respond={respond} openStory={(open) => dispatch({ type: "story_menu", open })} />
-    </>
+      <Screen state={state} page={state.storyOpen ? "histoire" : page} send={send} reconnect={reconnect} leave={leave} respond={respond} go={go} vsBot={vsBot.current} storyDuel={storyDuel.current} />
+    </DuelView>
   );
 }
 
 type ScreenProps = {
   state: LobbyState;
+  page: Page;
   send: Send;
   reconnect: () => void;
   leave: () => void;
   respond: (response: OcgResponse) => void;
-  openStory: (open: boolean) => void;
+  go: (page: Page) => void;
+  vsBot: boolean;
+  storyDuel?: string;
 };
 
-function Screen({ state, send, reconnect, leave, respond, openStory }: Readonly<ScreenProps>) {
+const signOut = () => {
+  supabase.auth.signOut();
+};
+
+function Screen({ state, page, send, reconnect, leave, respond, go, vsBot, storyDuel }: Readonly<ScreenProps>) {
   if (state.closed) {
     return (
-      <div className="stack">
-        <p>Connexion au serveur perdue.</p>
-        <button type="button" onClick={reconnect}>
-          Se reconnecter
-        </button>
-      </div>
+      <Shell id="perdu">
+        <div className="ecran-message">
+          <p>Connexion au serveur perdue.</p>
+          <button type="button" className="btn" onClick={reconnect}>
+            Se reconnecter
+          </button>
+        </div>
+      </Shell>
     );
   }
-  if (state.pseudo === undefined) return <p className="muted">Connexion au serveur…</p>;
-  if (state.pseudo === null) return <PseudoForm send={send} />;
-  if (state.needsStarter) return <StarterChoice send={send} />;
-  if (!state.room && state.storyOpen) return <Story arcs={state.story} send={send} close={() => openStory(false)} />;
-  if (!state.room) return <Home pseudo={state.pseudo} state={state} send={send} openStory={() => openStory(true)} />;
-  if (!state.started || !state.board) return <Waiting room={state.room} />;
-  const story = state.storyOpen ? { won: state.won } : undefined;
-  return <Duel board={state.board} seat={state.seat ?? 0} asked={state.question} respond={respond} leave={leave} story={story} />;
-}
-
-function PseudoForm({ send }: Readonly<{ send: Send }>) {
+  if (state.pseudo === undefined) {
+    return (
+      <Shell id="attente">
+        <p className="ecran-message">Connexion au serveur…</p>
+      </Shell>
+    );
+  }
+  if (state.pseudo === null) {
+    return (
+      <Shell id="pseudo" signOut={signOut}>
+        <PseudoForm send={send} />
+      </Shell>
+    );
+  }
+  if (state.needsStarter) {
+    return (
+      <Shell id="starter" pseudo={state.pseudo} signOut={signOut}>
+        <StarterChoice send={send} />
+      </Shell>
+    );
+  }
+  if (state.room && state.started && state.board) {
+    const story = state.storyOpen ? { title: duelLabel(state.story, storyDuel), won: state.won } : undefined;
+    const leaveFor = (next: Page) => {
+      leave();
+      go(next);
+    };
+    return (
+      <>
+        <Duel board={state.board} seat={state.seat ?? 0} asked={state.question} respond={respond} leave={leave} feed={state.feed} lp={state.lp} pseudo={state.pseudo} />
+        {state.board.winner !== undefined && <Fin board={state.board} seat={state.seat ?? 0} room={state.room} vsBot={vsBot} story={story} leave={leave} go={leaveFor} />}
+      </>
+    );
+  }
+  if (state.room) {
+    return (
+      <Shell id="salle" pseudo={state.pseudo}>
+        <Salle room={state.room} pseudo={state.pseudo} decks={state.decks} leave={leave} />
+      </Shell>
+    );
+  }
   return (
-    <form className="stack" onSubmit={(event) => send({ type: "pseudo", pseudo: field(event, "pseudo") })}>
-      <h2>Choisissez votre pseudo</h2>
-      <p className="muted">3 à 20 caractères : lettres sans accent, chiffres, _ ou -. Il ne pourra plus être changé.</p>
-      <input name="pseudo" required minLength={3} maxLength={20} pattern="[A-Za-z0-9_\-]+" autoComplete="nickname" />
-      <button type="submit">Valider</button>
-    </form>
-  );
-}
-
-type Starters = { yugi: number[]; kaiba: number[] };
-
-function StarterChoice({ send }: Readonly<{ send: Send }>) {
-  const [starters, setStarters] = useState<Starters>();
-  const cards = useCards();
-  const view = useMemo(() => ({ cards, show: () => {}, seat: 0 }), [cards]);
-
-  useEffect(() => {
-    fetch("/api/starters")
-      .then((res) => res.json())
-      .then(setStarters)
-      .catch((error: unknown) => console.error(error));
-  }, []);
-
-  return (
-    <div className="stack">
-      <h2>Choisissez votre deck de départ</h2>
-      <p className="muted">Choix définitif : vous recevrez ces cartes et ce deck pour commencer à jouer.</p>
-      {starters && (
-        <DuelView value={view}>
-          <StarterOption name="Yugi" codes={starters.yugi} onChoose={() => send({ type: "starter", starter: "yugi" })} />
-          <StarterOption name="Kaiba" codes={starters.kaiba} onChoose={() => send({ type: "starter", starter: "kaiba" })} />
-        </DuelView>
-      )}
-    </div>
-  );
-}
-
-function StarterOption({ name, codes, onChoose }: Readonly<{ name: string; codes: number[]; onChoose: () => void }>) {
-  return (
-    <section className="stack">
-      <h3>{name}</h3>
-      <div className="starter-cards">
-        {codes.map((code) => (
-          <CardView key={code} code={code} />
-        ))}
-      </div>
-      <button type="button" onClick={onChoose}>
-        Choisir {name}
-      </button>
-    </section>
-  );
-}
-
-type Tab = "play" | "collection" | "boosters";
-
-// Menu after login. Boosters get their own tab with the opening screen.
-function Home({ pseudo, state, send, openStory }: Readonly<{ pseudo: string; state: LobbyState; send: Send; openStory: () => void }>) {
-  const [tab, setTab] = useState<Tab>("play");
-  const current = (value: Tab) => (tab === value ? "page" : undefined);
-  return (
-    <>
-      <nav className="tabs">
-        <button type="button" aria-current={current("play")} onClick={() => setTab("play")}>
-          Jouer
-        </button>
-        <button type="button" aria-current={current("collection")} onClick={() => setTab("collection")}>
-          Collection et decks
-        </button>
-        <button type="button" aria-current={current("boosters")} onClick={() => setTab("boosters")}>
-          Boosters
-        </button>
-      </nav>
-      {tab === "play" && <RoomChoice pseudo={pseudo} send={send} openStory={openStory} />}
-      {tab === "collection" && <DeckBuilder collection={state.collection} decks={state.decks} send={send} />}
-      {tab === "boosters" && <Boosters state={state} send={send} />}
-    </>
-  );
-}
-
-function RoomChoice({ pseudo, send, openStory }: Readonly<{ pseudo: string; send: Send; openStory: () => void }>) {
-  return (
-    <div className="stack">
-      <h2>Bienvenue, {pseudo}</h2>
-      <button type="button" onClick={() => send({ type: "create" })}>
-        Créer une salle
-      </button>
-      <button type="button" onClick={() => send({ type: "bot" })}>
-        Jouer contre le bot
-      </button>
-      <button type="button" className="secondary" onClick={openStory}>
-        Mode Histoire
-      </button>
-      <p className="divider">ou</p>
-      <form className="row" onSubmit={(event) => send({ type: "join", room: field(event, "room").toUpperCase() })}>
-        <input name="room" required maxLength={5} placeholder="Code de la salle" aria-label="Code de la salle" className="code-input" />
-        <button type="submit">Rejoindre</button>
-      </form>
-    </div>
-  );
-}
-
-function Waiting({ room }: Readonly<{ room: string }>) {
-  return (
-    <div className="stack center">
-      <h2>En attente de l'adversaire</h2>
-      <p className="muted">Partagez ce code avec votre adversaire :</p>
-      <button
-        type="button"
-        className="code"
-        title="Copier le code"
-        onClick={() => {
-          navigator.clipboard.writeText(room);
-        }}
-      >
-        {room}
-      </button>
-    </div>
+    <Shell id={page} background={page === "collection" ? "nuit" : "ville"} pseudo={state.pseudo} page={page} go={go} pending={state.boosters?.pending} signOut={signOut} notice={page === "accueil"}>
+      {page === "accueil" && <Accueil state={state} send={send} go={go} />}
+      {page === "collection" && <DeckBuilder collection={state.collection} decks={state.decks} send={send} />}
+      {page === "boosters" && <Boosters state={state} send={send} go={go} />}
+      {page === "histoire" && <Story arcs={state.story} send={send} />}
+    </Shell>
   );
 }

@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Démo du mouvement</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="../tokens.css">
+  <link rel="stylesheet" href="../cartes.css">
+  <link rel="stylesheet" href="../maquette/maquette.css">
+  <link rel="stylesheet" href="motion.css">
+  <script type="module" src="motion.js"></script>
+</head>
+<body>
+<main class="page">
+  <header class="entete">
+    <p class="surtitre">Charte « Duel Disk » · mouvement</p>
+    <h1 class="titre">Démonstration des animations</h1>
+    <p class="texte-2">Chaque bouton rejoue une séquence. Cliquez la scène ou appuyez sur Échap pour la passer. Les séquences marquées <span class="etiquette-3d">3D</span> seront rendues par Three.js : ici, une esquisse 2D pour le rythme.</p>
+    <label class="bascule"><input type="checkbox" id="reduit"> Réduire les animations <span class="texte-3">(suit le réglage du système)</span></label>
+    <nav class="sommaire" aria-label="Sections">
+      <a class="btn btn--fantome" href="#duel">Duel</a>
+      <a class="btn btn--fantome" href="#booster">Booster</a>
+      <a class="btn btn--fantome" href="#ecrans">Écrans</a>
+      <a class="btn btn--fantome" href="#fin">Fin de duel</a>
+    </nav>
+  </header>
+
+  <section class="demo" id="duel" aria-labelledby="t-duel">
+    <div class="demo__cote">
+      <h2 class="titre-panneau" id="t-duel">Duel</h2>
+      <div class="commandes" role="group" aria-label="Séquences du duel">
+        <p class="surtitre">Main et HUD</p>
+        <button class="btn btn--holo" type="button" data-seq="pioche">Piocher</button>
+        <button class="btn btn--holo" type="button" data-seq="phase">Phase suivante</button>
+        <button class="btn btn--holo" type="button" data-seq="tour">Changer de tour</button>
+        <p class="surtitre">Plateau</p>
+        <button class="btn btn--holo" type="button" data-seq="invocation">Invocation normale<span class="etiquette-3d">3D</span></button>
+        <button class="btn btn--holo" type="button" data-seq="sacrifice">Invocation Sacrifice<span class="etiquette-3d">3D</span></button>
+        <button class="btn btn--holo" type="button" data-seq="fusion">Invocation Fusion<span class="etiquette-3d">3D</span></button>
+        <button class="btn btn--holo" type="button" data-seq="dieu">Dieu Égyptien<span class="etiquette-3d">3D</span></button>
+        <button class="btn btn--holo" type="button" data-seq="poser">Poser face cachée<span class="etiquette-3d">3D</span></button>
+        <button class="btn btn--holo" type="button" data-seq="retourner">Retournement<span class="etiquette-3d">3D</span></button>
+        <button class="btn btn--holo" type="button" data-seq="attaque">Attaque et destruction<span class="etiquette-3d">3D</span></button>
+        <button class="btn btn--holo" type="button" data-seq="directe">Attaque directe<span class="etiquette-3d">3D</span></button>
+        <button class="btn btn--holo" type="button" data-seq="chaine">Piège et chaîne<span class="etiquette-3d">3D</span></button>
+      </div>
+    </div>
+    <div class="scene-demo" id="scene-duel" aria-label="Scène de duel animée"></div>
+  </section>
+
+  <section class="demo" id="booster" aria-labelledby="t-booster">
+    <div class="demo__cote">
+      <h2 class="titre-panneau" id="t-booster">Booster</h2>
+      <p class="texte-2">Six cartes, de la Commune à la Secrète : l'intensité monte avec la rareté. Touchez la pile pour révéler la suivante.</p>
+      <div class="commandes" role="group" aria-label="Séquences du booster">
+        <button class="btn" type="button" data-seq="ouvrir">Ouvrir un booster</button>
+        <button class="btn btn--holo" type="button" data-seq="suivante">Carte suivante</button>
+        <p class="surtitre">Rejouer une rareté</p>
+        <button class="btn btn--fantome" type="button" data-rarete="commune">Commune</button>
+        <button class="btn btn--fantome" type="button" data-rarete="rare">Rare</button>
+        <button class="btn btn--fantome" type="button" data-rarete="super">Super Rare</button>
+        <button class="btn btn--fantome" type="button" data-rarete="ultra">Ultra Rare</button>
+        <button class="btn btn--fantome" type="button" data-rarete="ultimate">Ultimate Rare</button>
+        <button class="btn btn--fantome" type="button" data-rarete="secret">Secret Rare</button>
+      </div>
+    </div>
+    <div>
+      <div class="scene-demo scene-booster" id="scene-booster" aria-label="Ouverture de booster animée"></div>
+      <h3 class="titre-bloc" style="margin-block: var(--e-5) var(--e-3)">Survol holographique : bougez le pointeur sur les cartes</h3>
+      <div class="survol">
+        <figure><div class="carte r-super" data-carte="38033121" data-survol></div><figcaption class="rarete rarete--super">Super</figcaption></figure>
+        <figure><div class="carte r-ultra" data-carte="89631139" data-survol></div><figcaption class="rarete rarete--ultra">Ultra</figcaption></figure>
+        <figure><div class="carte r-ultimate" data-carte="74677422" data-survol></div><figcaption class="rarete rarete--ultimate">Ultimate</figcaption></figure>
+        <figure><div class="carte r-secret" data-carte="46986414" data-survol></div><figcaption class="rarete rarete--secret">Secret</figcaption></figure>
+      </div>
+    </div>
+  </section>
+
+  <section class="demo" id="ecrans" aria-labelledby="t-ecrans">
+    <div class="demo__cote">
+      <h2 class="titre-panneau" id="t-ecrans">Écrans</h2>
+      <p class="texte-2">Le Duel Disk reprojette l'écran : sortie courte, balayage, puis les blocs arrivent en cascade.</p>
+      <div class="commandes" role="group" aria-label="Séquences des écrans">
+        <button class="btn btn--holo" type="button" data-seq="changer">Changer d'écran</button>
+        <button class="btn btn--holo" type="button" data-seq="entree">Rejouer l'entrée</button>
+      </div>
+    </div>
+    <div class="scene-demo scene-ecrans fond-ville" id="scene-ecrans" aria-label="Transition entre écrans"></div>
+  </section>
+
+  <section class="demo" id="fin" aria-labelledby="t-fin">
+    <div class="demo__cote">
+      <h2 class="titre-panneau" id="t-fin">Fin de duel</h2>
+      <div class="commandes" role="group" aria-label="Séquences de fin de duel">
+        <button class="btn" type="button" data-seq="victoire">Victoire</button>
+        <button class="btn btn--holo" type="button" data-seq="defaite">Défaite</button>
+      </div>
+    </div>
+    <div class="scene-demo scene-fin ecran--scene" id="scene-fin" aria-label="Fin de duel animée"></div>
+  </section>
+
+  <p class="sr" aria-live="polite" id="annonce"></p>
+</main>
+</body>
+</html>

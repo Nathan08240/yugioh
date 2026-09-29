@@ -12,6 +12,9 @@ it("passe du pseudo à l'attente puis au plateau quand le duel démarre", () => 
   state = reduce(state, { type: "messages", messages: [{ type: OcgMessageType.DRAW, player: 0, drawn: [{ code: 1, position: 10 }] }] });
   expect(state.started).toBe(true);
   expect(state.board?.players[0]).toMatchObject({ deck: 39, hand: [{ code: 1, position: 10 }] });
+  // The duel screen animates each batch of messages, the board is already up to date.
+  expect(state).toMatchObject({ lp: 4000, feed: { id: 1, messages: [{ type: OcgMessageType.DRAW }] } });
+  expect(reduce(state, { type: "messages", messages: [] }).feed?.id).toBe(2);
 
   // Each question gets a new id, answering clears it until the next one.
   const question = { type: OcgMessageType.SELECT_YESNO, player: 0, description: "0" } as const;
