@@ -12,6 +12,7 @@ import { etapes, type Effet } from "./plateau3d/effets.ts";
 import { jouer, type Jeu, type Regie } from "./plateau3d/spectacle.ts";
 import { interaction, type Choice, type Ui } from "./Question.tsx";
 import { placeKey, pointDe, reponseVisee, type Appui, type Point } from "./question.ts";
+import { RulesBadge, type Rule } from "./regles.tsx";
 import "./styles/duel.css";
 import { Icon } from "./ui.tsx";
 
@@ -31,6 +32,8 @@ type Props = {
   feed?: Feed;
   lp?: number;
   pseudo?: string;
+  // Special rules of a story duel, opened from a badge.
+  rules?: Rule[];
 };
 
 const { HAND, GRAVE, REMOVED } = OcgLocation;
@@ -84,7 +87,7 @@ function codeAt(board: Board, id: string): number {
 }
 
 // The end of the duel (Fin.tsx) is drawn over the board by the lobby.
-export function Duel({ board, seat, asked, respond, leave, feed, lp, pseudo }: Readonly<Props>) {
+export function Duel({ board, seat, asked, respond, leave, feed, lp, pseudo, rules }: Readonly<Props>) {
   const cards = useCards();
   const strings = useSystemStrings();
   const [detail, setDetail] = useState<number>();
@@ -186,6 +189,7 @@ export function Duel({ board, seat, asked, respond, leave, feed, lp, pseudo }: R
           </aside>
           <Hand hand={shown.players[seat].hand} seat={seat} ui={targets} main={hud.refs.mains[seat]} appui={appui} />
           <aside className="colonne colonne--droite">
+            {rules?.length ? <RulesBadge rules={rules} /> : null}
             {shown.chain.length > 0 && <Chain chain={shown.chain} seat={seat} />}
             <Log log={shown.log} />
             <section className="panneau question" aria-live="polite">
