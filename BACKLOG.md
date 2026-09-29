@@ -54,8 +54,19 @@
 - [x] F-histoire-monde-des-souvenirs : arc 7 (5 duels) (feat/F-histoire-monde-des-souvenirs)
 - [x] F-deploiement-coolify : image Docker unique, client servi par le serveur de jeu, volume des illustrations, lien vers le code, réglages dans DEPLOY.md (feat/F-deploiement-coolify)
 
+## Interface Duel Disk
+
+- [x] F-design-maquette : charte, maquette des 13 écrans, démo du mouvement, prototype 3D, 11 décisions validées (feat/F-design-maquette)
+- [x] F-ui-fondations : charte dans le client, composant de carte, habillage, écrans de base (feat/F-ui-fondations)
+- [x] F-ui-plateau-3d : plateau de duel en 3D (react-three-fiber), HUD, repli 2D (feat/F-ui-plateau-3d)
+- [x] F-ui-collection-deck : collection et deck builder (feat/F-ui-collection-deck)
+- [x] F-ui-boosters : écran et ouverture des boosters (feat/F-ui-boosters)
+- [x] F-ui-histoire : écrans du mode Histoire (feat/F-ui-histoire)
+- [ ] Rareté des exemplaires dans la collection (le serveur ne l'envoie pas)
+- [ ] Nom de l'adversaire en fin de duel, noms français des Dieux anime
+
 ## Mise en ligne
 
-- [ ] Passer le repo GitHub en public (licence AGPL du moteur)
-- [ ] Créer l'application Coolify selon DEPLOY.md (yugioh.nbrcs.pro, volume, variables, réseau Supabase)
+- [x] Passer le repo GitHub en public (licence AGPL du moteur)
+- [x] Créer l'application Coolify selon DEPLOY.md (yugioh.nbrcs.pro, volume, variables, réseau Supabase)
 - [ ] Ajouter https://yugioh.nbrcs.pro aux URL de redirection de Supabase Auth
