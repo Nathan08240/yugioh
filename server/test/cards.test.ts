@@ -13,10 +13,12 @@ it("sert le nom et le texte français d'une carte, avec ses libellés français"
   expect(clientCard(5318639)?.name).toBe("Typhon d'Espace Mystique");
 });
 
-it("garde l'anglais de BabelCDB pour une carte sans traduction", () => {
+it("garde le texte anglais de BabelCDB pour une carte sans traduction", () => {
   const anime = 511600399; // Slifer the Sky Dragon (Anime), in the pool through the story decks
-  expect(clientCard(anime)).toMatchObject({ name: cardInfo(anime)?.name, desc: cardInfo(anime)?.desc });
-  expect(clientCard(anime)?.name).toContain("Slifer");
+  expect(clientCard(anime)).toMatchObject({ desc: cardInfo(anime)?.desc });
+  expect(clientCard(anime)?.name).toBe("Slifer, le Dragon Céleste");
+  expect(clientCard(511600398)?.name).toBe("Obelisk, le Tourmenteur");
+  expect(clientCard(511600400)?.name).toBe("Le Dragon Ailé de Râ");
   // Wolf Axwielder: YGOJSON has no French for it.
   expect(clientCard(56369281)?.name).toBe("Wolf Axwielder");
   // Throwstone Unit: a French name but no French text.
