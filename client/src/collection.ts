@@ -2,17 +2,27 @@ import { OcgType } from "@n1xx1/ocgcore-wasm";
 import type { CardInfo } from "../../server/src/protocol.ts";
 import { has, type Cards } from "./cards.ts";
 
-export type Kind = "" | "monster" | "spell" | "trap";
+export type Kind = "" | "monster" | "spell" | "trap" | "fusion";
 
 // Empty fields do not filter. Attribute, level and stats keep monsters only.
 export type Filters = { name: string; kind: Kind; attribute: number; level: number; atk: [string, string]; def: [string, string] };
 
 export const noFilters: Filters = { name: "", kind: "", attribute: 0, level: 0, atk: ["", ""], def: ["", ""] };
 
-export function kindOf(type: number): Kind {
+export function kindOf(type: number): "monster" | "spell" | "trap" {
   if (has(type, OcgType.SPELL)) return "spell";
   if (has(type, OcgType.TRAP)) return "trap";
   return "monster";
+}
+
+// Fusions are monsters too: the filter keeps them apart for the Extra Deck.
+const kindMatches = (type: number, kind: Kind) => (kind === "fusion" ? has(type, OcgType.FUSION) : kindOf(type) === kind);
+
+// Monsters, spells and traps of a deck, for its breakdown bar.
+export function kindCounts(codes: readonly number[], cards: Cards): Record<"monster" | "spell" | "trap", number> {
+  const counts = { monster: 0, spell: 0, trap: 0 };
+  for (const code of codes) counts[kindOf(cards.get(code)?.type ?? 0)]++;
+  return counts;
 }
 
 // A "?" stat (-2) never matches a set bound.
@@ -32,7 +42,7 @@ function monsterMatches(card: CardInfo, filters: Filters): boolean {
 
 export function matches(card: CardInfo, filters: Filters): boolean {
   if (!card.name.toLowerCase().includes(filters.name.trim().toLowerCase())) return false;
-  if (filters.kind && kindOf(card.type) !== filters.kind) return false;
+  if (filters.kind && !kindMatches(card.type, filters.kind)) return false;
   return monsterMatches(card, filters);
 }
 
