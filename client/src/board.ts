@@ -28,8 +28,8 @@ export type Board = {
   chain: (Place & { code: number })[];
   winner?: number;
   log: LogEntry[];
-  // The card behind the damage being dealt (the attacker, else the last card activated), and the last damage dealt.
-  source?: number;
+  // The attacker of the battle in progress (forgotten at the next phase), and the last damage dealt with the card behind it.
+  attacker?: number;
   lastHit?: { player: number; amount: number; code: number };
 };
 
@@ -113,6 +113,12 @@ function setStats(board: Board, msg: StatsEvent) {
   );
 }
 
+// The card behind a damage: the chain link resolving, else the attacker, else unknown (0).
+const damageSource = (board: Board) => {
+  const link = board.chain.at(-1);
+  return (link ? link.code : board.attacker) ?? 0;
+};
+
 // LP are sent as unsigned 32-bit values: below 0 they wrap around.
 const int32 = (value: number) => value | 0;
 
@@ -149,11 +155,10 @@ function apply(board: Board, msg: Message) {
       break;
     }
     case OcgMessageType.ATTACK:
-      board.source = cardAt(board, msg.card)?.code;
+      board.attacker = cardAt(board, msg.card)?.code;
       break;
     case OcgMessageType.CHAINING:
       if (msg.code) reveal(board, msg, msg.code, msg.position);
-      board.source = msg.code;
       board.chain.push({ code: msg.code, controller: msg.controller, location: msg.location, sequence: msg.sequence });
       break;
     case OcgMessageType.CHAIN_SOLVED:
@@ -165,12 +170,14 @@ function apply(board: Board, msg: Message) {
     case OcgMessageType.NEW_TURN:
       board.turn++;
       board.turnPlayer = msg.player;
+      board.attacker = undefined;
       break;
     case OcgMessageType.NEW_PHASE:
       board.phase = msg.phase;
+      board.attacker = undefined;
       break;
     case OcgMessageType.DAMAGE:
-      board.lastHit = { player: msg.player, amount: msg.amount, code: board.source ?? 0 };
+      board.lastHit = { player: msg.player, amount: msg.amount, code: damageSource(board) };
       board.players[msg.player].lp -= msg.amount;
       break;
     case OcgMessageType.PAY_LPCOST:

@@ -95,6 +95,32 @@ describe("plateau reconstruit à partir des messages du moteur", () => {
     expect(burnt.lastHit).toEqual({ player: 0, amount: 800, code: POT_OF_GREED });
   });
 
+  it("attribue les dégâts de combat à l'attaquant, même après une chaîne, et ignore une carte activée plus tôt", () => {
+    const activation = {
+      type: OcgMessageType.CHAINING,
+      code: POT_OF_GREED,
+      controller: 1,
+      location: SZONE,
+      sequence: 1,
+      position: FACEUP_ATTACK,
+      triggering_controller: 1,
+      triggering_location: SZONE,
+      triggering_sequence: 1,
+      description: "0",
+      chain_size: 1,
+    } as const;
+    const attack = { type: OcgMessageType.ATTACK, card: { controller: 0, location: MZONE, sequence: 0, position: FACEUP_ATTACK }, target: null } as const;
+    const solved = [{ type: OcgMessageType.CHAIN_SOLVED, chain_size: 1 }, { type: OcgMessageType.CHAIN_END }] as const;
+    const main2 = { type: OcgMessageType.NEW_PHASE, phase: OcgPhase.MAIN2 } as const;
+    const hit = { type: OcgMessageType.DAMAGE, player: 1, amount: 2500 } as const;
+
+    expect(playAll(summoned, [attack, activation, ...solved, hit]).lastHit?.code).toBe(DARK_MAGICIAN);
+    // No attack and no chain in progress: the source is unknown, not the card activated earlier.
+    expect(playAll(summoned, [activation, ...solved, main2, hit]).lastHit?.code).toBe(0);
+    // The attacker is forgotten once the phase changes.
+    expect(playAll(summoned, [attack, main2, hit]).lastHit?.code).toBe(0);
+  });
+
   it("envoie au cimetière une carte détruite, et suit la chaîne", () => {
     const board = playAll(summoned, [
       { type: OcgMessageType.MOVE, card: POT_OF_GREED, from: { controller: 0, location: HAND, sequence: 0, position: FACEDOWN }, to: { controller: 0, location: SZONE, sequence: 1, position: FACEUP_ATTACK } },
