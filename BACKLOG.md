@@ -73,7 +73,8 @@
 - [x] F-terrain-change-plateau : le plateau prend l'illustration de la Magie de Terrain (feat/F-terrain-change-plateau, fix/F-terrain-plus-visible)
 - [x] F-glisser-deposer-cartes : glisser-déposer et actions sur les cartes (feat/F-glisser-deposer-cartes)
 - [x] F-regles-speciales-visibles : règles spéciales et cause de la défaite expliquées (feat/F-regles-speciales-visibles)
-- [ ] Journal du duel et textes de fin : « Adversaire » à remplacer par son nom
+- [x] F-nom-adversaire-journal : nom de l'adversaire dans le journal, la chaîne et les textes de fin (feat/F-nom-adversaire-journal)
+- [x] F-echap-fermetures : Échap ferme seulement la fenêtre du dessus, badge des règles compris (fix/F-echap-fermetures)
 - [ ] Nom français du Noyau de Diabound (511000118)
 
 ## Mise en ligne
