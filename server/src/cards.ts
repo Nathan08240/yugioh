@@ -73,8 +73,11 @@ export function cardInfo(code: number): Omit<CardInfo, "image" | "attributeName"
 type French = { name: string; desc?: string };
 let french: ReadonlyMap<number, French> | undefined;
 
-// Extra Rules cards of the story (see EXTRA_RULES), which YGOJSON does not have.
+// Cards YGOJSON lacks in French: the story's Extra Rules card (see EXTRA_RULES) and the anime Egyptian Gods (name only).
 export const RULE_CARDS: ReadonlyMap<number, French> = new Map([
+  [511600398, { name: "Obelisk, le Tourmenteur" }],
+  [511600399, { name: "Slifer, le Dragon Céleste" }],
+  [511600400, { name: "Le Dragon Ailé de Râ" }],
   [
     511002621,
     {
