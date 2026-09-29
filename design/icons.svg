@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg">
+  <!-- Icônes maison 24x24, trait 1.75, couleur héritée (currentColor). Usage : <svg class="ic"><use href="icons.svg#attr-feu"/></svg> -->
+  <symbol id="attr-lumiere" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.5"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/></symbol>
+  <symbol id="attr-tenebres" viewBox="0 0 24 24"><path d="M15.5 3.5a8.5 8.5 0 1 0 5 14.5 7 7 0 0 1-5-14.5z"/><path d="M18.5 5.5v3M17 7h3"/></symbol>
+  <symbol id="attr-terre" viewBox="0 0 24 24"><path d="M2.5 19.5 9 8l4 6.5 2.5-3.5 6 8.5z"/><path d="M7.2 11.2 9 12.5l1.6-1.3"/></symbol>
+  <symbol id="attr-eau" viewBox="0 0 24 24"><path d="M12 3c3.5 4.6 6 8 6 11a6 6 0 0 1-12 0c0-3 2.5-6.4 6-11z"/><path d="M9.2 14.5a2.8 2.8 0 0 0 2.8 2.8"/></symbol>
+  <symbol id="attr-feu" viewBox="0 0 24 24"><path d="M12 21.5c-3.9 0-6.5-2.6-6.5-6.2 0-3.3 2.4-5.2 3.6-8.3.9 1.6 1.8 2.6 2.9 3 .3-2.7 1.4-5.2 3.4-7.5.5 3.6 3.1 5.8 3.1 10.4 0 4.4-2.6 8.6-6.5 8.6z"/></symbol>
+  <symbol id="attr-vent" viewBox="0 0 24 24"><path d="M3 8.5h11a3 3 0 1 0-3-3M3 12.5h15.5a3 3 0 1 1-3 3M3 16.5h7"/></symbol>
+  <symbol id="attr-divin" viewBox="0 0 24 24"><circle cx="12" cy="10.5" r="3.2"/><path d="M8.8 10.5C6 9 4 9.1 2 10c1.3 1.5 3.3 2.3 6.9 2.4M15.2 10.5c2.8-1.5 4.8-1.4 6.8-.5-1.3 1.5-3.3 2.3-6.9 2.4M12 13.7v7M9.5 17.5h5"/></symbol>
+
+  <symbol id="type-magie" viewBox="0 0 24 24"><path d="M11 2.5c.8 4.7 2.8 6.7 7.5 7.5-4.7.8-6.7 2.8-7.5 7.5-.8-4.7-2.8-6.7-7.5-7.5 4.7-.8 6.7-2.8 7.5-7.5z"/><path d="M19 15.5c.3 1.8 1 2.5 2.8 2.8-1.8.3-2.5 1-2.8 2.8-.3-1.8-1-2.5-2.8-2.8 1.8-.3 2.5-1 2.8-2.8z"/></symbol>
+  <symbol id="type-piege" viewBox="0 0 24 24"><path d="M3 9a9 7 0 0 1 18 0M3 15a9 7 0 0 0 18 0"/><path d="M3 9l3 3.5L9 9l3 3.5L15 9l3 3.5L21 9M3 15l3-3.5L9 15l3-3.5 3 3.5 3-3.5 3 3.5"/></symbol>
+  <symbol id="niveau" viewBox="0 0 24 24"><path fill="currentColor" stroke="none" d="M12 2.8l2.8 5.8 6.3.9-4.6 4.4 1.1 6.3L12 17.2l-5.6 3 1.1-6.3L2.9 9.5l6.3-.9z"/></symbol>
+  <symbol id="embleme" viewBox="0 0 24 24"><path d="M12 2.5l8.2 4.75v9.5L12 21.5l-8.2-4.75v-9.5z"/><path d="M12 7l4.3 2.5v5L12 17l-4.3-2.5v-5z"/><circle cx="12" cy="12" r="1.6"/></symbol>
+
+  <symbol id="ui-duel" viewBox="0 0 24 24"><path d="M14.5 17.5 3 6V3h3l11.5 11.5M13 19l6-6M16 16l3 3M19 21l2-2M9.5 17.5 21 6V3h-3L6.5 14.5M11 19l-6-6M8 16l-3 3M5 21l-2-2"/></symbol>
+  <symbol id="ui-bot" viewBox="0 0 24 24"><rect x="4" y="8" width="16" height="12" rx="3"/><path d="M12 4.5V8M9 13v1.5M15 13v1.5M9 17.5h6M2 12.5v3M22 12.5v3"/><circle cx="12" cy="3.5" r="1"/></symbol>
+  <symbol id="ui-cartes" viewBox="0 0 24 24"><rect x="4" y="5.5" width="11" height="15" rx="1.5"/><path d="M15 6.2l2.4-.9a1.5 1.5 0 0 1 1.9.9l3.3 11.4a1.5 1.5 0 0 1-1 1.9L15 21"/></symbol>
+  <symbol id="ui-booster" viewBox="0 0 24 24"><path d="M6 3l1.5 1.5L9 3l1.5 1.5L12 3l1.5 1.5L15 3l1.5 1.5L18 3v18l-1.5-1.5L15 21l-1.5-1.5L12 21l-1.5-1.5L9 21l-1.5-1.5L6 21z"/><path d="M12 8l3 3.5-3 4.5-3-4.5z"/></symbol>
+  <symbol id="ui-histoire" viewBox="0 0 24 24"><path d="M12 6.5C10 5 7 4.5 3.5 5v13.5c3.5-.5 6.5 0 8.5 1.5 2-1.5 5-2 8.5-1.5V5C17 4.5 14 5 12 6.5zM12 6.5V20"/></symbol>
+  <symbol id="ui-cadenas" viewBox="0 0 24 24"><rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5M12 14.5v2.5"/></symbol>
+  <symbol id="ui-coche" viewBox="0 0 24 24"><path d="M4.5 12.5l5 5 10-11"/></symbol>
+  <symbol id="ui-copier" viewBox="0 0 24 24"><rect x="8.5" y="8.5" width="11.5" height="11.5" rx="2"/><path d="M15.5 8.5V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7.5a2 2 0 0 0 2 2h2.5"/></symbol>
+  <symbol id="ui-reglages" viewBox="0 0 24 24"><path d="M12 3l7.8 4.5v9L12 21l-7.8-4.5v-9z"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="ui-journal" viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/></symbol>
+  <symbol id="ui-chaine" viewBox="0 0 24 24"><path d="M10 13.5a4 4 0 0 0 5.7.3l3-3a4 4 0 0 0-5.7-5.7l-1.2 1.2"/><path d="M14 10.5a4 4 0 0 0-5.7-.3l-3 3a4 4 0 0 0 5.7 5.7l1.2-1.2"/></symbol>
+  <symbol id="ui-retour" viewBox="0 0 24 24"><path d="M19 12H5M11 6l-6 6 6 6"/></symbol>
+  <symbol id="ui-suivant" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+  <symbol id="ui-fermer" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+  <symbol id="ui-joueur" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20.5c1.2-4 4.3-6 8-6s6.8 2 8 6"/></symbol>
+  <symbol id="ui-horloge" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></symbol>
+  <symbol id="ui-trophee" viewBox="0 0 24 24"><path d="M8 4h8v5a4 4 0 0 1-8 0zM8 6H4.5a3.5 3.5 0 0 0 3.8 4M16 6h3.5a3.5 3.5 0 0 1-3.8 4M12 13v4M9.5 17h5v3.5h-5z"/></symbol>
+  <symbol id="ui-deck" viewBox="0 0 24 24"><rect x="4.5" y="5.5" width="12" height="15.5" rx="1.5"/><path d="M8 2.5h10.5A1.5 1.5 0 0 1 20 4v14"/></symbol>
+  <symbol id="ui-cimetiere" viewBox="0 0 24 24"><path d="M6 21V10a6 6 0 0 1 12 0v11zM4 21h16M12 8.5v6M9.5 11h5"/></symbol>
+  <symbol id="ui-bannie" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 3.5c-2 3-2 5.5 0 8.5s2 5.5 0 8.5"/></symbol>
+  <symbol id="ui-extra" viewBox="0 0 24 24"><rect x="4" y="6" width="12" height="15" rx="1.5"/><path d="M19.5 2.5v6M16.5 5.5h6"/></symbol>
+  <symbol id="ui-terrain" viewBox="0 0 24 24"><path d="M3 18l4.5-11h9L21 18z"/><path d="M5.5 12.5h13"/></symbol>
+  <symbol id="ui-eclair" viewBox="0 0 24 24"><path d="M13 2.5 5 13.5h6l-1 8 8-11h-6z"/></symbol>
+  <symbol id="ui-attaque" viewBox="0 0 24 24"><path d="M20 4l-9.5 9.5M20 4h-4l-8.5 8.5M20 4v4l-8.5 8.5M6 14l4 4M4 20l2.5-2.5"/></symbol>
+  <symbol id="ui-bouclier" viewBox="0 0 24 24"><path d="M12 3l7.5 3v5.5c0 4.7-3.2 8.2-7.5 9.5-4.3-1.3-7.5-4.8-7.5-9.5V6z"/></symbol>
+  <symbol id="ui-oeil" viewBox="0 0 24 24"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="ui-filtre" viewBox="0 0 24 24"><path d="M3.5 5h17l-6.5 8v6l-4 1.5V13z"/></symbol>
+  <symbol id="ui-recherche" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21"/></symbol>
+  <symbol id="ui-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="ui-moins" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+  <symbol id="ui-sortie" viewBox="0 0 24 24"><path d="M14 4h4.5A1.5 1.5 0 0 1 20 5.5v13a1.5 1.5 0 0 1-1.5 1.5H14M10 16l4-4-4-4M14 12H4"/></symbol>
+  <symbol id="ui-mail" viewBox="0 0 24 24"><rect x="3" y="5.5" width="18" height="13" rx="2"/><path d="M3.5 7l8.5 6 8.5-6"/></symbol>
+  <symbol id="ui-cle" viewBox="0 0 24 24"><circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M17 6l2.5 2.5M14.5 8.5l2 2"/></symbol>
+  <symbol id="ui-en-ligne" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.5 2.5 3.5 5.5 3.5 8.5s-1 6-3.5 8.5c-2.5-2.5-3.5-5.5-3.5-8.5s1-6 3.5-8.5z"/></symbol>
+</svg>

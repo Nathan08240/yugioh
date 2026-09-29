@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Proposition Duel Disk</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="tokens.css">
+  <link rel="stylesheet" href="maquette/maquette.css">
+  <style>
+    .proposition {
+      position: relative;
+      isolation: isolate;
+      min-block-size: 100dvh;
+      overflow-x: clip;
+      padding: var(--e-7) var(--marge-ecran) var(--e-8);
+    }
+    .proposition > * { max-inline-size: 1200px; margin-inline: auto; }
+    .proposition > * + * { margin-block-start: var(--e-7); }
+
+    .intro { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: var(--e-6); align-items: end; }
+    .intro .titre { margin-block: var(--e-2) var(--e-4); font-size: var(--taille-3xl); }
+    .intro p.texte-2 { max-inline-size: 58ch; font-size: var(--taille-l); }
+
+    .reperes { display: grid; gap: var(--e-4); padding: var(--e-5); }
+    .nuancier { display: flex; gap: var(--e-2); }
+    .nuancier span { flex: 1; block-size: 36px; border-radius: var(--r-2) var(--r-1); box-shadow: inset 0 0 0 1px var(--trait-fort); }
+    .polices { display: flex; flex-wrap: wrap; gap: var(--e-2) var(--e-5); color: var(--texte-2); }
+    .polices b { color: var(--texte); }
+    .rarites { display: flex; flex-wrap: wrap; gap: var(--e-2); }
+
+    figure.apercu { position: relative; overflow: hidden; border-radius: var(--r-4) var(--r-1); box-shadow: inset 0 0 0 1px var(--trait-fort), var(--ombre-3); background: var(--nuit-1); }
+    .apercu img { inline-size: 100%; block-size: auto; aspect-ratio: 16 / 10; object-fit: cover; }
+    .apercu--large img { aspect-ratio: 1440 / 900; }
+    figure.apercu--large figcaption { position: static; padding: var(--e-3) var(--e-4); background: none; color: var(--texte-2); }
+    .apercu figcaption { position: absolute; inset: auto 0 0; padding: var(--e-6) var(--e-4) var(--e-3); background: linear-gradient(transparent, rgb(6 8 23 / 0.92)); font: 600 var(--taille-s) / 1.3 var(--police-etroite); letter-spacing: 0.04em; }
+
+    .pages { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--gouttiere); }
+    .page-lien { display: grid; grid-template-rows: auto 1fr auto; gap: var(--e-3); padding: var(--e-3) var(--e-3) var(--e-4); text-decoration: none; }
+    .page-lien:hover { box-shadow: var(--lueur-holo), var(--ombre-2); }
+    .page-lien h2 { padding-inline: var(--e-2); }
+    .page-lien p { padding-inline: var(--e-2); color: var(--texte-2); }
+    .page-lien .btn { justify-self: start; margin-inline: var(--e-2); }
+    .page-lien img { inline-size: 100%; block-size: auto; aspect-ratio: 16 / 10; object-fit: cover; object-position: top; border-radius: var(--r-3) var(--r-1); }
+
+    .ecrans { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: var(--e-4); margin-block-start: var(--e-4); }
+    .ecrans a { display: block; text-decoration: none; border-radius: var(--r-4) var(--r-1); }
+    .ecrans a:hover figure { box-shadow: var(--lueur-holo); }
+
+    .decisions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--e-4); margin-block-start: var(--e-4); counter-reset: d; }
+    .decisions li { counter-increment: d; display: grid; grid-template-columns: auto 1fr; gap: var(--e-1) var(--e-4); padding: var(--e-4) var(--e-5) var(--e-4) var(--e-4); }
+    .decisions li::before { content: counter(d); grid-row: span 2; display: grid; place-items: center; inline-size: 36px; aspect-ratio: 1 / 1.1; clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%); background: var(--holo); color: var(--nuit-0); font: 800 var(--taille-m) / 1 var(--police-chiffres); }
+    .decisions h3 { font: 700 var(--taille-l) / 1.2 var(--police-etroite); }
+    .decisions p { color: var(--texte-2); }
+    .decisions p b { color: var(--or); font-weight: 600; }
+    .ecart { margin-inline-start: var(--e-2); vertical-align: 2px; color: var(--camp-adverse); }
+
+    .pied { padding: var(--e-4) var(--e-5); color: var(--texte-2); font-size: var(--taille-s); }
+    .pied code { font: 600 0.95em var(--police-chiffres); color: var(--texte-2); }
+
+    @media (max-width: 1100px) {
+      .intro, .decisions { grid-template-columns: minmax(0, 1fr); }
+      .pages { grid-template-columns: minmax(0, 1fr); }
+    }
+  </style>
+</head>
+<body>
+<main class="proposition fond-ville">
+
+  <header class="intro">
+    <div>
+      <p class="surtitre">Proposition d'interface · à valider</p>
+      <h1 class="titre">Battle City, vue par le Duel Disk</h1>
+      <p class="texte-2">L'interface est une projection holographique posée sur la ville la nuit : couleurs vives de l'anime, rendu d'aujourd'hui, plateau de duel en vraie 3D. Cadres de cartes, icônes et décors sont dessinés par nous, sans logo ni visuel officiel. Le code du jeu n'est pas touché.</p>
+    </div>
+    <div class="panneau reperes" aria-label="Repères de la charte">
+      <div class="nuancier" aria-hidden="true">
+        <span style="background: var(--nuit-1)"></span><span style="background: var(--horizon)"></span><span style="background: var(--holo)"></span><span style="background: var(--or)"></span><span style="background: var(--camp-adverse)"></span><span style="background: var(--degrade-prisme)"></span>
+      </div>
+      <p class="polices"><b style="font: 800 1.05em var(--police-titre); font-stretch: 82%">TEKTUR</b><b style="font-family: var(--police-texte)">Barlow</b><b style="font-family: var(--police-etroite)">Barlow Condensed</b><b style="font-family: var(--police-chiffres)">Oxanium 8000</b></p>
+      <p class="rarites"><span class="rarete rarete--commune">Commune</span><span class="rarete rarete--rare">Rare</span><span class="rarete rarete--super">Super</span><span class="rarete rarete--ultra">Ultra</span><span class="rarete rarete--ultimate">Ultimate</span><span class="rarete rarete--secret">Secret</span></p>
+    </div>
+  </header>
+
+  <figure class="apercu apercu--large">
+    <img src="assets/captures/plateau-3d-1440.png" alt="Plateau de duel en 3D : le Dragon Blanc aux Yeux Bleus adverse se projette en hologramme, chaîne Force de Miroir puis Sept Outils du Bandit, question du moteur en or à droite." width="1440" height="900">
+    <figcaption>Le duel en 3D (Three.js), le HUD par-dessus : LP, main, phases, chaîne, journal, détail de carte et question du moteur toujours visible.</figcaption>
+  </figure>
+
+  <section aria-labelledby="t-pages">
+    <h2 class="titre-panneau" id="t-pages">Trois pages à ouvrir</h2>
+    <div class="pages" style="margin-block-start: var(--e-4)">
+      <a class="panneau page-lien" href="maquette/index.html#accueil">
+        <img src="assets/captures/_sommaire-1440.png" alt="" width="1920" height="900">
+        <div><h2 class="titre-bloc">Maquette</h2><p>Les 13 écrans, de la connexion à la défaite, et la planche des cartes : types, 6 raretés, états en duel.</p></div>
+        <span class="btn btn--holo">Ouvrir la maquette</span>
+      </a>
+      <a class="panneau page-lien" href="motion/index.html">
+        <img src="assets/captures/motion/duel-dieu-nom.png" alt="" width="1112" height="625">
+        <div><h2 class="titre-bloc">Mouvement</h2><p>18 séquences à rejouer (invocations, attaque, chaîne, Dieu Égyptien, fin de duel) et 6 révélations de booster. Sans bibliothèque.</p></div>
+        <span class="btn btn--holo">Ouvrir la démo</span>
+      </a>
+      <a class="panneau page-lien" href="plateau-3d/index.html">
+        <img src="assets/captures/plateau-3d-attaque-1440.png" alt="" width="1440" height="900">
+        <div><h2 class="titre-bloc">Plateau 3D</h2><p>Cartes en volume, hologrammes, rayon d'attaque, caméra de tour. Souris et clavier. 60 images par seconde sur un GPU intégré.</p></div>
+        <span class="btn btn--holo">Ouvrir le plateau</span>
+      </a>
+    </div>
+  </section>
+
+  <section aria-labelledby="t-ecrans">
+    <h2 class="titre-panneau" id="t-ecrans">Écrans clés</h2>
+    <div class="ecrans">
+      <a href="maquette/index.html#accueil"><figure class="apercu"><img src="assets/captures/accueil-1440.png" alt="" loading="lazy" width="1440" height="900"><figcaption>Accueil</figcaption></figure></a>
+      <a href="maquette/index.html#starter"><figure class="apercu"><img src="assets/captures/starter-1440.png" alt="" loading="lazy" width="1440" height="900"><figcaption>Deck de départ</figcaption></figure></a>
+      <a href="motion/index.html#booster"><figure class="apercu"><img src="assets/captures/motion/booster-secret.png" alt="" loading="lazy" width="1112" height="625"><figcaption>Booster : Secret Rare</figcaption></figure></a>
+      <a href="maquette/index.html#collection"><figure class="apercu"><img src="assets/captures/collection-1440.png" alt="" loading="lazy" width="1440" height="900"><figcaption>Collection et deck</figcaption></figure></a>
+      <a href="maquette/index.html#histoire"><figure class="apercu"><img src="assets/captures/histoire-1440.png" alt="" loading="lazy" width="1440" height="900"><figcaption>Mode Histoire</figcaption></figure></a>
+      <a href="maquette/index.html#victoire"><figure class="apercu"><img src="assets/captures/victoire-1440.png" alt="" loading="lazy" width="1440" height="900"><figcaption>Victoire</figcaption></figure></a>
+    </div>
+  </section>
+
+  <section aria-labelledby="t-decisions">
+    <h2 class="titre-panneau" id="t-decisions">Décisions à valider</h2>
+    <p class="texte-2" style="margin-block-start: var(--e-2)">En or, la recommandation de l'équipe. <span class="rarete ecart" style="margin: 0">Écart</span> : les pages divergent aujourd'hui, elles seront alignées sur votre choix.</p>
+    <ol class="decisions">
+      <li class="panneau"><h3>Hologrammes<span class="rarete ecart">Écart</span></h3><p>Seul le monstre qui agit se projette, ou tous les monstres en Attaque restent projetés. <b>Seul celui qui agit, qui redescend après 400&nbsp;ms comme dans la démo (en 3D il reste levé), en un peu plus petit : il masque la rangée adverse.</b></p></li>
+      <li class="panneau"><h3>Lisibilité avant fidélité à la table</h3><p>Cartes adverses à l'endroit, vos cartes posées visibles sous un voile hachuré, au lieu de cartes retournées comme sur une vraie table. <b>Garder : les trois pages sont déjà ainsi.</b></p></li>
+      <li class="panneau"><h3>Titres en capitales</h3><p>Tektur en capitales partout, ou casse normale sur la collection, le deck et les boosters. <b>Garder les capitales, les titres sont courts. Revoir si les écrans de gestion paraissent chargés.</b></p></li>
+      <li class="panneau"><h3>Zone Bannies<span class="rarete ecart">Écart</span></h3><p>Compteur à côté du Cimetière (maquette, démo) ou vraie 8<sup>e</sup> zone (3D, comme le plateau actuel). <b>Le compteur, avec la liste au clic : le plateau gagne environ 10&nbsp;% à l'écran.</b></p></li>
+      <li class="panneau"><h3>Angle de la caméra<span class="rarete ecart">Écart</span></h3><p>52° dans le prototype 3D, environ 45° dans la charte. <b>52°, les cartes y sont plus lisibles. La charte sera mise à jour.</b></p></li>
+      <li class="panneau"><h3>Branchement de la 3D</h3><p>react-three-fiber (247&nbsp;ko gzip avec three) ou three piloté à la main (141&nbsp;ko). <b>Fiber, comme prévu : chargé à l'entrée d'un duel seulement, l'accueil ne paie rien.</b></p></li>
+      <li class="panneau"><h3>Bibliothèque d'animation</h3><p>CSS et Web Animations API (0&nbsp;ko), ou Motion 13.4.5 (29&nbsp;ko gzip). <b>Sans bibliothèque. Motion seulement si le deck builder demande des cartes qui se réordonnent.</b></p></li>
+      <li class="panneau"><h3>Ouverture des boosters</h3><p>Une carte par toucher, de la moins rare à la plus rare, avec « Tout révéler ». Aujourd'hui : révélation automatique, dans l'ordre reçu. <b>Oui.</b></p></li>
+      <li class="panneau"><h3>Invocation d'un Dieu Égyptien</h3><p>Les bandes cinéma masquent les LP environ 4,5&nbsp;s : seule exception à « le HUD reste lisible ». <b>Accepter : un clic passe la séquence.</b></p></li>
+      <li class="panneau"><h3>Réduction des animations<span class="rarete ecart">Écart</span></h3><p>La 2D garde un fondu de 150&nbsp;ms, la 3D passe tout à 0. <b>Un seul comportement : la 3D reprend le fondu de 150&nbsp;ms.</b></p></li>
+      <li class="panneau"><h3>Passer et rattraper<span class="rarete ecart">Écart</span></h3><p>Espace passe une séquence (avec le clic et Échap), et tout va deux fois plus vite quand plus de 3 messages du moteur attendent. Écrit, pas montré dans la démo. <b>Confirmer les deux.</b></p></li>
+    </ol>
+  </section>
+
+  <footer class="panneau pied">
+    <p>Voir en local : <code>pnpm --filter client exec vite ../design --port 5190</code>, puis <code>http://localhost:5190/</code>. Illustrations et captures dans <code>design/assets/</code>, non versionné ; <code>node design/copier-assets.mts &lt;chemin&gt;/server</code> recopie les illustrations. Détails : <code>charte.md</code>, <code>motion.md</code>, <code>3d.md</code>.</p>
+  </footer>
+</main>
+</body>
+</html>

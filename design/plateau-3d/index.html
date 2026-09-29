@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Plateau 3D</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="../tokens.css">
+  <link rel="stylesheet" href="../cartes.css">
+  <link rel="stylesheet" href="../maquette/maquette.css">
+  <!-- Les modules de three/addons importent "three" : l'import map le résout vers la même version épinglée. -->
+  <script type="importmap">
+    { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js" } }
+  </script>
+  <script type="module" src="../maquette/maquette.js"></script>
+  <script type="module" src="plateau.js"></script>
+  <style>
+    .ecran--duel { display: flex; }
+
+    #plateau {
+      position: absolute;
+      inset: 0;
+      z-index: var(--z-plateau);
+      display: block;
+      opacity: 0;
+      transition: opacity var(--duree-3) var(--courbe-sortie);
+    }
+    #plateau.est-pret { opacity: 1; }
+    #plateau:focus-visible { outline: none; }
+
+    /* Cadre du rendu 3D : entre les zones réservées au HUD (mêmes jetons que .scene de la maquette) */
+    .cadre-3d {
+      position: absolute;
+      inset: var(--hud-haut) var(--hud-droite) calc(var(--hud-bas) * 0.72) var(--hud-gauche);
+      display: grid;
+      place-items: center;
+      pointer-events: none;
+    }
+
+    .etiquettes { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
+    .etiquettes span {
+      position: absolute;
+      inset: 0 auto auto 0;
+      transform: translateX(-50%);
+      font: 700 12px / 1.1 var(--police-etroite);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      white-space: nowrap;
+      color: var(--texte-2);
+      text-shadow: 0 1px 4px var(--nuit-0);
+    }
+    .etiquettes .haut { transform: translate(-50%, -100%); }
+
+    .aide-clavier {
+      position: absolute;
+      inset: auto auto calc(var(--hud-bas) * 0.72 + var(--e-2)) 50%;
+      z-index: 2;
+      padding: var(--e-1) var(--e-3);
+      border-radius: var(--r-rond);
+      background: var(--surface);
+      box-shadow: var(--lueur-holo);
+      font: 600 var(--taille-s) / 1.4 var(--police-etroite);
+      opacity: 0;
+      transform: translateX(-50%);
+      pointer-events: none;
+    }
+    #plateau:focus-visible ~ .aide-clavier { opacity: 1; }
+
+    .demo {
+      display: grid;
+      grid-area: 1 / 2;
+      grid-template-columns: repeat(2, auto);
+      gap: var(--e-1);
+      align-self: start;
+      justify-self: end;
+    }
+    .demo button {
+      padding: 5px var(--e-3);
+      border: 0;
+      border-radius: var(--r-2) var(--r-1);
+      background: rgb(6 8 23 / 0.72);
+      box-shadow: inset 0 0 0 1px var(--trait-fort);
+      font: 700 13px / 1.2 var(--police-etroite);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--texte-2);
+      cursor: pointer;
+    }
+    .demo button:hover { color: var(--texte); box-shadow: var(--lueur-holo); }
+    .demo button[aria-disabled] { opacity: 0.5; cursor: progress; }
+    .tour.est-mon-tour .phases li[aria-current] { background: var(--camp-moi); box-shadow: 0 0 16px rgb(67 240 255 / 0.5); }
+
+    .message-3d { max-inline-size: 36ch; padding: var(--e-5); text-align: center; pointer-events: auto; }
+    .message-3d p + p { margin-block-start: var(--e-2); color: var(--texte-2); }
+
+    .perf {
+      position: absolute;
+      inset: calc(var(--hud-haut) + var(--e-2)) auto auto calc(var(--hud-gauche) + var(--marge-ecran) + var(--e-5));
+      z-index: var(--z-question);
+      padding: var(--e-1) var(--e-2);
+      border-radius: var(--r-1);
+      background: rgb(6 8 23 / 0.8);
+      font: 600 12px / 1.4 var(--police-chiffres);
+      color: var(--succes);
+      white-space: pre;
+    }
+  </style>
+</head>
+<body>
+
+<section class="ecran ecran--duel" id="duel" aria-label="Plateau de duel en 3D">
+  <h1 class="sr">Plateau de duel en 3D</h1>
+  <canvas id="plateau" tabindex="0" aria-label="Plateau de duel. Flèches pour parcourir les zones, Entrée pour choisir, Échap pour annuler."></canvas>
+  <div class="etiquettes" aria-hidden="true"></div>
+  <p class="aide-clavier" aria-hidden="true">Flèches : parcourir · Entrée : choisir · Échap : annuler</p>
+  <div class="cadre-3d"><p class="chargement surtitre">Chargement du plateau…</p></div>
+  <p class="sr" id="annonce" aria-live="polite"></p>
+
+  <!-- HUD repris de la maquette (#duel), inchangé : seuls les emplacements comptent ici. -->
+  <div class="hud">
+    <div class="plaque plaque--adverse">
+      <span class="avatar" aria-hidden="true">S</span>
+      <div class="plaque__id"><b>Seto_K</b><span class="compteurs"><span><svg class="ic" aria-hidden="true"><use href="../icons.svg#ui-cartes"/></svg><span class="sr">Main</span>3</span><span><svg class="ic" aria-hidden="true"><use href="../icons.svg#ui-deck"/></svg><span class="sr">Deck</span>24</span><span><svg class="ic" aria-hidden="true"><use href="../icons.svg#ui-cimetiere"/></svg><span class="sr">Cimetière</span>5</span></span></div>
+      <div class="lp" aria-label="Points de vie de Seto_K : 2200 sur 4000">
+        <span class="lp__valeur chiffres">2200</span><span class="lp__delta">−1000</span>
+        <span class="lp__barre" style="--v: 55%"></span>
+      </div>
+    </div>
+
+    <div class="main-adverse" aria-label="Main de l'adversaire : 3 cartes">
+      <div class="carte dos"></div><div class="carte dos"></div><div class="carte dos"></div>
+    </div>
+
+    <div class="demo" role="toolbar" aria-label="Démo du plateau 3D">
+      <button type="button" data-action="invoquer" title="Une carte de la main se pose et son hologramme se lève">Invoquer</button>
+      <button type="button" data-action="attaquer" title="Rayon de l'attaquant vers sa cible">Attaquer</button>
+      <button type="button" data-action="position" title="Carte choisie : Attaque, Défense, Défense face cachée">Position</button>
+      <button type="button" data-action="tour" title="Changement de tour : mouvement de caméra">Tour suivant</button>
+    </div>
+
+    <div class="tour">
+      <div class="tour__ligne">
+        <p><span class="surtitre">Tour 7</span><b class="adverse">Tour de Seto_K</b></p>
+        <button class="btn-icone" type="button" aria-label="Réglages"><svg class="ic" aria-hidden="true"><use href="../icons.svg#ui-reglages"/></svg></button>
+        <button class="btn-icone" type="button" aria-label="Quitter le duel"><svg class="ic" aria-hidden="true"><use href="../icons.svg#ui-sortie"/></svg></button>
+      </div>
+      <ol class="phases" aria-label="Phases du tour">
+        <li title="Draw Phase">DP</li><li title="Standby Phase">SP</li><li title="Main Phase 1">MP1</li>
+        <li aria-current="step">Battle Phase</li><li title="Main Phase 2">MP2</li><li title="End Phase">EP</li>
+      </ol>
+    </div>
+
+    <aside class="colonne colonne--gauche">
+      <div class="panneau detail" data-detail="3819470"></div>
+      <div class="plaque plaque--moi">
+        <span class="avatar" aria-hidden="true">P</span>
+        <div class="plaque__id"><b>Pharaon_08</b><span class="compteurs"><span><svg class="ic" aria-hidden="true"><use href="../icons.svg#ui-cartes"/></svg><span class="sr">Main</span>5</span><span><svg class="ic" aria-hidden="true"><use href="../icons.svg#ui-deck"/></svg><span class="sr">Deck</span>27</span><span><svg class="ic" aria-hidden="true"><use href="../icons.svg#ui-cimetiere"/></svg><span class="sr">Cimetière</span>4</span></span></div>
+        <div class="lp" aria-label="Vos points de vie : 3100 sur 4000">
+          <span class="lp__valeur chiffres">3100</span>
+          <span class="lp__barre" style="--v: 77.5%"></span>
+        </div>
+      </div>
+    </aside>
+
+    <div class="main" aria-label="Votre main">
+      <div class="carte" data-carte="40640057"></div>
+      <div class="carte" data-carte="38033121"></div>
+      <div class="carte" data-carte="83764718"></div>
+      <div class="carte" data-carte="70781052"></div>
+      <div class="carte" data-carte="72302403"></div>
+    </div>
+
+    <aside class="colonne colonne--droite">
+      <section class="panneau chaine" aria-label="Chaîne en cours">
+        <h2 class="titre-bloc"><svg class="ic" aria-hidden="true"><use href="../icons.svg#ui-chaine"/></svg>Chaîne</h2>
+        <ol reversed>
+          <li class="maillon-ligne maillon-ligne--adverse"><span class="maillon maillon--adverse">2</span><div class="carte" data-carte="3819470"></div><p><b data-nom="3819470"></b><span>Seto_K · annule Force de Miroir</span></p></li>
+          <li class="maillon-ligne"><span class="maillon">1</span><div class="carte" data-carte="44095762"></div><p><b data-nom="44095762"></b><span>Vous · détruit ses monstres en attaque</span></p></li>
+        </ol>
+        <p class="note">Résolution du dernier maillon au premier.</p>
+      </section>
+
+      <section class="panneau journal" aria-label="Journal du duel">
+        <h2 class="titre-bloc"><svg class="ic" aria-hidden="true"><use href="../icons.svg#ui-journal"/></svg>Journal</h2>
+        <ol>
+          <li class="journal__tour">Tour 7 · Seto_K</li>
+          <li><b class="adverse">Seto_K</b> active <button class="nom-carte" type="button" data-nom="43973174"></button></li>
+          <li><b class="adverse">Seto_K</b> invoque <button class="nom-carte" type="button" data-nom="89631139"></button></li>
+          <li>Battle Phase</li>
+          <li><button class="nom-carte" type="button" data-nom="89631139"></button> attaque <button class="nom-carte" type="button" data-nom="46986414"></button></li>
+          <li><b class="moi">Vous</b> activez <button class="nom-carte" type="button" data-nom="44095762"></button></li>
+          <li><b class="adverse">Seto_K</b> paie 1000 LP et active <button class="nom-carte" type="button" data-nom="3819470"></button></li>
+        </ol>
+      </section>
+
+      <section class="panneau question" aria-live="polite">
+        <p class="surtitre surtitre--or">À vous de répondre</p>
+        <h2>Répondre à Sept Outils du Bandit ?</h2>
+        <p class="question__aide">Waboku : aucun dégât de combat ce tour, vos monstres ne sont pas détruits au combat.</p>
+        <button class="btn" type="button">Activer : Waboku</button>
+        <button class="btn btn--fantome" type="button">Ne pas enchaîner</button>
+      </section>
+    </aside>
+  </div>
+</section>
+
+</body>
+</html>

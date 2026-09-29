@@ -1,0 +1,775 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Maquette Duel Monsters</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="../tokens.css">
+  <link rel="stylesheet" href="../cartes.css">
+  <link rel="stylesheet" href="maquette.css">
+  <script type="module" src="maquette.js"></script>
+</head>
+<body>
+
+<nav class="rail" aria-label="Écrans de la maquette">
+  <a href="#connexion"><span>Connexion</span></a>
+  <a href="#accueil"><span>Accueil</span></a>
+  <a href="#salle"><span>Salle en ligne</span></a>
+  <a href="#starter"><span>Deck de départ</span></a>
+  <a href="#duel"><span>Duel</span></a>
+  <a href="#boosters"><span>Boosters</span></a>
+  <a href="#ouverture"><span>Ouverture</span></a>
+  <a href="#collection"><span>Collection et decks</span></a>
+  <a href="#histoire"><span>Mode Histoire</span></a>
+  <a href="#briefing"><span>Avant le duel</span></a>
+  <a href="#victoire"><span>Victoire</span></a>
+  <a href="#defaite"><span>Défaite</span></a>
+  <a href="#planche"><span>Planche cartes</span></a>
+</nav>
+
+<!-- ============================================================ CONNEXION -->
+<section class="ecran fond-ville" id="connexion" aria-label="Connexion">
+  <div class="connexion">
+    <div class="connexion__titre">
+      <p class="surtitre">Duels en ligne · Boosters · Mode Histoire</p>
+      <h1 class="logotype">Duel<br>Monsters</h1>
+      <p class="connexion__accroche">Construisez votre deck, ouvrez vos boosters et rejouez les grands duels de Battle City.</p>
+      <div class="eventail" aria-hidden="true">
+        <div class="carte r-ultra" data-carte="74677422"></div>
+        <div class="carte r-secret" data-carte="46986414"></div>
+        <div class="carte r-ultra" data-carte="89631139"></div>
+      </div>
+    </div>
+
+    <form class="panneau panneau--holo connexion__form" onsubmit="return false">
+      <h2 class="titre-panneau">Connexion</h2>
+      <label class="champ">
+        <span>Email</span>
+        <span class="champ__saisie"><svg class="ic" aria-hidden="true"><use href="../icons.svg#ui-mail"/></svg><input type="email" autocomplete="email" value="pharaon@exemple.fr"></span>
+      </label>
+      <label class="champ">
+        <span>Mot de passe</span>
+        <span class="champ__saisie"><svg class="ic" aria-hidden="true"><use href="../icons.svg#ui-cle"/></svg><input type="password" autocomplete="current-password" value="motdepasse"></span>
+      </label>
+      <p class="message message--erreur" role="alert">Email ou mot de passe incorrect.</p>
+      <button class="btn btn--grand" type="submit">Se connecter</button>
+      <button class="lien" type="button">Pas encore de compte ? S'inscrire</button>
+    </form>
+  </div>
+  <footer class="mentions">
+    <a href="#connexion">Code source</a>
+    <span>Jeu de fans gratuit, non affilié à Konami. Noms et illustrations des cartes : © Konami.</span>
+  </footer>
+</section>
+
+<!-- ============================================================ ACCUEIL -->
+<section class="ecran fond-ville" id="accueil" aria-label="Accueil">
+  <header class="barre">
+    <a class="marque" href="#accueil"><svg class="ic" aria-hidden="true"><use href="../icons.svg#embleme"/></svg>Duel Monsters</a>
+    <nav class="barre__nav" aria-label="Menu principal">
+      <a href="#accueil" aria-current="page">Accueil</a>
+      <a href="#collection">Collection et decks</a>
+      <a href="#boosters">Boosters <span class="pastille">3</span></a>
+      <a href="#histoire">Mode Histoire</a>
+    </nav>
+    <div class="barre__joueur">
+      <span class="avatar" aria-hidden="true">P</span><span>Pharaon_08</span>
+      <button class="btn-icone" type="button" aria-label="Déconnexion"><svg class="ic" aria-hidden="true"><use href="../icons.svg#ui-sortie"/></svg></button>
+    </div>
+  </header>
+
+  <div class="accueil">
+    <div class="accueil__menu">
+      <p class="surtitre">Bonsoir, Pharaon_08</p>
+      <h1 class="titre">Prêt pour le duel ?</h1>
+
+      <article class="mode mode--principal">
+        <div class="mode__tete">
+          <svg class="ic mode__ic" aria-hidden="true"><use href="../icons.svg#ui-en-ligne"/></svg>
+          <div><h2>Jouer en ligne</h2><p>Un duel contre un ami, avec votre deck actif. Le gagnant reçoit un booster.</p></div>
+        </div>
+        <div class="mode__actions">
+          <a class="btn" href="#salle">Créer une salle</a>
+          <form class="rejoindre" onsubmit="return false">
+            <label class="sr" for="code-salle">Code de la salle</label>
+            <input id="code-salle" class="saisie-code" maxlength="5" placeholder="Code" autocomplete="off">
+            <button class="btn btn--holo" type="submit">Rejoindre</button>
+          </form>
+        </div>
+      </article>
+
+      <a class="mode" href="#duel">
+        <svg class="ic mode__ic" aria-hidden="true"><use href="../icons.svg#ui-bot"/></svg>
+        <div><h2>Contre le bot</h2><p>Entraînement sans enjeu, à votre rythme.</p></div>
+        <svg class="ic mode__fleche" aria-hidden="true"><use href="../icons.svg#ui-suivant"/></svg>
+      </a>
+      <a class="mode" href="#histoire">
+        <svg class="ic mode__ic" aria-hidden="true"><use href="../icons.svg#ui-histoire"/></svg>
+        <div><h2>Mode Histoire</h2><p>Battle City · 3 duels gagnés sur 5</p><span class="jauge" style="--v: 60%"></span></div>
+        <svg class="ic mode__fleche" aria-hidden="true"><use href="../icons.svg#ui-suivant"/></svg>
+      </a>
+      <a class="mode" href="#boosters">
+        <svg class="ic mode__ic" aria-hidden="true"><use href="../icons.svg#ui-booster"/></svg>
+        <div><h2>Boosters <span class="pastille">3</span></h2><p>3 boosters à ouvrir · prochain gratuit dans <b class="chiffres">02:14:09</b></p></div>
+        <svg class="ic mode__fleche" aria-hidden="true"><use href="../icons.svg#ui-suivant"/></svg>
+      </a>
+      <a class="mode" href="#collection">
+        <svg class="ic mode__ic" aria-hidden="true"><use href="../icons.svg#ui-cartes"/></svg>
+        <div><h2>Collection et decks</h2><p>214 cartes · deck actif : Deck de Yugi</p></div>
+        <svg class="ic mode__fleche" aria-hidden="true"><use href="../icons.svg#ui-suivant"/></svg>
+      </a>
+    </div>
+
+    <div class="projecteur" aria-hidden="true">
+      <div class="projecteur__holo"><img src="../assets/art/46986414.jpg" alt=""></div>
+      <div class="projecteur__faisceau"></div>
+      <div class="projecteur__socle"><div class="carte r-ultra" data-carte="46986414"></div></div>
+    </div>
+    <p class="projecteur__legende"><span class="surtitre">Carte phare du deck actif</span><b data-nom="46986414"></b><span class="chiffres">ATK 2500 · DEF 2100</span></p>
+  </div>
+</section>
+
+<!-- ============================================================ SALLE -->
+<section class="ecran fond-ville" id="salle" aria-label="Salle en ligne">
+  <header class="barre">
+    <a class="marque" href="#accueil"><svg class="ic" aria-hidden="true"><use href="../icons.svg#embleme"/></svg>Duel Monsters</a>
+    <div class="barre__joueur"><span class="avatar" aria-hidden="true">P</span><span>Pharaon_08</span></div>
+  </header>
+  <div class="salle">
+    <p class="surtitre">Salle privée</p>
+    <h1 class="titre">En attente de l'adversaire</h1>
+    <p class="texte-2">Partagez ce code : le duel commence dès que votre adversaire rejoint la salle.</p>
+    <div class="code-salle">
+      <span class="code-salle__lettres chiffres" aria-label="Code K7QX2"><span>K</span><span>7</span><span>Q</span><span>X</span><span>2</span></span>
+      <button class="btn btn--holo" type="button"><svg class="ic" aria-hidden="true"><use href="../icons.svg#ui-copier"/></svg>Copier le code</button>
+    </div>
+    <p class="message message--succes" role="status">Code copié.</p>
+
+    <div class="face-a-face">
+      <div class="duelliste">
+        <span class="avatar avatar--grand" aria-hidden="true">P</span>
+        <b>Pharaon_08</b>
+        <span class="texte-2">Deck de Yugi · 40 cartes</span>
+        <span class="puce puce--succes"><svg class="ic" aria-hidden="true"><use href="../icons.svg#ui-coche"/></svg>Prêt</span>
+      </div>
+      <span class="vs" aria-hidden="true">VS</span>
+      <div class="duelliste duelliste--attente">
+        <span class="radar" aria-hidden="true"></span>
+        <b>Place libre</b>
+        <span class="texte-2">Recherche de l'adversaire…</span>
+      </div>
+    </div>
+    <a class="btn btn--fantome" href="#accueil">Quitter la salle</a>
+  </div>
+</section>
+
+<!-- ============================================================ STARTER -->
+<section class="ecran fond-ville" id="starter" aria-label="Choix du deck de départ">
+  <header class="barre">
+    <span class="marque"><svg class="ic" aria-hidden="true"><use href="../icons.svg#embleme"/></svg>Duel Monsters</span>
+    <div class="barre__joueur"><span class="avatar" aria-hidden="true">P</span><span>Pharaon_08</span></div>
+  </header>
+  <div class="starter">
+    <div class="starter__tete">
+      <p class="surtitre">Dernière étape avant votre premier duel</p>
+      <h1 class="titre">Choisissez votre deck de départ</h1>
+      <p class="texte-2">Choix définitif : les 50 cartes rejoignent votre collection et deviennent votre deck actif.</p>
+    </div>
+    <div class="starter__choix">
+      <article class="deck-depart deck-depart--yugi est-survole">
+        <div class="deck-depart__cartes" aria-hidden="true">
+          <div class="carte" data-carte="91152256"></div>
+          <div class="carte" data-carte="70781052"></div>
+          <div class="carte r-ultra" data-carte="46986414"></div>
+          <div class="carte" data-carte="6368038"></div>
+          <div class="carte" data-carte="83764718"></div>
+        </div>
+        <div class="deck-depart__texte">
+          <p class="surtitre">Starter Deck</p>
+          <h2>Yugi</h2>
+          <p>Magiciens, guerriers et pièges : un deck souple qui retourne le duel au bon moment.</p>
+          <ul class="puces"><li class="puce">50 cartes</li><li class="puce">Magicien Sombre</li><li class="puce">Gaïa le Chevalier Implacable</li></ul>
+          <button class="btn btn--grand" type="button">Choisir le deck de Yugi</button>
+        </div>
+      </article>
+      <article class="deck-depart deck-depart--kaiba">
+        <div class="deck-depart__cartes" aria-hidden="true">
+          <div class="carte" data-carte="17985575"></div>
+          <div class="carte" data-carte="30113682"></div>
+          <div class="carte r-ultra" data-carte="89631139"></div>
+          <div class="carte" data-carte="24611934"></div>
+          <div class="carte" data-carte="43973174"></div>
+        </div>
+        <div class="deck-depart__texte">
+          <p class="surtitre">Starter Deck</p>
+          <h2>Kaiba</h2>
+          <p>Dragons et monstres puissants : frapper fort, et vite, avec le Dragon Blanc aux Yeux Bleus.</p>
+          <ul class="puces"><li class="puce">50 cartes</li><li class="puce">Dragon Blanc aux Yeux Bleus</li><li class="puce">Seigneur des D</li></ul>
+          <button class="btn btn--grand" type="button">Choisir le deck de Kaiba</button>
+        </div>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ DUEL -->
+<section class="ecran ecran--duel" id="duel" aria-label="Plateau de duel">
+  <!-- Plateau : dessiné en CSS ici, rendu par Three.js à l'intégration. Le HUD (.hud) se pose par-dessus. -->
+  <div class="scene" aria-hidden="true">
+    <div class="tapis">
+      <div class="tapis__milieu"></div>
+      <div class="faisceau"></div>
+
+      <!-- Adversaire, rangée Magie/Piège (vue de face : son Deck à gauche, son Extra Deck à droite) -->
+      <div class="zone zone--adv zone--pile" style="--c:1;--r:1"><div class="carte dos"></div><span class="zone__nb">Deck 24</span></div>
+      <div class="zone zone--adv" style="--c:2;--r:1"></div>
+      <div class="zone zone--adv" style="--c:3;--r:1"><div class="carte est-activee" data-carte="3819470"></div><span class="maillon maillon--adverse">2</span></div>
+      <div class="zone zone--adv" style="--c:4;--r:1"></div>
+      <div class="zone zone--adv" style="--c:5;--r:1"><div class="carte dos"></div></div>
+      <div class="zone zone--adv" style="--c:6;--r:1"></div>
+      <div class="zone zone--adv zone--pile" style="--c:7;--r:1"><div class="carte dos"></div><span class="zone__nb">Extra 1</span></div>
+      <!-- Adversaire, rangée Monstres -->
+      <div class="zone zone--adv zone--pile" style="--c:1;--r:2"><div class="carte" data-carte="43973174"></div><span class="zone__nb">Cimetière 5 · Bannies 0</span></div>
+      <div class="zone zone--adv" style="--c:2;--r:2"></div>
+      <div class="zone zone--adv" style="--c:3;--r:2"><div class="carte" data-carte="17985575"></div></div>
+      <div class="zone zone--adv zone--attaquant" style="--c:4;--r:2">
+        <div class="carte" data-carte="89631139"></div>
+        <div class="hologramme"><img src="../assets/art/89631139.jpg" alt=""></div>
+      </div>
+      <div class="zone zone--adv" style="--c:5;--r:2"><div class="carte dos est-defense"></div></div>
+      <div class="zone zone--adv" style="--c:6;--r:2"></div>
+      <div class="zone zone--adv zone--terrain" style="--c:7;--r:2"></div>
+      <!-- Vous, rangée Monstres (Terrain à gauche, Cimetière à droite) -->
+      <div class="zone zone--terrain" style="--c:1;--r:4"></div>
+      <div class="zone" style="--c:2;--r:4"></div>
+      <div class="zone" style="--c:3;--r:4"><div class="carte est-defense" data-carte="91152256"></div></div>
+      <div class="zone zone--visee" style="--c:4;--r:4"><div class="carte" data-carte="46986414"></div></div>
+      <div class="zone" style="--c:5;--r:4"></div>
+      <div class="zone" style="--c:6;--r:4"></div>
+      <div class="zone zone--pile" style="--c:7;--r:4"><div class="carte" data-carte="55144522"></div><span class="zone__nb">Cimetière 4 · Bannies 0</span></div>
+      <!-- Vous, rangée Magie/Piège (Extra Deck à gauche, Deck à droite) -->
+      <div class="zone zone--pile" style="--c:1;--r:5"><div class="carte dos"></div><span class="zone__nb">Extra 1</span></div>
+      <div class="zone" style="--c:2;--r:5"></div>
+      <div class="zone" style="--c:3;--r:5"><div class="carte est-activee" data-carte="44095762"></div><span class="maillon">1</span></div>
+      <div class="zone" style="--c:4;--r:5"><div class="carte est-posee est-choisie" data-carte="12607053"></div></div>
+      <div class="zone" style="--c:5;--r:5"><div class="carte est-posee" data-carte="4206964"></div></div>
+      <div class="zone" style="--c:6;--r:5"></div>
+      <div class="zone zone--pile" style="--c:7;--r:5"><div class="carte dos"></div><span class="zone__nb">Deck 27</span></div>
+    </div>
+  </div>
+
+  <div class="hud">
+    <div class="plaque plaque--adverse">
+      <span class="avatar" aria-hidden="true">S</span>
+      <div class="plaque__id"><b>Seto_K</b><span class="compteurs"><span><svg class="ic" aria-hidden="true"><use href="../icons.svg#ui-cartes"/></svg><span class="sr">Main</span>3</span><span><svg class="ic" aria-hidden="true"><use href="../icons.svg#ui-deck"/></svg><span class="sr">Deck</span>24</span><span><svg class="ic" aria-hidden="true"><use href="../icons.svg#ui-cimetiere"/></svg><span class="sr">Cimetière</span>5</span></span></div>
+      <div class="lp" aria-label="Points de vie de Seto_K : 2200 sur 4000">
+        <span class="lp__valeur chiffres">2200</span><span class="lp__delta">−1000</span>
+        <span class="lp__barre" style="--v: 55%"></span>
+      </div>
+    </div>
+
+    <div class="main-adverse" aria-label="Main de l'adversaire : 3 cartes">
+      <div class="carte dos"></div><div class="carte dos"></div><div class="carte dos"></div>
+    </div>
+
+    <div class="tour">
+      <div class="tour__ligne">
+        <p><span class="surtitre">Tour 7</span><b class="adverse">Tour de Seto_K</b></p>
+        <button class="btn-icone" type="button" aria-label="Réglages"><svg class="ic" aria-hidden="true"><use href="../icons.svg#ui-reglages"/></svg></button>
+        <button class="btn-icone" type="button" aria-label="Quitter le duel"><svg class="ic" aria-hidden="true"><use href="../icons.svg#ui-sortie"/></svg></button>
+      </div>
+      <ol class="phases" aria-label="Phases du tour">
+        <li title="Draw Phase">DP</li><li title="Standby Phase">SP</li><li title="Main Phase 1">MP1</li>
+        <li aria-current="step">Battle Phase</li><li title="Main Phase 2">MP2</li><li title="End Phase">EP</li>
+      </ol>
+    </div>
+
+    <aside class="colonne colonne--gauche">
+      <div class="panneau detail" data-detail="3819470"></div>
+      <div class="plaque plaque--moi">
+        <span class="avatar" aria-hidden="true">P</span>
+        <div class="plaque__id"><b>Pharaon_08</b><span class="compteurs"><span><svg class="ic" aria-hidden="true"><use href="../icons.svg#ui-cartes"/></svg><span class="sr">Main</span>5</span><span><svg class="ic" aria-hidden="true"><use href="../icons.svg#ui-deck"/></svg><span class="sr">Deck</span>27</span><span><svg class="ic" aria-hidden="true"><use href="../icons.svg#ui-cimetiere"/></svg><span class="sr">Cimetière</span>4</span></span></div>
+        <div class="lp" aria-label="Vos points de vie : 3100 sur 4000">
+          <span class="lp__valeur chiffres">3100</span>
+          <span class="lp__barre" style="--v: 77.5%"></span>
+        </div>
+      </div>
+    </aside>
+
+    <div class="main" aria-label="Votre main">
+      <div class="carte" data-carte="40640057"></div>
+      <div class="carte" data-carte="38033121"></div>
+      <div class="carte" data-carte="83764718"></div>
+      <div class="carte" data-carte="70781052"></div>
+      <div class="carte" data-carte="72302403"></div>
+    </div>
+
+    <aside class="colonne colonne--droite">
+      <section class="panneau chaine" aria-label="Chaîne en cours">
+        <h2 class="titre-bloc"><svg class="ic" aria-hidden="true"><use href="../icons.svg#ui-chaine"/></svg>Chaîne</h2>
+        <ol reversed>
+          <li class="maillon-ligne maillon-ligne--adverse"><span class="maillon maillon--adverse">2</span><div class="carte" data-carte="3819470"></div><p><b data-nom="3819470"></b><span>Seto_K · annule Force de Miroir</span></p></li>
+          <li class="maillon-ligne"><span class="maillon">1</span><div class="carte" data-carte="44095762"></div><p><b data-nom="44095762"></b><span>Vous · détruit ses monstres en attaque</span></p></li>
+        </ol>
+        <p class="note">Résolution du dernier maillon au premier.</p>
+      </section>
+
+      <section class="panneau journal" aria-label="Journal du duel">
+        <h2 class="titre-bloc"><svg class="ic" aria-hidden="true"><use href="../icons.svg#ui-journal"/></svg>Journal</h2>
+        <ol>
+          <li class="journal__tour">Tour 7 · Seto_K</li>
+          <li><b class="adverse">Seto_K</b> active <button class="nom-carte" type="button" data-nom="43973174"></button></li>
+          <li><b class="adverse">Seto_K</b> invoque <button class="nom-carte" type="button" data-nom="89631139"></button></li>
+          <li>Battle Phase</li>
+          <li><button class="nom-carte" type="button" data-nom="89631139"></button> attaque <button class="nom-carte" type="button" data-nom="46986414"></button></li>
+          <li><b class="moi">Vous</b> activez <button class="nom-carte" type="button" data-nom="44095762"></button></li>
+          <li><b class="adverse">Seto_K</b> paie 1000 LP et active <button class="nom-carte" type="button" data-nom="3819470"></button></li>
+        </ol>
+      </section>
+
+      <section class="panneau question" aria-live="polite">
+        <p class="surtitre surtitre--or">À vous de répondre</p>
+        <h2>Répondre à Sept Outils du Bandit ?</h2>
+        <p class="question__aide">Waboku : aucun dégât de combat ce tour, vos monstres ne sont pas détruits au combat.</p>
+        <button class="btn" type="button">Activer : Waboku</button>
+        <button class="btn btn--fantome" type="button">Ne pas enchaîner</button>
+      </section>
+    </aside>
+  </div>
+</section>
+
+<!-- ============================================================ BOOSTERS -->
+<section class="ecran fond-ville" id="boosters" aria-label="Boosters">
+  <header class="barre">
+    <a class="marque" href="#accueil"><svg class="ic" aria-hidden="true"><use href="../icons.svg#embleme"/></svg>Duel Monsters</a>
+    <nav class="barre__nav" aria-label="Menu principal">
+      <a href="#accueil">Accueil</a>
+      <a href="#collection">Collection et decks</a>
+      <a href="#boosters" aria-current="page">Boosters <span class="pastille">3</span></a>
+      <a href="#histoire">Mode Histoire</a>
+    </nav>
+    <div class="barre__joueur"><span class="avatar" aria-hidden="true">P</span><span>Pharaon_08</span></div>
+  </header>
+
+  <div class="boutique">
+    <aside class="boutique__statut">
+      <div class="panneau compteur">
+        <div class="anneau" style="--v: 82%"><span class="chiffres">02:14:09</span></div>
+        <p><b>Booster gratuit</b><span class="texte-2">Un booster offert toutes les 12 heures.</span></p>
+      </div>
+      <div class="panneau compteur">
+        <span class="compteur__grand chiffres">3</span>
+        <p><b>Boosters gagnés</b><span class="texte-2">Victoires en ligne et mode Histoire.</span></p>
+      </div>
+    </aside>
+
+    <div class="carrousel">
+      <div class="paquet paquet--cote" style="--teinte: 12">
+        <span class="paquet__code">FET</span>
+        <div class="paquet__fenetre"><img src="../assets/art/61441708.jpg" alt=""></div>
+        <span class="paquet__nom">Flaming Eternity</span>
+      </div>
+      <div class="paquet paquet--choisi" style="--teinte: 222">
+        <span class="paquet__code">LOB</span>
+        <div class="paquet__fenetre"><img src="../assets/art/89631139.jpg" alt=""></div>
+        <span class="paquet__nom">Legend of Blue Eyes White Dragon</span>
+        <span class="paquet__annee chiffres">2002</span>
+      </div>
+      <div class="paquet paquet--cote" style="--teinte: 280">
+        <span class="paquet__code">MRD</span>
+        <div class="paquet__fenetre"><img src="../assets/art/70781052.jpg" alt=""></div>
+
+        <span class="paquet__nom">Metal Raiders</span>
+      </div>
+      <button class="btn btn--grand btn--ouvrir" type="button"><svg class="ic" aria-hidden="true"><use href="../icons.svg#ui-booster"/></svg>Ouvrir le booster</button>
+    </div>
+
+    <aside class="panneau boutique__contenu">
+      <h2 class="titre-bloc">Legend of Blue Eyes White Dragon</h2>
+      <p class="texte-2">9 cartes : 7 communes, 1 rare et 1 carte brillante.</p>
+      <dl class="chances">
+        <div><dt><span class="rarete rarete--super">Super Rare</span></dt><dd class="chiffres">1 sur 6</dd></div>
+        <div><dt><span class="rarete rarete--ultra">Ultra Rare</span></dt><dd class="chiffres">1 sur 12</dd></div>
+        <div><dt><span class="rarete rarete--secret">Secret Rare</span></dt><dd class="chiffres">1 sur 31</dd></div>
+      </dl>
+      <h3 class="titre-bloc titre-bloc--petit">Cartes phares</h3>
+      <div class="phares">
+        <div class="carte r-ultra" data-carte="89631139"></div>
+        <div class="carte r-ultra" data-carte="46986414"></div>
+        <div class="carte r-secret" data-carte="39111158"></div>
+      </div>
+    </aside>
+
+    <ol class="series" aria-label="Séries de boosters">
+      <li><button type="button" aria-pressed="true"><b>LOB</b><span class="chiffres">2002</span></button></li>
+      <li><button type="button"><b>MRD</b><span class="chiffres">2002</span></button></li>
+      <li><button type="button"><b>MRL</b><span class="chiffres">2002</span></button></li>
+      <li><button type="button"><b>PSV</b><span class="chiffres">2002</span></button></li>
+      <li><button type="button"><b>LON</b><span class="chiffres">2003</span></button></li>
+      <li><button type="button"><b>LOD</b><span class="chiffres">2003</span></button></li>
+      <li><button type="button"><b>PGD</b><span class="chiffres">2003</span></button></li>
+      <li><button type="button"><b>MFC</b><span class="chiffres">2003</span></button></li>
+      <li><button type="button"><b>DCR</b><span class="chiffres">2003</span></button></li>
+      <li><button type="button"><b>IOC</b><span class="chiffres">2004</span></button></li>
+      <li><button type="button"><b>AST</b><span class="chiffres">2004</span></button></li>
+      <li><button type="button"><b>SOD</b><span class="chiffres">2004</span></button></li>
+      <li><button type="button"><b>RDS</b><span class="chiffres">2004</span></button></li>
+      <li><button type="button"><b>FET</b><span class="chiffres">2005</span></button></li>
+    </ol>
+  </div>
+</section>
+
+<!-- ============================================================ OUVERTURE -->
+<section class="ecran ecran--scene" id="ouverture" aria-label="Ouverture d'un booster">
+  <div class="rayons rayons--ultra" aria-hidden="true"></div>
+  <div class="ouverture">
+    <div class="ouverture__tete">
+      <p class="surtitre">Legend of Blue Eyes White Dragon</p>
+      <p class="chiffres ouverture__compte">9 / 9</p>
+    </div>
+
+    <div class="revelation">
+      <div class="carte r-ultra carte--vedette" data-carte="89631139"></div>
+      <p class="revelation__rarete rarete--ultra">Ultra Rare</p>
+      <p class="puce puce--or">Nouvelle carte</p>
+    </div>
+
+    <ol class="tirage" aria-label="Cartes du booster">
+      <li><div class="carte" data-carte="76184692"></div></li>
+      <li><div class="carte" data-carte="90357090"></div><span class="nouveau">Nouveau</span></li>
+      <li><div class="carte" data-carte="75356564"></div></li>
+      <li><div class="carte" data-carte="44287299"></div><span class="nouveau">Nouveau</span></li>
+      <li><div class="carte" data-carte="83464209"></div></li>
+      <li><div class="carte" data-carte="22702055"></div></li>
+      <li><div class="carte" data-carte="37313348"></div></li>
+      <li class="tirage__rare"><div class="carte r-rare" data-carte="55144522"></div><span class="rarete rarete--rare">Rare</span></li>
+    </ol>
+
+    <div class="ouverture__actions">
+      <a class="btn btn--grand" href="#boosters">Ouvrir le suivant (2 restants)</a>
+      <a class="btn btn--fantome" href="#collection">Voir la collection</a>
+    </div>
+
+    <aside class="legende-raretes" aria-label="Révélation selon la rareté">
+      <p class="surtitre">Révélation selon la rareté</p>
+      <ol>
+        <li><span class="rarete rarete--commune">Commune</span>retournement sec</li>
+        <li><span class="rarete rarete--rare">Rare</span>éclat argenté</li>
+        <li><span class="rarete rarete--super">Super</span>balayage holo cyan</li>
+        <li><span class="rarete rarete--ultra">Ultra</span>rayons d'or, plein écran</li>
+        <li><span class="rarete rarete--ultimate">Ultimate</span>relief gravé, lente bascule</li>
+        <li><span class="rarete rarete--secret">Secret</span>éclatement prismatique</li>
+      </ol>
+    </aside>
+  </div>
+</section>
+
+<!-- ============================================================ COLLECTION -->
+<section class="ecran fond-nuit" id="collection" aria-label="Collection et decks">
+  <header class="barre">
+    <a class="marque" href="#accueil"><svg class="ic" aria-hidden="true"><use href="../icons.svg#embleme"/></svg>Duel Monsters</a>
+    <nav class="barre__nav" aria-label="Menu principal">
+      <a href="#accueil">Accueil</a>
+      <a href="#collection" aria-current="page">Collection et decks</a>
+      <a href="#boosters">Boosters <span class="pastille">3</span></a>
+      <a href="#histoire">Mode Histoire</a>
+    </nav>
+    <div class="barre__joueur"><span class="avatar" aria-hidden="true">P</span><span>Pharaon_08</span></div>
+  </header>
+
+  <div class="atelier">
+    <section class="atelier__collection" aria-label="Collection">
+      <div class="filtres">
+        <label class="champ__saisie filtres__recherche"><svg class="ic" aria-hidden="true"><use href="../icons.svg#ui-recherche"/></svg><span class="sr">Rechercher</span><input type="search" placeholder="Nom, type, texte…"></label>
+        <div class="segments" role="group" aria-label="Genre de carte">
+          <button type="button" aria-pressed="true">Toutes</button><button type="button">Monstres</button><button type="button">Magies</button><button type="button">Pièges</button><button type="button">Fusions</button>
+        </div>
+        <div class="attributs" role="group" aria-label="Attribut">
+          <button type="button" class="a-lumiere" aria-label="LUMIÈRE"><svg class="ic" aria-hidden="true"><use href="../icons.svg#attr-lumiere"/></svg></button>
+          <button type="button" class="a-tenebres" aria-label="TÉNÈBRES" aria-pressed="true"><svg class="ic" aria-hidden="true"><use href="../icons.svg#attr-tenebres"/></svg></button>
+          <button type="button" class="a-terre" aria-label="TERRE"><svg class="ic" aria-hidden="true"><use href="../icons.svg#attr-terre"/></svg></button>
+          <button type="button" class="a-eau" aria-label="EAU"><svg class="ic" aria-hidden="true"><use href="../icons.svg#attr-eau"/></svg></button>
+          <button type="button" class="a-feu" aria-label="FEU"><svg class="ic" aria-hidden="true"><use href="../icons.svg#attr-feu"/></svg></button>
+          <button type="button" class="a-vent" aria-label="VENT"><svg class="ic" aria-hidden="true"><use href="../icons.svg#attr-vent"/></svg></button>
+          <button type="button" class="a-divin" aria-label="DIVIN"><svg class="ic" aria-hidden="true"><use href="../icons.svg#attr-divin"/></svg></button>
+        </div>
+        <label class="choix"><span class="sr">Niveau</span><select><option>Tous niveaux</option><option>Niveau 1 à 4</option><option>Niveau 5 et 6</option><option>Niveau 7 et plus</option></select></label>
+      </div>
+      <p class="texte-3 atelier__resume">48 cartes affichées · 214 possédées · cliquez pour ajouter au deck</p>
+      <ul class="grille-collection">
+        <li><div class="carte r-ultra" data-carte="46986414"></div><span class="qte">×1</span><span class="dans-deck">1/1</span></li>
+        <li class="est-survolee"><div class="carte r-super" data-carte="38033121"></div><span class="qte">×2</span><span class="dans-deck">1/2</span></li>
+        <li><div class="carte" data-carte="40640057"></div><span class="qte">×3</span><span class="dans-deck">3/3</span></li>
+        <li><div class="carte" data-carte="70781052"></div><span class="qte">×2</span><span class="dans-deck">2/2</span></li>
+        <li><div class="carte r-ultra" data-carte="74677422"></div><span class="qte">×1</span></li>
+        <li><div class="carte r-ultra" data-carte="40737112"></div><span class="qte">×1</span></li>
+        <li><div class="carte" data-carte="16972957"></div><span class="qte">×2</span></li>
+        <li><div class="carte" data-carte="26202165"></div><span class="qte">×1</span><span class="dans-deck">1/1</span></li>
+        <li><div class="carte r-rare" data-carte="53839837"></div><span class="qte">×1</span></li>
+        <li><div class="carte r-ultimate" data-carte="17985575"></div><span class="qte">×1</span></li>
+        <li><div class="carte" data-carte="24611934"></div><span class="qte">×3</span></li>
+        <li><div class="carte" data-carte="97590747"></div><span class="qte">×2</span></li>
+        <li><div class="carte r-secret" data-carte="39111158"></div><span class="qte">×1</span></li>
+        <li><div class="carte" data-carte="64631466"></div><span class="qte">×1</span></li>
+        <li><div class="carte r-super" data-carte="33396948"></div><span class="qte">×1</span></li>
+        <li><div class="carte" data-carte="3797883"></div><span class="qte">×1</span></li>
+      </ul>
+    </section>
+
+    <aside class="atelier__detail panneau detail" data-detail="38033121" data-rarete="r-super"></aside>
+
+    <aside class="panneau atelier__deck" aria-label="Deck en cours">
+      <div class="deck-tete">
+        <label class="choix"><span class="sr">Deck</span><select><option>Deck de Yugi</option><option>Magiciens des Ténèbres</option><option>Nouveau deck</option></select></label>
+        <span class="puce puce--holo">Deck actif</span>
+      </div>
+      <div class="deck-compteurs">
+        <p><span class="chiffres">41</span><span>Principal<br>40 à 60</span></p>
+        <p><span class="chiffres">2</span><span>Extra<br>15 max.</span></p>
+      </div>
+      <div class="repartition" aria-label="22 monstres, 12 magies, 7 pièges">
+        <span style="--n: 22" class="repartition--monstre"></span><span style="--n: 12" class="repartition--magie"></span><span style="--n: 7" class="repartition--piege"></span>
+      </div>
+      <p class="repartition__legende"><span>22 monstres</span><span>12 magies</span><span>7 pièges</span></p>
+      <ul class="liste-deck">
+        <li class="t-normal"><img src="../assets/art/46986414.jpg" alt=""><span data-nom="46986414"></span><b>×1</b><button type="button" class="btn-icone btn-icone--petit" aria-label="Retirer un exemplaire"><svg class="ic" aria-hidden="true"><use href="../icons.svg#ui-moins"/></svg></button></li>
+        <li class="t-effet"><img src="../assets/art/38033121.jpg" alt=""><span data-nom="38033121"></span><b>×1</b><button type="button" class="btn-icone btn-icone--petit" aria-label="Retirer un exemplaire"><svg class="ic" aria-hidden="true"><use href="../icons.svg#ui-moins"/></svg></button></li>
+        <li class="t-effet"><img src="../assets/art/40640057.jpg" alt=""><span data-nom="40640057"></span><b>×3</b><button type="button" class="btn-icone btn-icone--petit" aria-label="Retirer un exemplaire"><svg class="ic" aria-hidden="true"><use href="../icons.svg#ui-moins"/></svg></button></li>
+        <li class="t-normal"><img src="../assets/art/70781052.jpg" alt=""><span data-nom="70781052"></span><b>×2</b><button type="button" class="btn-icone btn-icone--petit" aria-label="Retirer un exemplaire"><svg class="ic" aria-hidden="true"><use href="../icons.svg#ui-moins"/></svg></button></li>
+        <li class="t-effet"><img src="../assets/art/26202165.jpg" alt=""><span data-nom="26202165"></span><b>×1</b><button type="button" class="btn-icone btn-icone--petit" aria-label="Retirer un exemplaire"><svg class="ic" aria-hidden="true"><use href="../icons.svg#ui-moins"/></svg></button></li>
+        <li class="t-magie"><img src="../assets/art/55144522.jpg" alt=""><span data-nom="55144522"></span><b>×1</b><button type="button" class="btn-icone btn-icone--petit" aria-label="Retirer un exemplaire"><svg class="ic" aria-hidden="true"><use href="../icons.svg#ui-moins"/></svg></button></li>
+        <li class="t-magie"><img src="../assets/art/72302403.jpg" alt=""><span data-nom="72302403"></span><b>×1</b><button type="button" class="btn-icone btn-icone--petit" aria-label="Retirer un exemplaire"><svg class="ic" aria-hidden="true"><use href="../icons.svg#ui-moins"/></svg></button></li>
+        <li class="t-piege"><img src="../assets/art/44095762.jpg" alt=""><span data-nom="44095762"></span><b>×1</b><button type="button" class="btn-icone btn-icone--petit" aria-label="Retirer un exemplaire"><svg class="ic" aria-hidden="true"><use href="../icons.svg#ui-moins"/></svg></button></li>
+        <li class="t-fusion"><img src="../assets/art/41462083.jpg" alt=""><span data-nom="41462083"></span><b>×1</b><button type="button" class="btn-icone btn-icone--petit" aria-label="Retirer un exemplaire"><svg class="ic" aria-hidden="true"><use href="../icons.svg#ui-moins"/></svg></button></li>
+      </ul>
+      <p class="message message--succes" role="status">Deck valide : il peut servir en duel.</p>
+      <div class="deck-actions">
+        <button class="btn" type="button">Enregistrer</button>
+        <button class="btn btn--fantome" type="button">Nouveau deck</button>
+      </div>
+    </aside>
+  </div>
+</section>
+
+<!-- ============================================================ HISTOIRE -->
+<section class="ecran fond-ville" id="histoire" aria-label="Mode Histoire">
+  <header class="barre">
+    <a class="marque" href="#accueil"><svg class="ic" aria-hidden="true"><use href="../icons.svg#embleme"/></svg>Duel Monsters</a>
+    <nav class="barre__nav" aria-label="Menu principal">
+      <a href="#accueil">Accueil</a>
+      <a href="#collection">Collection et decks</a>
+      <a href="#boosters">Boosters <span class="pastille">3</span></a>
+      <a href="#histoire" aria-current="page">Mode Histoire</a>
+    </nav>
+    <div class="barre__joueur"><span class="avatar" aria-hidden="true">P</span><span>Pharaon_08</span></div>
+  </header>
+
+  <div class="histoire">
+    <div class="histoire__tete">
+      <div><p class="surtitre">Mode Histoire</p><h1 class="titre">Battle City</h1></div>
+      <p class="texte-2"><b class="chiffres">10</b> duels gagnés sur 39</p>
+    </div>
+
+    <ol class="arcs" aria-label="Arcs">
+      <li class="arc arc--fini"><a href="#histoire"><img src="../assets/art/64631466.jpg" alt=""><span class="arc__num">Arc 1</span><b>Le Royaume des Duellistes</b><span class="arc__etat"><svg class="ic" aria-hidden="true"><use href="../icons.svg#ui-coche"/></svg>7 / 7</span></a></li>
+      <li class="arc arc--encours"><a href="#histoire" aria-current="true"><img src="../assets/art/511600399.jpg" alt=""><span class="arc__num">Arc 2</span><b>Battle City</b><span class="arc__etat">3 / 5</span></a></li>
+      <li class="arc arc--verrou"><span><img src="../assets/art/86327225.jpg" alt=""><span class="arc__num">Arc 3</span><b>Le Monde virtuel de Noah</b><span class="arc__etat"><svg class="ic" aria-hidden="true"><use href="../icons.svg#ui-cadenas"/></svg>Verrouillé</span></span></li>
+      <li class="arc arc--verrou"><span><img src="../assets/art/511600400.jpg" alt=""><span class="arc__num">Arc 4</span><b>Les Finales de Battle City</b><span class="arc__etat"><svg class="ic" aria-hidden="true"><use href="../icons.svg#ui-cadenas"/></svg>Verrouillé</span></span></li>
+      <li class="arc arc--verrou"><span><img src="../assets/art/94568601.jpg" alt=""><span class="arc__num">Arc 5</span><b>Doma et le Sceau d'Orichalque</b><span class="arc__etat"><svg class="ic" aria-hidden="true"><use href="../icons.svg#ui-cadenas"/></svg>Verrouillé</span></span></li>
+      <li class="arc arc--verrou"><span><img src="../assets/art/72989439.jpg" alt=""><span class="arc__num">Arc 6</span><b>Le Grand Championship de Kaiba Corp</b><span class="arc__etat"><svg class="ic" aria-hidden="true"><use href="../icons.svg#ui-cadenas"/></svg>Verrouillé</span></span></li>
+      <li class="arc arc--verrou"><span><img src="../assets/art/40737112.jpg" alt=""><span class="arc__num">Arc 7</span><b>Le Monde des souvenirs</b><span class="arc__etat"><svg class="ic" aria-hidden="true"><use href="../icons.svg#ui-cadenas"/></svg>Verrouillé</span></span></li>
+    </ol>
+
+    <ol class="parcours" aria-label="Duels de Battle City">
+      <li class="etape etape--gagne">
+        <span class="etape__num chiffres">1</span>
+        <p class="etape__etat"><svg class="ic" aria-hidden="true"><use href="../icons.svg#ui-coche"/></svg>Gagné</p>
+        <h2>Les chasseurs de cartes rares</h2><p class="texte-2">contre Chasseur de cartes rares</p>
+        <p class="etape__gain"><svg class="ic" aria-hidden="true"><use href="../icons.svg#ui-booster"/></svg>1 booster</p>
+        <a class="lien" href="#briefing">Rejouer</a>
+      </li>
+      <li class="etape etape--gagne">
+        <span class="etape__num chiffres">2</span>
+        <p class="etape__etat"><svg class="ic" aria-hidden="true"><use href="../icons.svg#ui-coche"/></svg>Gagné</p>
+        <h2>Le médium de la ville</h2><p class="texte-2">contre Espa Roba</p>
+        <p class="etape__gain"><img src="../assets/art/16956455.jpg" alt=""><span data-nom="16956455"></span></p>
+        <a class="lien" href="#briefing">Rejouer</a>
+      </li>
+      <li class="etape etape--gagne">
+        <span class="etape__num chiffres">3</span>
+        <p class="etape__etat"><svg class="ic" aria-hidden="true"><use href="../icons.svg#ui-coche"/></svg>Gagné</p>
+        <h2>Le magicien de la scène</h2><p class="texte-2">contre Arkana</p>
+        <p class="etape__gain"><img src="../assets/art/38033121.jpg" alt=""><span data-nom="38033121"></span></p>
+        <a class="lien" href="#briefing">Rejouer</a>
+      </li>
+      <li class="etape etape--dispo">
+        <span class="etape__num chiffres">4</span>
+        <p class="etape__etat">Disponible</p>
+        <h2>Le Bandit sous emprise</h2><p class="texte-2">contre Bandit Keith</p>
+        <p class="etape__gain"><img src="../assets/art/3797883.jpg" alt=""><span data-nom="3797883"></span> + 2 boosters</p>
+        <a class="btn" href="#briefing">Voir le duel</a>
+      </li>
+      <li class="etape etape--verrou">
+        <span class="etape__num chiffres">5</span>
+        <p class="etape__etat"><svg class="ic" aria-hidden="true"><use href="../icons.svg#ui-cadenas"/></svg>Verrouillé</p>
+        <h2>La marionnette du maître</h2><p class="texte-2">contre Strings</p>
+        <p class="etape__gain"><span class="mystere" aria-hidden="true">?</span>Une carte divine</p>
+        <p class="texte-3">Gagnez le duel 4 pour le débloquer.</p>
+      </li>
+    </ol>
+  </div>
+</section>
+
+<!-- ============================================================ BRIEFING -->
+<section class="ecran fond-ville" id="briefing" aria-label="Introduction avant le duel">
+  <header class="barre">
+    <a class="marque" href="#accueil"><svg class="ic" aria-hidden="true"><use href="../icons.svg#embleme"/></svg>Duel Monsters</a>
+    <a class="lien lien--retour" href="#histoire"><svg class="ic" aria-hidden="true"><use href="../icons.svg#ui-retour"/></svg>Retour aux duels</a>
+    <div class="barre__joueur"><span class="avatar" aria-hidden="true">P</span><span>Pharaon_08</span></div>
+  </header>
+
+  <div class="briefing">
+    <div class="briefing__adversaire" aria-hidden="true">
+      <div class="projecteur__faisceau projecteur__faisceau--adverse"></div>
+      <div class="projecteur__holo projecteur__holo--adverse"><img src="../assets/art/3797883.jpg" alt=""></div>
+      <div class="projecteur__socle projecteur__socle--adverse"></div>
+      <span class="avatar avatar--geant">BK</span>
+    </div>
+    <div class="briefing__texte">
+      <p class="surtitre">Battle City · Duel 4 sur 5</p>
+      <h1 class="titre">Le Bandit sous emprise</h1>
+      <p class="briefing__contre">contre <b>Bandit Keith</b></p>
+      <div class="dialogue panneau panneau--holo">
+        <p>Un ancien rival réapparaît, le regard vide et la voix éteinte. Il ne joue plus pour lui : quelqu'un tire ses ficelles, et son armée de machines n'a jamais été aussi bien réglée.</p>
+      </div>
+      <ul class="puces">
+        <li class="puce">4000 LP</li>
+        <li class="puce">5 cartes en main</li>
+      </ul>
+      <details class="regles panneau" open>
+        <summary>Règles de Battle City</summary>
+        <ul>
+          <li>Invocation Normale possible en Position de Défense face recto.</li>
+          <li>Les monstres de niveau 10 ou plus demandent 3 Sacrifices.</li>
+          <li>Pendant la Battle Phase, les Magies se jouent comme des Magies Jeu-Rapide.</li>
+        </ul>
+      </details>
+      <h2 class="titre-bloc">Récompenses</h2>
+      <div class="recompenses">
+        <div class="recompense"><span class="mini-paquet" aria-hidden="true"></span><span class="mini-paquet" aria-hidden="true"></span><b>2 boosters</b></div>
+        <div class="recompense"><div class="carte" data-carte="3797883"></div><b data-nom="3797883"></b></div>
+      </div>
+      <div class="briefing__actions">
+        <a class="btn btn--grand" href="#duel"><svg class="ic" aria-hidden="true"><use href="../icons.svg#ui-duel"/></svg>Lancer le duel</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ VICTOIRE -->
+<section class="ecran ecran--scene ecran--victoire" id="victoire" aria-label="Victoire">
+  <div class="rayons" aria-hidden="true"></div>
+  <div class="fin">
+    <p class="surtitre surtitre--or">Battle City · Duel 5 sur 5</p>
+    <h1 class="fin__titre">Victoire</h1>
+    <p class="fin__score"><span class="chiffres">1850</span> LP restants · tour <span class="chiffres">9</span></p>
+    <p class="fin__recit">Yugi triomphe, et le Dragon Céleste rejoint sa collection : Slifer, la première des trois cartes divines, est désormais à lui.</p>
+    <div class="fin__gains">
+      <div class="recompense"><span class="mini-paquet" aria-hidden="true"></span><span class="mini-paquet" aria-hidden="true"></span><b>2 boosters</b></div>
+      <div class="recompense recompense--vedette"><div class="carte r-ultra" data-carte="511600399"></div><b data-nom="511600399"></b><span class="puce puce--or">Nouvelle carte</span></div>
+    </div>
+    <div class="fin__actions">
+      <a class="btn btn--grand" href="#ouverture">Ouvrir mes boosters</a>
+      <a class="btn btn--fantome" href="#histoire">Retour à l'histoire</a>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ DÉFAITE -->
+<section class="ecran ecran--scene ecran--defaite" id="defaite" aria-label="Défaite">
+  <div class="fin">
+    <p class="surtitre">Duel en ligne · salle K7QX2</p>
+    <h1 class="fin__titre">Défaite</h1>
+    <p class="fin__score">Seto_K l'emporte au tour <span class="chiffres">11</span> avec <span class="chiffres">600</span> LP</p>
+    <div class="fin__coup">
+      <div class="carte" data-carte="89631139"></div>
+      <p><span class="surtitre">Coup final</span><b data-nom="89631139"></b><span class="texte-2">attaque directe, 3000 points de dégâts</span></p>
+    </div>
+    <p class="texte-2">Le vainqueur d'un duel en ligne reçoit un booster. Retentez votre chance avec un deck ajusté.</p>
+    <div class="fin__actions">
+      <a class="btn btn--grand btn--holo" href="#accueil">Retour à l'accueil</a>
+      <a class="btn btn--fantome" href="#collection">Modifier mon deck</a>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ PLANCHE -->
+<section class="ecran fond-nuit" id="planche" aria-label="Planche des cartes">
+  <header class="barre">
+    <a class="marque" href="#accueil"><svg class="ic" aria-hidden="true"><use href="../icons.svg#embleme"/></svg>Duel Monsters</a>
+    <p class="texte-2">Planche de référence : cartes, raretés, états et composants</p>
+  </header>
+  <div class="planche">
+    <section>
+      <h2 class="titre-bloc">Cadres par type</h2>
+      <div class="rangee">
+        <figure><div class="carte" data-carte="89631139"></div><figcaption>Normal</figcaption></figure>
+        <figure><div class="carte" data-carte="38033121"></div><figcaption>Effet</figcaption></figure>
+        <figure><div class="carte" data-carte="64631466"></div><figcaption>Rituel</figcaption></figure>
+        <figure><div class="carte" data-carte="41462083"></div><figcaption>Fusion</figcaption></figure>
+        <figure><div class="carte" data-carte="55144522"></div><figcaption>Magie</figcaption></figure>
+        <figure><div class="carte" data-carte="44095762"></div><figcaption>Piège</figcaption></figure>
+        <figure><div class="carte" data-carte="511600400"></div><figcaption>Effet, attribut DIVIN</figcaption></figure>
+      </div>
+    </section>
+    <section>
+      <h2 class="titre-bloc">Raretés <span class="texte-3">(survolez les brillantes)</span></h2>
+      <div class="rangee">
+        <figure><div class="carte" data-carte="76184692"></div><figcaption><span class="rarete rarete--commune">Commune</span></figcaption></figure>
+        <figure><div class="carte r-rare" data-carte="55144522"></div><figcaption><span class="rarete rarete--rare">Rare</span></figcaption></figure>
+        <figure><div class="carte r-super" data-carte="91152256"></div><figcaption><span class="rarete rarete--super">Super</span></figcaption></figure>
+        <figure><div class="carte r-ultra" data-carte="46986414"></div><figcaption><span class="rarete rarete--ultra">Ultra</span></figcaption></figure>
+        <figure><div class="carte r-ultimate" data-carte="40737112"></div><figcaption><span class="rarete rarete--ultimate">Ultimate</span></figcaption></figure>
+        <figure><div class="carte r-secret" data-carte="66889139"></div><figcaption><span class="rarete rarete--secret">Secret</span></figcaption></figure>
+      </div>
+    </section>
+    <section>
+      <h2 class="titre-bloc">États en duel</h2>
+      <div class="rangee rangee--etats">
+        <figure><div class="carte est-cible" data-carte="46986414"></div><figcaption>Ciblable</figcaption></figure>
+        <figure><div class="carte est-choisie" data-carte="12607053"></div><figcaption>Choisie</figcaption></figure>
+        <figure><div class="carte est-posee" data-carte="4206964"></div><figcaption>Posée (vue par vous)</figcaption></figure>
+        <figure><div class="carte est-inactive" data-carte="70781052"></div><figcaption>Non jouable</figcaption></figure>
+        <figure class="figure--large"><div class="carte est-defense" data-carte="91152256"></div><figcaption>Défense</figcaption></figure>
+        <figure><div class="carte dos"></div><figcaption>Face cachée</figcaption></figure>
+      </div>
+    </section>
+    <section class="planche__ui">
+      <h2 class="titre-bloc">Composants</h2>
+      <div class="rangee rangee--ui">
+        <button class="btn" type="button">Action principale</button>
+        <button class="btn btn--holo" type="button">Secondaire</button>
+        <button class="btn btn--fantome" type="button">Discrète</button>
+        <button class="btn" type="button" disabled>Indisponible</button>
+        <span class="puce">4000 LP</span><span class="puce puce--holo">Deck actif</span><span class="puce puce--or">Nouvelle carte</span><span class="puce puce--succes">Prêt</span>
+        <span class="pastille">3</span>
+        <span class="avatar" aria-hidden="true">P</span>
+        <span class="icones">
+          <svg class="ic" aria-label="LUMIÈRE" style="color: var(--attr-lumiere)"><use href="../icons.svg#attr-lumiere"/></svg>
+          <svg class="ic" aria-label="TÉNÈBRES" style="color: var(--attr-tenebres)"><use href="../icons.svg#attr-tenebres"/></svg>
+          <svg class="ic" aria-label="TERRE" style="color: var(--attr-terre)"><use href="../icons.svg#attr-terre"/></svg>
+          <svg class="ic" aria-label="EAU" style="color: var(--attr-eau)"><use href="../icons.svg#attr-eau"/></svg>
+          <svg class="ic" aria-label="FEU" style="color: var(--attr-feu)"><use href="../icons.svg#attr-feu"/></svg>
+          <svg class="ic" aria-label="VENT" style="color: var(--attr-vent)"><use href="../icons.svg#attr-vent"/></svg>
+          <svg class="ic" aria-label="DIVIN" style="color: var(--attr-divin)"><use href="../icons.svg#attr-divin"/></svg>
+          <svg class="ic" aria-label="Magie" style="color: var(--type-magie)"><use href="../icons.svg#type-magie"/></svg>
+          <svg class="ic" aria-label="Piège" style="color: var(--type-piege)"><use href="../icons.svg#type-piege"/></svg>
+        </span>
+      </div>
+    </section>
+  </div>
+</section>
+
+</body>
+</html>
