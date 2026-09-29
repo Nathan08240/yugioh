@@ -149,7 +149,7 @@ function Screen({ state, page, send, reconnect, leave, respond, go, vsBot }: Rea
     };
     return (
       <>
-        <Duel board={state.board} seat={state.seat ?? 0} asked={state.question} respond={respond} leave={leave} />
+        <Duel board={state.board} seat={state.seat ?? 0} asked={state.question} respond={respond} leave={leave} feed={state.feed} lp={state.lp} pseudo={state.pseudo} />
         {state.board.winner !== undefined && <Fin board={state.board} seat={state.seat ?? 0} room={state.room} vsBot={vsBot} story={story} leave={leave} go={leaveFor} />}
       </>
     );
