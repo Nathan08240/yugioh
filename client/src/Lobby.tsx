@@ -11,7 +11,7 @@ import { Fin } from "./Fin.tsx";
 import { initialLobby, reduce, type Action, type LobbyState } from "./lobby.ts";
 import { autoAnswer } from "./question.ts";
 import { Shell, type Page } from "./Shell.tsx";
-import { Story } from "./Story.tsx";
+import { duelLabel, Story } from "./Story.tsx";
 import { supabase } from "./supabase.ts";
 
 // Same origin as the page: Vite proxies /ws to the game server in dev.
@@ -27,6 +27,7 @@ export function Lobby() {
   const rejoin = useRef<string>(undefined);
   // Rooms against the bot (story duels included) earn no booster.
   const vsBot = useRef(false);
+  const storyDuel = useRef<string>(undefined);
   const cards = useCards();
   const view = useMemo(() => ({ cards, show: () => {}, seat: 0 }), [cards]);
 
@@ -55,6 +56,7 @@ export function Lobby() {
 
   const send: Send = (msg) => {
     if (msg.type === "bot" || msg.type === "story_duel") vsBot.current = true;
+    if (msg.type === "story_duel") storyDuel.current = msg.duel;
     if (msg.type === "create" || msg.type === "join") vsBot.current = false;
     socket.current?.send(JSON.stringify(msg));
   };
@@ -87,7 +89,7 @@ export function Lobby() {
           {state.error}
         </p>
       )}
-      <Screen state={state} page={state.storyOpen ? "histoire" : page} send={send} reconnect={reconnect} leave={leave} respond={respond} go={go} vsBot={vsBot.current} />
+      <Screen state={state} page={state.storyOpen ? "histoire" : page} send={send} reconnect={reconnect} leave={leave} respond={respond} go={go} vsBot={vsBot.current} storyDuel={storyDuel.current} />
     </DuelView>
   );
 }
@@ -101,13 +103,14 @@ type ScreenProps = {
   respond: (response: OcgResponse) => void;
   go: (page: Page) => void;
   vsBot: boolean;
+  storyDuel?: string;
 };
 
 const signOut = () => {
   supabase.auth.signOut();
 };
 
-function Screen({ state, page, send, reconnect, leave, respond, go, vsBot }: Readonly<ScreenProps>) {
+function Screen({ state, page, send, reconnect, leave, respond, go, vsBot, storyDuel }: Readonly<ScreenProps>) {
   if (state.closed) {
     return (
       <Shell id="perdu">
@@ -142,7 +145,7 @@ function Screen({ state, page, send, reconnect, leave, respond, go, vsBot }: Rea
     );
   }
   if (state.room && state.started && state.board) {
-    const story = state.storyOpen ? { won: state.won } : undefined;
+    const story = state.storyOpen ? { title: duelLabel(state.story, storyDuel), won: state.won } : undefined;
     const leaveFor = (next: Page) => {
       leave();
       go(next);
@@ -166,7 +169,7 @@ function Screen({ state, page, send, reconnect, leave, respond, go, vsBot }: Rea
       {page === "accueil" && <Accueil state={state} send={send} go={go} />}
       {page === "collection" && <DeckBuilder collection={state.collection} decks={state.decks} send={send} />}
       {page === "boosters" && <Boosters state={state} send={send} />}
-      {page === "histoire" && <Story arcs={state.story} send={send} close={() => go("accueil")} />}
+      {page === "histoire" && <Story arcs={state.story} send={send} />}
     </Shell>
   );
 }
