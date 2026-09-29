@@ -242,8 +242,8 @@ export function dessinerDos() {
   return c;
 }
 
-// Mat of the Duel Disk: plate, tints of the two camps, grid, zones and their labels, in one texture.
-export function dessinerPlateau(zones: Zone[], res: Ressources, anisotropie: number) {
+// Mat of the Duel Disk in two layers, so a Field Spell artwork can slide between them: the plate (tints, grid), then its lines (border, zones, labels).
+export function dessinerPlateau(zones: Zone[], res: Ressources, anisotropie: number, couche: "fond" | "traits") {
   const lx = PLATEAU.l + 0.25;
   const pz = PLATEAU.p + 0.25;
   const e = 2048 / (2 * lx);
@@ -255,30 +255,43 @@ export function dessinerPlateau(zones: Zone[], res: Ressources, anisotropie: num
     g.beginPath();
     g.roundRect(X(-PLATEAU.l), Z(-PLATEAU.p), 2 * PLATEAU.l * e, 2 * PLATEAU.p * e, 0.2 * e);
   };
+  const alveole = (zone: Zone) => {
+    const coins = [0.08 * e, 0.02 * e];
+    g.beginPath();
+    g.roundRect(X(zone.x - ZONE.l / 2), Z(zone.z - ZONE.p / 2), ZONE.l * e, ZONE.p * e, [coins[0], coins[1], coins[0], coins[1]]);
+  };
 
-  g.save();
-  g.shadowColor = "rgb(67 240 255 / 0.3)";
-  g.shadowBlur = 0.18 * e;
-  plaque();
-  g.fillStyle = "rgb(10 14 46 / 0.86)";
-  g.fill();
-  g.restore();
+  if (couche === "fond") {
+    g.save();
+    g.shadowColor = "rgb(67 240 255 / 0.3)";
+    g.shadowBlur = 0.18 * e;
+    plaque();
+    g.fillStyle = "rgb(10 14 46 / 0.86)";
+    g.fill();
+    g.restore();
 
-  g.save();
-  plaque();
-  g.clip();
-  const teinte = g.createLinearGradient(0, Z(-PLATEAU.p), 0, Z(PLATEAU.p));
-  teinte.addColorStop(0, "rgb(255 106 136 / 0.13)");
-  teinte.addColorStop(0.46, "rgb(255 106 136 / 0)");
-  teinte.addColorStop(0.54, "rgb(67 240 255 / 0)");
-  teinte.addColorStop(1, "rgb(67 240 255 / 0.13)");
-  g.fillStyle = teinte;
-  g.fillRect(0, 0, c.width, c.height);
-  g.strokeStyle = "rgb(150 170 255 / 0.07)";
-  g.lineWidth = 2;
-  for (let x = 0; x < c.width; x += 0.22 * e) g.strokeRect(x, -1, 0, c.height + 2);
-  for (let y = 0; y < c.height; y += 0.22 * e) g.strokeRect(-1, y, c.width + 2, 0);
-  g.restore();
+    g.save();
+    plaque();
+    g.clip();
+    const teinte = g.createLinearGradient(0, Z(-PLATEAU.p), 0, Z(PLATEAU.p));
+    teinte.addColorStop(0, "rgb(255 106 136 / 0.13)");
+    teinte.addColorStop(0.46, "rgb(255 106 136 / 0)");
+    teinte.addColorStop(0.54, "rgb(67 240 255 / 0)");
+    teinte.addColorStop(1, "rgb(67 240 255 / 0.13)");
+    g.fillStyle = teinte;
+    g.fillRect(0, 0, c.width, c.height);
+    g.strokeStyle = "rgb(150 170 255 / 0.07)";
+    g.lineWidth = 2;
+    for (let x = 0; x < c.width; x += 0.22 * e) g.strokeRect(x, -1, 0, c.height + 2);
+    for (let y = 0; y < c.height; y += 0.22 * e) g.strokeRect(-1, y, c.width + 2, 0);
+    g.restore();
+    for (const zone of zones) {
+      alveole(zone);
+      g.fillStyle = `${jeton(CAMPS[zone.camp])}12`;
+      g.fill();
+    }
+    return texture(c, anisotropie);
+  }
 
   const bord = g.createLinearGradient(0, Z(-PLATEAU.p), 0, Z(PLATEAU.p));
   bord.addColorStop(0, "rgb(255 106 136 / 0.7)");
@@ -307,11 +320,7 @@ export function dessinerPlateau(zones: Zone[], res: Ressources, anisotropie: num
 
   for (const zone of zones) {
     const couleur = jeton(CAMPS[zone.camp]);
-    const coins = [0.08 * e, 0.02 * e];
-    g.beginPath();
-    g.roundRect(X(zone.x - ZONE.l / 2), Z(zone.z - ZONE.p / 2), ZONE.l * e, ZONE.p * e, [coins[0], coins[1], coins[0], coins[1]]);
-    g.fillStyle = `${couleur}12`;
-    g.fill();
+    alveole(zone);
     g.lineWidth = 0.011 * e;
     g.strokeStyle = `${couleur}88`;
     g.stroke();

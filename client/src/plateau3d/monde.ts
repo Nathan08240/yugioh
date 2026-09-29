@@ -34,7 +34,7 @@ const STYLES: Record<Etat, { couleur?: string; force: number; fond: number; puls
   activee: { force: 1.8, fond: 0.08, pulse: 0 },
   cible: { couleur: "--holo", force: 2, fond: 0.06, pulse: 1 },
 };
-const TERRAIN = { l: 2 * PLATEAU.l - 0.1, p: PLATEAU.p - 0.05, opacite: 0.32 };
+const TERRAIN = { l: 2 * PLATEAU.l - 0.1, p: PLATEAU.p - 0.05, opacite: 0.72, gain: 1.2 };
 const FIELD: ReadonlySet<string> = new Set(["terrain", "monstre", "magie"]);
 const DEPARTS: Record<Depart, string> = { destruction: "--danger", sacrifice: "--or", materiau: "--type-fusion" };
 
@@ -148,14 +148,17 @@ export class Monde {
   }
 
   private construireDecor(liste: Zone[]) {
-    const tapis = new THREE.Mesh(
-      new THREE.PlaneGeometry(2 * (PLATEAU.l + 0.25), 2 * (PLATEAU.p + 0.25)).rotateX(-Math.PI / 2),
-      new THREE.MeshBasicMaterial({ map: dessinerPlateau(liste, this.res, this.gl.capabilities.getMaxAnisotropy()), transparent: true, depthWrite: false, color: new THREE.Color(1.4, 1.4, 1.4) }),
-    );
-    tapis.renderOrder = 1;
-    this.racine.add(tapis);
+    // The mat in two layers, the Field Spell artworks (1.5) slide between them.
+    for (const [couche, ordre] of [["fond", 1], ["traits", 1.7]] as const) {
+      const tapis = new THREE.Mesh(
+        new THREE.PlaneGeometry(2 * (PLATEAU.l + 0.25), 2 * (PLATEAU.p + 0.25)).rotateX(-Math.PI / 2),
+        new THREE.MeshBasicMaterial({ map: dessinerPlateau(liste, this.res, this.gl.capabilities.getMaxAnisotropy(), couche), transparent: true, depthWrite: false, color: new THREE.Color(1.4, 1.4, 1.4) }),
+      );
+      tapis.renderOrder = ordre;
+      this.racine.add(tapis);
+    }
     for (const camp of [0, 1]) {
-      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(TERRAIN.l, TERRAIN.p).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }));
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(TERRAIN.l, TERRAIN.p).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, color: new THREE.Color(TERRAIN.gain, TERRAIN.gain, TERRAIN.gain) }));
       mesh.position.set(0, 0.001, (camp === 0 ? 1 : -1) * (TERRAIN.p / 2));
       mesh.renderOrder = 1.5;
       mesh.visible = false;
@@ -310,11 +313,11 @@ export class Monde {
     if (terrain.code !== code) return;
     terrain.vise = img ? TERRAIN.opacite : 0;
     if (!img) return;
-    // Cover-crop the artwork to the half mat.
+    // Cover-crop the artwork to the half mat, anchored low: dark artworks (Yami) keep their light part at the bottom.
     const map = this.texArt(code, img);
     const [a, p] = [img.width / img.height, TERRAIN.l / TERRAIN.p];
     map.repeat.set(Math.min(1, p / a), Math.min(1, a / p));
-    map.offset.set((1 - map.repeat.x) / 2, (1 - map.repeat.y) / 2);
+    map.offset.set((1 - map.repeat.x) / 2, (1 - map.repeat.y) * 0.15);
     terrain.mesh.material.map = map;
     terrain.mesh.material.needsUpdate = true;
   }
