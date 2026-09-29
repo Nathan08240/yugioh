@@ -32,6 +32,8 @@ export type Board = {
   log: LogEntry[];
   // The attacker of the battle in progress (forgotten at the next phase), and the last damage dealt with the card behind it.
   attacker?: number;
+  // The turn player has summoned (Normal, Special or Flip) or tried to this turn.
+  summoned: boolean;
   // `destroyed`: the monsters whose destruction by an effect caused the damage (Duelist Kingdom rule), when it looks like it.
   lastHit?: { player: number; amount: number; code: number; destroyed?: number[] };
   // Monsters sent to the Graveyard while a chain resolves, with their ATK on the field; forgotten at the end of the chain.
@@ -40,6 +42,9 @@ export type Board = {
 
 // Reason of the WIN sent by the Duelist Kingdom script: the turn player ended it without a monster or a summon.
 export const NO_MONSTER = 0x5a;
+
+// Duelist Kingdom: ending the turn with no monster and no summon this turn loses the duel.
+export const losesAtTurnEnd = (board: Board) => !board.summoned && board.players[board.turnPlayer].monsters.every((card) => !card);
 
 const side = (lp: number, deck: number, extra: number): Side => ({
   lp,
@@ -57,6 +62,7 @@ export const newBoard = (lp: number, decks: readonly number[], extras: readonly 
   turn: 0,
   turnPlayer: 0,
   phase: 0,
+  summoned: false,
   chain: [],
   log: [],
   gone: [],
@@ -164,11 +170,14 @@ function apply(board: Board, msg: Message) {
       if (first) put(board, msg.card2, first);
       break;
     }
-    case OcgMessageType.POS_CHANGE:
-    case OcgMessageType.SET:
     case OcgMessageType.SUMMONING:
     case OcgMessageType.SPSUMMONING:
     case OcgMessageType.FLIPSUMMONING:
+      if (msg.controller === board.turnPlayer) board.summoned = true;
+      reveal(board, msg, msg.code, msg.position);
+      break;
+    case OcgMessageType.POS_CHANGE:
+    case OcgMessageType.SET:
       reveal(board, msg, msg.code, msg.position);
       break;
     case OcgMessageType.SHUFFLE_HAND: {
@@ -193,6 +202,7 @@ function apply(board: Board, msg: Message) {
     case OcgMessageType.NEW_TURN:
       board.turn++;
       board.turnPlayer = msg.player;
+      board.summoned = false;
       board.attacker = undefined;
       break;
     case OcgMessageType.NEW_PHASE:

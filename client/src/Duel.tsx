@@ -35,6 +35,8 @@ type Props = {
   opponent?: string;
   // Special rules of a story duel, opened from a badge.
   rules?: Rule[];
+  // The duel has the Duelist Kingdom rule: ending a turn without monster is confirmed.
+  kingdom?: boolean;
 };
 
 const { HAND, GRAVE, REMOVED } = OcgLocation;
@@ -90,7 +92,7 @@ function zoneCard(board: Board, id: string): Card | undefined {
 const codeAt = (board: Board, id: string) => zoneCard(board, id)?.code ?? 0;
 
 // The end of the duel (Fin.tsx) is drawn over the board by the lobby.
-export function Duel({ board, seat, asked, respond, leave, feed, lp, pseudo, opponent, rules }: Readonly<Props>) {
+export function Duel({ board, seat, asked, respond, leave, feed, lp, pseudo, opponent, rules, kingdom }: Readonly<Props>) {
   const cards = useCards();
   const strings = useSystemStrings();
   const [detail, setDetail] = useState<{ code: number; place?: string }>();
@@ -106,7 +108,7 @@ export function Duel({ board, seat, asked, respond, leave, feed, lp, pseudo, opp
   const picked = courant.keys;
   const setPicked = (keys: string[], point?: Point, cible?: string) => setPicks({ id: asked?.id, keys, point, cible });
   const question = idle ? asked?.question : undefined;
-  const ui = interaction(question, { board: shown, cards, strings, picked, cible: courant.cible, setPicked, respond });
+  const ui = interaction(question, { board: shown, cards, strings, picked, cible: courant.cible, kingdom, setPicked, respond });
   const visee = useVisee(asked, respond);
   const repondre = (response: OcgResponse, cible: string | undefined) => {
     if (cible) visee(cible);

@@ -1,7 +1,7 @@
 import { OcgLocation, OcgMessageType, OcgPhase, OcgPosition, type OcgFieldPlayer } from "@n1xx1/ocgcore-wasm";
 import { describe, expect, it } from "vitest";
 import type { ServerMessage, Wire } from "../../server/src/protocol.ts";
-import { newBoard, playAll, type Message } from "./board.ts";
+import { losesAtTurnEnd, newBoard, playAll, type Message } from "./board.ts";
 import recorded from "./fixtures/duel.json";
 
 const DARK_MAGICIAN = 46986414;
@@ -217,5 +217,27 @@ describe("règles spéciales du mode Histoire", () => {
     expect(board.winReason).toBe(0x5a);
     expect(board.log.at(-1)).toEqual({ player: 1, parts: ["Remporte le duel : l'autre duelliste a fini son tour sans monstre (règle spéciale)"] });
     expect(playAll(strong, [{ type: OcgMessageType.WIN, player: 1, reason: 1 }]).winReason).toBe(1);
+  });
+});
+
+describe("fin de tour sans monstre (règle du Royaume)", () => {
+  const summon = (type: OcgMessageType.SUMMONING | OcgMessageType.SPSUMMONING | OcgMessageType.FLIPSUMMONING, controller: 0 | 1) =>
+    ({ type, code: DARK_MAGICIAN, controller, location: MZONE, sequence: 0, position: FACEUP_ATTACK }) as Message;
+
+  it("perd le duel sans monstre ni invocation, et plus avec un monstre ou une invocation du tour", () => {
+    const turn = playAll(start, [{ type: OcgMessageType.NEW_TURN, player: 0 }]);
+    expect(losesAtTurnEnd(turn)).toBe(true);
+    expect(losesAtTurnEnd(summoned)).toBe(false);
+    for (const type of [OcgMessageType.SUMMONING, OcgMessageType.SPSUMMONING, OcgMessageType.FLIPSUMMONING] as const) {
+      expect(losesAtTurnEnd(playAll(turn, [summon(type, 0)]))).toBe(false);
+    }
+  });
+
+  it("ignore l'invocation de l'adversaire et repart de zéro à chaque tour", () => {
+    const turn = playAll(start, [{ type: OcgMessageType.NEW_TURN, player: 0 }]);
+    expect(losesAtTurnEnd(playAll(turn, [summon(OcgMessageType.SUMMONING, 1)]))).toBe(true);
+    const next = playAll(playAll(turn, [summon(OcgMessageType.SUMMONING, 0)]), [{ type: OcgMessageType.NEW_TURN, player: 1 }]);
+    expect(next.summoned).toBe(false);
+    expect(losesAtTurnEnd(next)).toBe(true);
   });
 });

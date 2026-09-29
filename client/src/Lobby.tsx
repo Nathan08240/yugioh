@@ -154,7 +154,7 @@ function Screen({ state, page, send, reconnect, leave, respond, go, vsBot, story
     };
     return (
       <>
-        <Duel board={state.board} seat={state.seat ?? 0} asked={state.question} respond={respond} leave={leave} feed={state.feed} lp={state.lp} pseudo={state.pseudo} opponent={state.opponent} rules={specialRules(special)} />
+        <Duel board={state.board} seat={state.seat ?? 0} asked={state.question} respond={respond} leave={leave} feed={state.feed} lp={state.lp} pseudo={state.pseudo} opponent={state.opponent} rules={specialRules(special)} kingdom={special.includes("duelist-kingdom")} />
         {state.board.winner !== undefined && <Fin board={state.board} seat={state.seat ?? 0} room={state.room} vsBot={vsBot} opponent={state.opponent} story={story} leave={leave} go={leaveFor} />}
       </>
     );
