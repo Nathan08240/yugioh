@@ -122,7 +122,7 @@ describe("serveur de partie", () => {
     const b2 = await connect("bob");
     b2.send({ type: "join", room });
     await vi.waitFor(() => expect(b2.messages().length).toBeGreaterThan(0));
-    expect(joined(b2.received)).toEqual({ type: "joined", room, seat: 1, lp: 4000, decks: [40, 40], extras: [0, 0], log: b.messages() });
+    expect(joined(b2.received)).toEqual({ type: "joined", room, seat: 1, lp: 4000, decks: [40, 40], extras: [0, 0], opponent: "alice", log: b.messages() });
     expect(b2.received).toContainEqual({ type: "question", question: held, retry: false });
   });
 
@@ -210,7 +210,7 @@ describe("serveur de partie", () => {
     const guest = await connect("invite");
     guest.send({ type: "join", room });
     await vi.waitFor(() => expect(joined(guest.received)).toBeDefined());
-    expect(joined(guest.received)).toMatchObject({ seat: 1, decks: [45, 50] });
+    expect(joined(guest.received)).toMatchObject({ seat: 1, decks: [45, 50], opponent: "hote" });
     await vi.waitFor(() => expect(host.messages().length).toBeGreaterThan(0));
   });
 
@@ -224,10 +224,11 @@ describe("serveur de partie", () => {
     host.send({ type: "create" });
     await vi.waitFor(() => expect(joined(host.received)).toBeDefined());
     expect(joined(host.received)).toMatchObject({ seat: 0, decks: [40, 0], extras: [2, 0] });
+    expect(joined(host.received)?.opponent).toBeUndefined();
     const guest = await connect("invite2");
     guest.send({ type: "join", room: joined(host.received)?.room ?? "" });
     await vi.waitFor(() => expect(joined(guest.received)).toMatchObject({ seat: 1, decks: [40, 40], extras: [2, 1] }));
-    await vi.waitFor(() => expect(host.received.filter((msg) => msg.type === "joined").at(-1)).toMatchObject({ extras: [2, 1] }));
+    await vi.waitFor(() => expect(host.received.filter((msg) => msg.type === "joined").at(-1)).toMatchObject({ extras: [2, 1], opponent: "invite2" }));
   });
 
   it("refuse un deck actif dont l'extra deck a plus de 15 cartes ou une carte qui n'est pas une fusion", async () => {

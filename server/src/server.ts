@@ -27,7 +27,7 @@ import { hideCards, visibleTo } from "./visibility.ts";
 
 type Question = Extract<OcgMessage, { player: number }>;
 // `stats`: the last stats event sent, as JSON.
-type Player = { id: string; socket?: WebSocket; log: DuelEvent[]; deck: readonly number[]; extra?: readonly number[]; bot?: Bot; stats?: string };
+type Player = { id: string; name?: string; socket?: WebSocket; log: DuelEvent[]; deck: readonly number[]; extra?: readonly number[]; bot?: Bot; stats?: string };
 export type Room = {
   code: string;
   players: Player[];
@@ -256,7 +256,7 @@ export function creditWinner(room: Room, seat: Seat, accounts: Pick<Accounts, "c
 function sendJoined(room: Room, seat: Seat) {
   const player = room.players[seat];
   if (!player) return;
-  send(player.socket, { type: "joined", room: room.code, seat, lp: rulesOf(room).lp, decks: deckSizes(room), extras: extraSizes(room), log: player.log });
+  send(player.socket, { type: "joined", room: room.code, seat, lp: rulesOf(room).lp, decks: deckSizes(room), extras: extraSizes(room), opponent: room.players[1 - seat]?.name, log: player.log });
 }
 
 // Runs the engine until it asks a question or the duel ends. A crash inside the engine closes only this room.
@@ -344,11 +344,11 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
   wss.on("close", () => http.close());
   http.listen(port);
 
-  function sit(room: Room, id: string, socket: WebSocket, deck: ActiveDeck): Seat | undefined {
+  function sit(room: Room, id: string, socket: WebSocket, deck: ActiveDeck, name?: string): Seat | undefined {
     const known = room.players.findIndex((player) => player.id === id);
     if (known === -1 && room.players.length === 2) return undefined;
     const isNew = known === -1;
-    const seat = (isNew ? room.players.push({ id, log: [], deck: deck.main, extra: deck.extra }) - 1 : known) as Seat;
+    const seat = (isNew ? room.players.push({ id, name, log: [], deck: deck.main, extra: deck.extra }) - 1 : known) as Seat;
     const player = room.players[seat];
     if (player.socket !== socket) player.socket?.close();
     player.socket = socket;
@@ -361,8 +361,8 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
     return seat;
   }
 
-  function addBot(room: Room, deck: ActiveDeck) {
-    const player: Player = { id: "bot", log: [], deck: deck.main, extra: deck.extra };
+  function addBot(room: Room, deck: ActiveDeck, name: string) {
+    const player: Player = { id: "bot", name, log: [], deck: deck.main, extra: deck.extra };
     room.players.push(player);
     player.bot = new Bot(1, rulesOf(room).lp, deckSizes(room), botDelay, extraSizes(room));
     sendJoined(room, 0);
@@ -440,12 +440,12 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
       return validDeck(deck) ? deck : "deck actif invalide";
     }
 
-    function enter(userId: string, room: Room, deck: ActiveDeck, botDeck?: ActiveDeck): string | undefined {
+    function enter(userId: string, room: Room, deck: ActiveDeck, bot?: { deck: ActiveDeck; name: string }): string | undefined {
       rooms.set(room.code, room);
-      const index = sit(room, userId, socket, deck);
+      const index = sit(room, userId, socket, deck, user?.pseudo);
       if (index === undefined) return "salle complète";
       seat = { room, index };
-      if (botDeck) addBot(room, botDeck);
+      if (bot) addBot(room, bot.deck, bot.name);
       return undefined;
     }
 
@@ -458,7 +458,7 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
         return joined ? enter(userId, joined, deck) : "salle introuvable";
       }
       const room: Room = { code: newCode(rooms), players: [] };
-      if (msg.type === "bot") return enter(userId, room, deck, { main: KAIBA, extra: [] });
+      if (msg.type === "bot") return enter(userId, room, deck, { deck: { main: KAIBA, extra: [] }, name: "Bot" });
       room.onWin = (winner) => creditWinner(room, winner as Seat, accounts);
       return enter(userId, room, deck);
     }
@@ -489,7 +489,7 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
       room.onWin = (winner) => {
         if (winner === 0) recordWin(room, userId, duel);
       };
-      return enter(userId, room, deck, { main: storyDeck(duel), extra: storyExtra(duel) });
+      return enter(userId, room, deck, { deck: { main: storyDeck(duel), extra: storyExtra(duel) }, name: duel.opponent });
     }
 
     // Returns an error for the sender, if any.

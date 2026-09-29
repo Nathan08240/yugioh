@@ -14,6 +14,7 @@ type Props = {
   room: string;
   // Only an online duel between two players earns a booster.
   vsBot: boolean;
+  opponent?: string;
   // A story duel ("Battle City · Duel 4 sur 5"), its special rules, and its conclusion once the server has recorded the win.
   story?: { title?: string; won?: StoryWon; special?: readonly string[] };
   leave: () => void;
@@ -68,7 +69,7 @@ const defeat =
   };
 
 // Victory or defeat screen over the board, once the engine has named the winner.
-export function Fin({ board, seat, room, vsBot, story, leave, go }: Readonly<Props>) {
+export function Fin({ board, seat, room, vsBot, opponent, story, leave, go }: Readonly<Props>) {
   const root = useRef<HTMLDivElement>(null);
   const won = board.winner === seat;
   const lost = board.winner === 1 - seat;
@@ -93,7 +94,7 @@ export function Fin({ board, seat, room, vsBot, story, leave, go }: Readonly<Pro
         <h1 id="fin-titre" className="fin__titre">
           {title(won, lost)}
         </h1>
-        <Score board={board} seat={seat} won={won} lost={lost} />
+        <Score board={board} seat={seat} won={won} lost={lost} opponent={opponent} />
         {won && <Gains story={story} boosters={boosters} />}
         {(won || lost) && <Cause board={board} seat={seat} won={won} kingdom={story?.special?.includes("duelist-kingdom") ?? false} />}
         {lost && !story && !vsBot && <p className="texte-2 fin__note">Le vainqueur d'un duel en ligne reçoit un booster. Retentez votre chance avec un deck ajusté.</p>}
@@ -128,7 +129,7 @@ function title(won: boolean, lost: boolean): string {
   return lost ? "Défaite" : "Match nul";
 }
 
-function Score({ board, seat, won, lost }: Readonly<{ board: Board; seat: number; won: boolean; lost: boolean }>) {
+function Score({ board, seat, won, lost, opponent }: Readonly<{ board: Board; seat: number; won: boolean; lost: boolean; opponent?: string }>) {
   const lp = (player: number) => <span className="chiffres">{Math.max(board.players[player].lp, 0)}</span>;
   const turn = <span className="chiffres">{board.turn}</span>;
   if (won) {
@@ -141,7 +142,7 @@ function Score({ board, seat, won, lost }: Readonly<{ board: Board; seat: number
   if (lost) {
     return (
       <p className="fin__score">
-        L'adversaire l'emporte au tour {turn} avec {lp(1 - seat)} LP
+        {opponent ?? "L'adversaire"} l'emporte au tour {turn} avec {lp(1 - seat)} LP
       </p>
     );
   }
