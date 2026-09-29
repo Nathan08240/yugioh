@@ -1,8 +1,9 @@
 import { once } from "node:events";
 import type { AddressInfo } from "node:net";
-import { OcgMessageType, OcgPosition, type OcgMessage } from "@n1xx1/ocgcore-wasm";
+import { OcgLocation, OcgMessageType, OcgPosition, SelectBattleCMDAction, type OcgMessage } from "@n1xx1/ocgcore-wasm";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { WebSocket } from "ws";
+import type { Board, Card } from "../../client/src/board.ts";
 import { Bot } from "../src/bot.ts";
 import { KAIBA, YUGI } from "../src/decks.ts";
 import { runDuel, STARTING_LP, type Player, type Seed } from "../src/duel.ts";
@@ -80,5 +81,39 @@ describe("bot", () => {
     expect(hidden.length).toBeGreaterThan(5);
     expect(hidden.filter((card) => card.code !== 0)).toEqual([]);
     answer.mockRestore();
+  });
+});
+
+describe("bot : ATK et DEF actuelles", () => {
+  const CELTIC_GUARDIAN = 91152256; // 1400 / 1200
+  const BEAVER_WARRIOR = 32452818; // 1200 / 1500
+  const GAIA = 6368038; // 2300 / 2100
+  const faceUpAttack = (code: number, atk?: number): Card => ({ code, position: OcgPosition.FACEUP_ATTACK, atk });
+
+  // Does the bot's monster (seat 0, sequence 0) attack the opponent's one (seat 1, sequence 0)?
+  function attacks(own: Card, opponent: Card): boolean {
+    const player = new Bot(0, STARTING_LP, [YUGI.length, KAIBA.length], 0);
+    const { players } = (player as unknown as { board: Board }).board;
+    players[0].monsters[0] = own;
+    players[1].monsters[0] = opponent;
+    const question: OcgMessage = {
+      type: OcgMessageType.SELECT_BATTLECMD,
+      player: 0,
+      chains: [],
+      attacks: [{ code: own.code, controller: 0, location: OcgLocation.MZONE, sequence: 0, can_direct: false }],
+      to_m2: true,
+      to_ep: true,
+    };
+    return (player.answer(question, []) as { action: SelectBattleCMDAction }).action === SelectBattleCMDAction.SELECT_BATTLE;
+  }
+
+  it("n'attaque pas un monstre adverse boosté au-dessus de son ATK imprimée", () => {
+    expect(attacks(faceUpAttack(CELTIC_GUARDIAN), faceUpAttack(BEAVER_WARRIOR))).toBe(true);
+    expect(attacks(faceUpAttack(CELTIC_GUARDIAN), faceUpAttack(BEAVER_WARRIOR, 2000))).toBe(false);
+  });
+
+  it("attaque avec son propre monstre boosté au-dessus de l'ATK imprimée de la cible", () => {
+    expect(attacks(faceUpAttack(CELTIC_GUARDIAN), faceUpAttack(GAIA))).toBe(false);
+    expect(attacks(faceUpAttack(CELTIC_GUARDIAN, 2600), faceUpAttack(GAIA))).toBe(true);
   });
 });
