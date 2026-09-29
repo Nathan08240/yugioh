@@ -154,8 +154,8 @@ function Screen({ state, page, send, reconnect, leave, respond, go, vsBot, story
     };
     return (
       <>
-        <Duel board={state.board} seat={state.seat ?? 0} asked={state.question} respond={respond} leave={leave} feed={state.feed} lp={state.lp} pseudo={state.pseudo} rules={specialRules(special)} />
-        {state.board.winner !== undefined && <Fin board={state.board} seat={state.seat ?? 0} room={state.room} vsBot={vsBot} story={story} leave={leave} go={leaveFor} />}
+        <Duel board={state.board} seat={state.seat ?? 0} asked={state.question} respond={respond} leave={leave} feed={state.feed} lp={state.lp} pseudo={state.pseudo} opponent={state.opponent} rules={specialRules(special)} />
+        {state.board.winner !== undefined && <Fin board={state.board} seat={state.seat ?? 0} room={state.room} vsBot={vsBot} opponent={state.opponent} story={story} leave={leave} go={leaveFor} />}
       </>
     );
   }

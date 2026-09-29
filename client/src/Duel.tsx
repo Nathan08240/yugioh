@@ -32,6 +32,7 @@ type Props = {
   feed?: Feed;
   lp?: number;
   pseudo?: string;
+  opponent?: string;
   // Special rules of a story duel, opened from a badge.
   rules?: Rule[];
 };
@@ -87,7 +88,7 @@ function codeAt(board: Board, id: string): number {
 }
 
 // The end of the duel (Fin.tsx) is drawn over the board by the lobby.
-export function Duel({ board, seat, asked, respond, leave, feed, lp, pseudo, rules }: Readonly<Props>) {
+export function Duel({ board, seat, asked, respond, leave, feed, lp, pseudo, opponent, rules }: Readonly<Props>) {
   const cards = useCards();
   const strings = useSystemStrings();
   const [detail, setDetail] = useState<number>();
@@ -174,7 +175,7 @@ export function Duel({ board, seat, asked, respond, leave, feed, lp, pseudo, rul
           )}
         </div>
         <div className="hud">
-          <Plaque board={shown} player={1 - seat} start={start} name="Adversaire" refs={hud.refs} visee={enDepot?.includes(String(1 - seat))} />
+          <Plaque board={shown} player={1 - seat} start={start} name={opponent ?? "Adversaire"} refs={hud.refs} visee={enDepot?.includes(String(1 - seat))} />
           <section className="main-adverse" ref={hud.refs.mains[1 - seat]} aria-label={`Main de l'adversaire : ${cartes(shown.players[1 - seat].hand.length)}`}>
             {[...shown.players[1 - seat].hand.keys()].map((i) => (
               <CardView key={i} code={0} />

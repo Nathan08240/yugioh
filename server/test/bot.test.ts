@@ -66,7 +66,7 @@ describe("bot", () => {
     socket.close();
 
     // The player's active deck against the bot's, and no booster for a duel against the bot.
-    expect(received).toContainEqual(expect.objectContaining({ type: "joined", seat: 0, decks: [YUGI.length, KAIBA.length] }));
+    expect(received).toContainEqual(expect.objectContaining({ type: "joined", seat: 0, decks: [YUGI.length, KAIBA.length], opponent: "Bot" }));
     expect(credit).not.toHaveBeenCalled();
     for (const msg of received) if (msg.type === "question") expect(msg.question).toMatchObject({ player: 0 });
     expect(answer).toHaveBeenCalled();

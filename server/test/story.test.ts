@@ -151,7 +151,7 @@ describe("duel d'histoire sur le serveur", () => {
     // With seed 10 the first valid option beats the bot on this duel: pick another seed if the bot changes.
     const first = await play(10n, (socket) => story(socket, { type: "story_duel", duel: "dk-weevil" }));
     await vi.waitFor(() => expect(finished(first)).toBe(true), { timeout: 25_000 });
-    expect(first).toContainEqual(expect.objectContaining({ type: "joined", seat: 0, lp: 2000, decks: [41, 40] }));
+    expect(first).toContainEqual(expect.objectContaining({ type: "joined", seat: 0, lp: 2000, decks: [41, 40], opponent: weevil.opponent }));
     expect(messages(first)).toContainEqual(expect.objectContaining({ type: OcgMessageType.WIN, player: 0 }));
     expect(first).toContainEqual({ type: "story_won", duel: "dk-weevil", outro: weevil.outro, rewards: { boosters: 1 } });
     // The rule agreement is answered by the server, never asked to the player.

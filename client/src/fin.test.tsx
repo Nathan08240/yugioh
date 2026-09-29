@@ -40,6 +40,13 @@ it("explique la défaite par la règle de destruction du Royaume : la carte, le 
   expect(html).not.toContain("Coup final");
 });
 
+it("nomme l'adversaire dans l'écran de défaite, avec un repli neutre", () => {
+  const board = finished(1);
+  const named = (opponent?: string) => render(<Fin board={board} seat={0} room="r" vsBot={false} opponent={opponent} leave={() => {}} go={() => {}} />);
+  expect(named("Seto Kaiba")).toContain("Seto Kaiba l&#x27;emporte au tour");
+  expect(named()).toContain("L&#x27;adversaire l&#x27;emporte au tour");
+});
+
 it("garde le coup final ordinaire hors du Royaume", () => {
   const html = fin(finished(1));
   expect(html).toContain("Coup final");

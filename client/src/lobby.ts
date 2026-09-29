@@ -22,6 +22,8 @@ export type LobbyState = {
   needsStarter: boolean;
   room?: string;
   seat?: Seat;
+  // Name of the other seat, once known.
+  opponent?: string;
   board?: Board;
   // Starting LP of the duel, and the last batch of engine messages: the duel screen animates them (id tells batches apart).
   lp?: number;
@@ -63,6 +65,7 @@ export function reduce(state: LobbyState, action: Action): LobbyState {
         ...state,
         room: action.room,
         seat: action.seat,
+        opponent: action.opponent,
         lp: action.lp,
         board: playAll(newBoard(action.lp, action.decks, action.extras), action.log),
         started: action.log.length > 0,
