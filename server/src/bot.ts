@@ -47,6 +47,12 @@ function stats(code: number): Stats {
   return { atk: card.attack, def: card.defense, level: card.level & 0xff, type: card.type };
 }
 
+// A monster on the field: the ATK and DEF the server sent (equips, fields, effects), else the printed ones.
+function current(card: Card): Stats {
+  const printed = stats(card.code);
+  return { ...printed, atk: card.atk ?? printed.atk, def: card.def ?? printed.def };
+}
+
 const is = (code: number, type: number) => (stats(code).type & type) !== 0;
 const faceUp = (card: Card) => (card.position & OcgPosition.FACEUP) !== 0;
 
@@ -58,7 +64,7 @@ function value(code: number): number {
 // What an attacker has to beat to destroy this monster.
 function guard(card: Card): number {
   if (!card.code) return GUESS;
-  const { atk, def } = stats(card.code);
+  const { atk, def } = current(card);
   return card.position & OcgPosition.ATTACK ? atk : def;
 }
 
@@ -153,7 +159,7 @@ export class Bot {
     const attacker = cardAt(this.board, msg.card);
     const target = msg.target && cardAt(this.board, msg.target);
     if (!attacker || !target) return true;
-    return stats(attacker.code).atk >= guard(target);
+    return current(attacker).atk >= guard(target);
   }
 
   private decide(q: OcgMessage, target: Place | null | undefined): OcgResponse | undefined {
@@ -190,7 +196,7 @@ export class Bot {
 
   // Strongest ATK the opponent shows, a face-down monster counting as GUESS.
   private danger(): number {
-    return Math.max(0, ...cards(this.opponent().monsters).map((card) => (card.code ? stats(card.code).atk : GUESS)));
+    return Math.max(0, ...cards(this.opponent().monsters).map((card) => current(card).atk));
   }
 
   private idle(q: OcgMessageSelectIdlecmd): OcgResponse {
@@ -266,7 +272,7 @@ export class Bot {
   private repositions(card: OcgCardLoc, beforeBattle: boolean): boolean {
     const own = cardAt(this.board, card);
     if (!own) return false;
-    const { atk } = stats(card.code);
+    const { atk } = current(own);
     if (own.position & OcgPosition.DEFENSE) return atk > this.danger();
     return !beforeBattle && atk < this.danger();
   }
@@ -285,9 +291,13 @@ export class Bot {
   private attackPlan(attacks: readonly OcgCardLocAttack[]): Attack | undefined {
     const opponent = 1 - this.seat;
     const targets = this.opponent().monsters.flatMap((card, sequence) => (card ? [{ card, place: { controller: opponent, location: OcgLocation.MZONE, sequence } }] : []));
-    const order = [...attacks.keys()].sort((a, b) => stats(attacks[b].code).atk - stats(attacks[a].code).atk);
+    const atks = attacks.map((attack) => {
+      const card = cardAt(this.board, attack);
+      return card ? current(card).atk : stats(attack.code).atk;
+    });
+    const order = [...attacks.keys()].sort((a, b) => atks[b] - atks[a]);
     for (const index of order) {
-      const atk = stats(attacks[index].code).atk;
+      const atk = atks[index];
       const beaten = targets.filter(({ card }) => atk > guard(card)).sort((a, b) => value(b.card.code) - value(a.card.code));
       if (beaten.length > 0) return { index, target: beaten[0].place };
       if (attacks[index].can_direct) return { index, target: null };
