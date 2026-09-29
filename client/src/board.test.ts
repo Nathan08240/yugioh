@@ -187,3 +187,35 @@ it("rejoue un duel automatique du serveur jusqu'au plateau réel du moteur", () 
   expect(board.winner).toBe(1);
   expect(board.log.at(-1)).toEqual({ player: 1, parts: ["Remporte le duel"] });
 });
+
+describe("règles spéciales du mode Histoire", () => {
+  const FISSURE = 66788016;
+  const empty = [null, null, null, null, null];
+  const strong = playAll(summoned, [{ type: "stats", monsters: [[{ atk: 2500, def: 2100 }, ...empty.slice(1)], empty] }]);
+  const fissure = { type: OcgMessageType.CHAINING, code: FISSURE, controller: 1, location: SZONE, sequence: 0, position: FACEUP_ATTACK, triggering_controller: 1, triggering_location: SZONE, triggering_sequence: 0, description: "0", chain_size: 1 } as const;
+  const destroyed = { type: OcgMessageType.MOVE, card: DARK_MAGICIAN, from: { controller: 0, location: MZONE, sequence: 0, position: FACEUP_ATTACK }, to: { controller: 0, location: GRAVE, sequence: 0, position: FACEUP_ATTACK } } as const;
+  const solved = [{ type: OcgMessageType.CHAIN_SOLVED, chain_size: 1 }, { type: OcgMessageType.CHAIN_END }] as const;
+
+  it("reconnaît les dégâts de destruction du Royaume : la moitié de l'ATK du monstre détruit par un effet", () => {
+    const board = playAll(strong, [fissure, destroyed, { type: OcgMessageType.DAMAGE, player: 0, amount: 1250 }]);
+    expect(board.lastHit).toEqual({ player: 0, amount: 1250, code: FISSURE, destroyed: [DARK_MAGICIAN] });
+    expect(board.log.at(-1)).toEqual({ player: 0, parts: ["Règle spéciale : ", { code: DARK_MAGICIAN }, " détruit, perd la moitié de son ATK (1250 LP)"] });
+  });
+
+  it("garde le libellé ordinaire quand le montant ou le contexte ne correspond pas", () => {
+    // Not half of the ATK, then a destruction outside any chain (battle), then a chain that has ended.
+    const wrongAmount = playAll(strong, [fissure, destroyed, { type: OcgMessageType.DAMAGE, player: 0, amount: 800 }]);
+    expect(wrongAmount.lastHit?.destroyed).toBeUndefined();
+    expect(wrongAmount.log.at(-1)).toEqual({ player: 0, parts: ["Perd 800 LP"] });
+    expect(playAll(strong, [destroyed, { type: OcgMessageType.DAMAGE, player: 0, amount: 1250 }]).lastHit?.destroyed).toBeUndefined();
+    expect(playAll(strong, [fissure, destroyed, ...solved, { type: OcgMessageType.DAMAGE, player: 0, amount: 1250 }]).lastHit?.destroyed).toBeUndefined();
+  });
+
+  it("garde la raison de la victoire et explique la défaite d'un tour fini sans monstre", () => {
+    const board = playAll(strong, [{ type: OcgMessageType.WIN, player: 1, reason: 0x5a }]);
+    expect(board.winner).toBe(1);
+    expect(board.winReason).toBe(0x5a);
+    expect(board.log.at(-1)).toEqual({ player: 1, parts: ["Remporte le duel : l'autre duelliste a fini son tour sans monstre (règle spéciale)"] });
+    expect(playAll(strong, [{ type: OcgMessageType.WIN, player: 1, reason: 1 }]).winReason).toBe(1);
+  });
+});

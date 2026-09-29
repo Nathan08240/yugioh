@@ -10,8 +10,9 @@ import { Duel } from "./Duel.tsx";
 import { Fin } from "./Fin.tsx";
 import { initialLobby, reduce, type Action, type LobbyState } from "./lobby.ts";
 import { autoAnswer } from "./question.ts";
+import { specialRules } from "./regles.tsx";
 import { Shell, type Page } from "./Shell.tsx";
-import { duelLabel, Story } from "./Story.tsx";
+import { duelLabel, duelSpecial, Story } from "./Story.tsx";
 import { supabase } from "./supabase.ts";
 
 // Same origin as the page: Vite proxies /ws to the game server in dev.
@@ -145,14 +146,15 @@ function Screen({ state, page, send, reconnect, leave, respond, go, vsBot, story
     );
   }
   if (state.room && state.started && state.board) {
-    const story = state.storyOpen ? { title: duelLabel(state.story, storyDuel), won: state.won } : undefined;
+    const special = state.storyOpen ? duelSpecial(state.story, storyDuel) : [];
+    const story = state.storyOpen ? { title: duelLabel(state.story, storyDuel), won: state.won, special } : undefined;
     const leaveFor = (next: Page) => {
       leave();
       go(next);
     };
     return (
       <>
-        <Duel board={state.board} seat={state.seat ?? 0} asked={state.question} respond={respond} leave={leave} feed={state.feed} lp={state.lp} pseudo={state.pseudo} />
+        <Duel board={state.board} seat={state.seat ?? 0} asked={state.question} respond={respond} leave={leave} feed={state.feed} lp={state.lp} pseudo={state.pseudo} rules={specialRules(special)} />
         {state.board.winner !== undefined && <Fin board={state.board} seat={state.seat ?? 0} room={state.room} vsBot={vsBot} story={story} leave={leave} go={leaveFor} />}
       </>
     );

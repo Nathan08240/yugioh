@@ -820,3 +820,35 @@ button.slot {
     --carte-l: 44px;
   }
 }
+
+/* Badge « Règles spéciales » d'un duel d'histoire : la liste s'ouvre sous le badge, sur la colonne de droite */
+.regles-duel {
+  position: relative;
+  align-self: flex-end;
+}
+
+.regles-duel > summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.regles-duel > summary::-webkit-details-marker {
+  display: none;
+}
+
+.regles-duel__liste {
+  position: absolute;
+  inset: calc(100% + var(--e-2)) 0 auto auto;
+  z-index: var(--z-question);
+  display: grid;
+  gap: var(--e-2);
+  inline-size: min(24rem, 80vw);
+}
+
+.regles-duel .regles {
+  background: rgb(6 8 23 / 0.96);
+}
+
+.regles-duel .regles ul {
+  grid-template-columns: 1fr;
+}

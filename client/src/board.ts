@@ -27,11 +27,19 @@ export type Board = {
   phase: number;
   chain: (Place & { code: number })[];
   winner?: number;
+  // Reason of the WIN message (0 surrender, 1 LP at 0, 2 empty deck, NO_MONSTER...).
+  winReason?: number;
   log: LogEntry[];
   // The attacker of the battle in progress (forgotten at the next phase), and the last damage dealt with the card behind it.
   attacker?: number;
-  lastHit?: { player: number; amount: number; code: number };
+  // `destroyed`: the monsters whose destruction by an effect caused the damage (Duelist Kingdom rule), when it looks like it.
+  lastHit?: { player: number; amount: number; code: number; destroyed?: number[] };
+  // Monsters sent to the Graveyard while a chain resolves, with their ATK on the field; forgotten at the end of the chain.
+  gone: { player: number; code: number; atk?: number }[];
 };
+
+// Reason of the WIN sent by the Duelist Kingdom script: the turn player ended it without a monster or a summon.
+export const NO_MONSTER = 0x5a;
 
 const side = (lp: number, deck: number, extra: number): Side => ({
   lp,
@@ -51,6 +59,7 @@ export const newBoard = (lp: number, decks: readonly number[], extras: readonly 
   phase: 0,
   chain: [],
   log: [],
+  gone: [],
 });
 
 function pile(owner: Side, location: number): Card[] | undefined {
@@ -119,6 +128,16 @@ const damageSource = (board: Board) => {
   return (link ? link.code : board.attacker) ?? 0;
 };
 
+type Damage = Extract<Message, { type: OcgMessageType.DAMAGE }>;
+
+// Damage of the Duelist Kingdom rule: half the ATK of the monsters an effect just destroyed. Undefined when the amount does not match.
+function ruleDamage(board: Board, msg: Damage): number[] | undefined {
+  const gone = board.gone.filter((card) => card.player === msg.player);
+  if (gone.length === 0 || gone.some((card) => card.atk === undefined)) return undefined;
+  const total = gone.reduce((sum, card) => sum + (card.atk ?? 0), 0);
+  return Math.floor(total / 2) === msg.amount ? gone.map((card) => card.code) : undefined;
+}
+
 // LP are sent as unsigned 32-bit values: below 0 they wrap around.
 const int32 = (value: number) => value | 0;
 
@@ -131,7 +150,10 @@ function apply(board: Board, msg: Message) {
       break;
     }
     case OcgMessageType.MOVE: {
-      take(board, msg.from);
+      const left = take(board, msg.from);
+      if (msg.from.location === OcgLocation.MZONE && msg.to.location === OcgLocation.GRAVE && board.chain.length > 0) {
+        board.gone.push({ player: msg.from.controller, code: msg.card, atk: left?.atk });
+      }
       put(board, msg.to, { code: msg.card, position: msg.to.position });
       break;
     }
@@ -166,6 +188,7 @@ function apply(board: Board, msg: Message) {
       break;
     case OcgMessageType.CHAIN_END:
       board.chain = [];
+      board.gone = [];
       break;
     case OcgMessageType.NEW_TURN:
       board.turn++;
@@ -177,7 +200,7 @@ function apply(board: Board, msg: Message) {
       board.attacker = undefined;
       break;
     case OcgMessageType.DAMAGE:
-      board.lastHit = { player: msg.player, amount: msg.amount, code: damageSource(board) };
+      board.lastHit = { player: msg.player, amount: msg.amount, code: damageSource(board), destroyed: ruleDamage(board, msg) };
       board.players[msg.player].lp -= msg.amount;
       break;
     case OcgMessageType.PAY_LPCOST:
@@ -191,6 +214,7 @@ function apply(board: Board, msg: Message) {
       break;
     case OcgMessageType.WIN:
       board.winner = msg.player;
+      board.winReason = msg.reason;
       break;
     case "stats":
       setStats(board, msg);
@@ -232,6 +256,13 @@ function attackLog(board: Board, msg: Extract<Message, { type: OcgMessageType.AT
   return { player: msg.card.controller, parts };
 }
 
+function damageLog(board: Board, msg: Damage): LogEntry {
+  const destroyed = ruleDamage(board, msg);
+  if (!destroyed) return { player: msg.player, parts: [`Perd ${msg.amount} LP`] };
+  const names = destroyed.flatMap((code, i) => (i ? [", ", { code }] : [{ code }]));
+  return { player: msg.player, parts: ["Règle spéciale : ", ...names, ` détruit, perd la moitié de son ATK (${msg.amount} LP)`] };
+}
+
 // A readable line for the messages worth showing, read before the message changes the board.
 function describe(board: Board, msg: Message): LogEntry | undefined {
   switch (msg.type) {
@@ -257,7 +288,7 @@ function describe(board: Board, msg: Message): LogEntry | undefined {
     case OcgMessageType.EQUIP:
       return { player: msg.card.controller, parts: ["Équipe ", at(board, msg.card), " à ", at(board, msg.target)] };
     case OcgMessageType.DAMAGE:
-      return { player: msg.player, parts: [`Perd ${msg.amount} LP`] };
+      return damageLog(board, msg);
     case OcgMessageType.PAY_LPCOST:
       return { player: msg.player, parts: [`Paie ${msg.amount} LP`] };
     case OcgMessageType.RECOVER:
@@ -265,7 +296,7 @@ function describe(board: Board, msg: Message): LogEntry | undefined {
     case OcgMessageType.MOVE:
       return moveLog(msg);
     case OcgMessageType.WIN:
-      return { player: msg.player, parts: ["Remporte le duel"] };
+      return { player: msg.player, parts: [msg.reason === NO_MONSTER ? "Remporte le duel : l'autre duelliste a fini son tour sans monstre (règle spéciale)" : "Remporte le duel"] };
     default:
       return undefined;
   }

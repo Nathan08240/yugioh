@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef } from "react";
-import type { Board } from "./board.ts";
+import { NO_MONSTER, type Board } from "./board.ts";
 import { CardView } from "./Card.tsx";
 import { cardName, useDuelView } from "./cards.ts";
 import type { StoryWon } from "./lobby.ts";
@@ -14,8 +14,8 @@ type Props = {
   room: string;
   // Only an online duel between two players earns a booster.
   vsBot: boolean;
-  // A story duel ("Battle City · Duel 4 sur 5"), with its conclusion once the server has recorded the win.
-  story?: { title?: string; won?: StoryWon };
+  // A story duel ("Battle City · Duel 4 sur 5"), its special rules, and its conclusion once the server has recorded the win.
+  story?: { title?: string; won?: StoryWon; special?: readonly string[] };
   leave: () => void;
   go: (page: Page) => void;
 };
@@ -95,7 +95,7 @@ export function Fin({ board, seat, room, vsBot, story, leave, go }: Readonly<Pro
         </h1>
         <Score board={board} seat={seat} won={won} lost={lost} />
         {won && <Gains story={story} boosters={boosters} />}
-        {lost && <FinalBlow board={board} seat={seat} />}
+        {(won || lost) && <Cause board={board} seat={seat} won={won} kingdom={story?.special?.includes("duelist-kingdom") ?? false} />}
         {lost && !story && !vsBot && <p className="texte-2 fin__note">Le vainqueur d'un duel en ligne reçoit un booster. Retentez votre chance avec un deck ajusté.</p>}
         <div className="fin__actions">
           {boosters > 0 ? (
@@ -172,18 +172,41 @@ function Gains({ story, boosters }: Readonly<{ story?: { won?: StoryWon }; boost
   );
 }
 
-// The card behind the last damage the player took.
-function FinalBlow({ board, seat }: Readonly<{ board: Board; seat: number }>) {
+// WIN reasons of the engine other than "LP at 0" (1), as [the opponent caused it, the player did].
+const CAUSES = new Map<number, [string, string]>([
+  [0, ["L'adversaire a abandonné.", "Vous avez abandonné."]],
+  [2, ["L'adversaire n'a plus de carte à piocher.", "Vous n'avez plus de carte à piocher."]],
+  [3, ["Temps limite atteint.", "Temps limite atteint."]],
+  [4, ["La connexion de l'adversaire a été perdue.", "Votre connexion a été perdue."]],
+  [NO_MONSTER, ["L'adversaire a fini son tour sans monstre et sans en avoir invoqué (règle du Royaume des Duellistes).", "Vous avez fini votre tour sans monstre et sans en avoir invoqué (règle du Royaume des Duellistes)."]],
+  [0x56, ["L'adversaire n'a plus de Deck Master (règle du Monde virtuel).", "Vous n'avez plus de Deck Master (règle du Monde virtuel)."]],
+]);
+const OTHER_CAUSE = "Le duel s'est terminé par l'effet d'une carte ou d'une règle spéciale.";
+
+// How the duel ended: the reason when it is not the loss of all LP, else the last damage taken.
+function Cause({ board, seat, won, kingdom }: Readonly<{ board: Board; seat: number; won: boolean; kingdom: boolean }>) {
+  const reason = board.winReason;
+  if (reason === undefined || reason === 1) return won ? null : <FinalBlow board={board} seat={seat} kingdom={kingdom} />;
+  return <p className="texte-2 fin__note">{CAUSES.get(reason)?.[won ? 0 : 1] ?? OTHER_CAUSE}</p>;
+}
+
+// The card behind the last damage the player took, and the Duelist Kingdom rule when the damage comes from it.
+function FinalBlow({ board, seat, kingdom }: Readonly<{ board: Board; seat: number; kingdom: boolean }>) {
   const { cards } = useDuelView();
   const hit = board.lastHit;
-  if (hit?.player !== seat || !hit.code) return null;
+  if (hit?.player !== seat) return null;
+  const destroyed = kingdom ? hit.destroyed : undefined;
+  const code = hit.code || destroyed?.[0];
+  if (!code) return null;
+  const names = destroyed?.map((card) => cardName(cards, card)).join(", ");
+  const source = hit.code ? `a détruit ${names}` : "détruit par un effet";
   return (
     <div className="fin__coup">
-      <CardView code={hit.code} />
+      <CardView code={code} />
       <p>
-        <span className="surtitre">Coup final</span>
-        <b>{cardName(cards, hit.code)}</b>
-        <span className="texte-2">{hit.amount} points de dégâts</span>
+        <span className="surtitre">{destroyed ? "Règle du Royaume" : "Coup final"}</span>
+        <b>{cardName(cards, code)}</b>
+        <span className="texte-2">{destroyed ? `${source}, vous perdez la moitié de son ATK : ${hit.amount} points de dégâts` : `${hit.amount} points de dégâts`}</span>
       </p>
     </div>
   );

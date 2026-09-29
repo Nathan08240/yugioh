@@ -2,55 +2,11 @@ import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type 
 import type { ClientMessage, StoryArcView, StoryDuelView, StoryStatus } from "../../server/src/protocol.ts";
 import { cardName, isDivine, useDuelView, type Cards } from "./cards.ts";
 import { createQueue, entrance } from "./motion.ts";
+import { RuleBlock, specialRules } from "./regles.tsx";
 import "./styles/histoire.css";
 import { Icon, Rewards } from "./ui.tsx";
 
 const STATUS: Record<StoryStatus, string> = { locked: "Verrouillé", available: "Disponible", done: "Gagné" };
-
-// Special rules of the story data (server/src/story.ts EXTRA_RULES), as the player reads them.
-const RULES = new Map([
-  [
-    "duelist-kingdom",
-    {
-      title: "Règles du Royaume des Duellistes",
-      details: [
-        "Pas d'attaque directe.",
-        "Invocation Normale possible en Position de Défense face recto.",
-        "Monstres de niveau 5 ou plus invoqués sans Sacrifice.",
-        "Un monstre détruit par un effet inflige à son contrôleur la moitié de son ATK.",
-        "Un seul monstre peut attaquer par tour.",
-        "Qui finit son tour sans monstre et sans en avoir invoqué perd le duel.",
-      ],
-    },
-  ],
-  [
-    "battle-city",
-    {
-      title: "Règles de Battle City",
-      details: [
-        "Invocation Normale possible en Position de Défense face recto.",
-        "Les monstres de niveau 10 ou plus demandent 3 Sacrifices.",
-        "Pendant la Battle Phase, les Magies se jouent comme des Magies Jeu-Rapide.",
-        "Un monstre invoqué depuis l'Extra Deck ne peut pas attaquer le tour de son invocation.",
-        "Une Magie ou un Piège détruit pendant son activation perd son effet.",
-      ],
-    },
-  ],
-  [
-    "virtual-world",
-    {
-      title: "Règles du Monde virtuel",
-      details: [
-        "Chaque duelliste choisit un Deck Master en début de duel, gardé hors du deck.",
-        "Pendant sa Main Phase, on peut l'Invoquer Spécialement depuis l'extérieur du duel.",
-        "Qui n'a plus de Deck Master perd le duel : sur le terrain, il peut être détruit.",
-        "Un monstre sacrifié transmet son rôle au monstre invoqué grâce à lui.",
-        "Aucun monstre ne se pose face verso : il arrive face recto en Position de Défense.",
-        "Seuls Total Defense Shogun et Super Roboyarou ont leur pouvoir de Deck Master.",
-      ],
-    },
-  ],
-]);
 
 // Switching between the duels of an arc and a briefing replays the entrance of the view.
 const views = createQueue();
@@ -75,6 +31,10 @@ export function duelLabel(arcs: StoryArcView[] | undefined, id: string | undefin
   }
   return undefined;
 }
+
+// The special rules of a story duel, for the duel screen and its end.
+export const duelSpecial = (arcs: StoryArcView[] | undefined, id: string | undefined): string[] =>
+  arcs?.flatMap((arc) => arc.duels).find((duel) => duel.id === id)?.special ?? [];
 
 function unlockHint(duel: StoryDuelView, arc: StoryArcView, arcs: StoryArcView[]): string {
   const [need] = duel.requires;
@@ -277,7 +237,7 @@ type BriefingProps = { ref?: Ref<HTMLDivElement>; duel: StoryDuelView; label?: s
 // Before the duel: the opponent projected by the Duel Disk, the story so far, the rules, what can be won.
 export function Briefing({ ref, duel, label, back, start }: Readonly<BriefingProps>) {
   const { cards } = useDuelView();
-  const rules = duel.special.flatMap((name) => RULES.get(name) ?? []);
+  const rules = specialRules(duel.special);
   const star = duel.rewards.cards?.find((code) => cards.get(code)?.image);
   const replay = duel.status === "done";
   return (
@@ -313,14 +273,7 @@ export function Briefing({ ref, duel, label, back, start }: Readonly<BriefingPro
           <li className="puce">{duel.hand} cartes en main</li>
         </ul>
         {rules.map((rule) => (
-          <details key={rule.title} className="regles panneau" open data-entree>
-            <summary>{rule.title}</summary>
-            <ul>
-              {rule.details.map((detail) => (
-                <li key={detail}>{detail}</li>
-              ))}
-            </ul>
-          </details>
+          <RuleBlock key={rule.title} rule={rule} open />
         ))}
         <div className="briefing__bas" data-entree>
           <div className="briefing__gains">
