@@ -96,7 +96,7 @@ export function Fin({ board, seat, room, vsBot, opponent, story, leave, go }: Re
         </h1>
         <Score board={board} seat={seat} won={won} lost={lost} opponent={opponent} />
         {won && <Gains story={story} boosters={boosters} />}
-        {(won || lost) && <Cause board={board} seat={seat} won={won} kingdom={story?.special?.includes("duelist-kingdom") ?? false} />}
+        {(won || lost) && <Cause board={board} seat={seat} won={won} kingdom={story?.special?.includes("duelist-kingdom") ?? false} opponent={opponent} />}
         {lost && !story && !vsBot && <p className="texte-2 fin__note">Le vainqueur d'un duel en ligne reçoit un booster. Retentez votre chance avec un deck ajusté.</p>}
         <div className="fin__actions">
           {boosters > 0 ? (
@@ -185,10 +185,11 @@ const CAUSES = new Map<number, [string, string]>([
 const OTHER_CAUSE = "Le duel s'est terminé par l'effet d'une carte ou d'une règle spéciale.";
 
 // How the duel ended: the reason when it is not the loss of all LP, else the last damage taken.
-function Cause({ board, seat, won, kingdom }: Readonly<{ board: Board; seat: number; won: boolean; kingdom: boolean }>) {
+function Cause({ board, seat, won, kingdom, opponent }: Readonly<{ board: Board; seat: number; won: boolean; kingdom: boolean; opponent?: string }>) {
   const reason = board.winReason;
   if (reason === undefined || reason === 1) return won ? null : <FinalBlow board={board} seat={seat} kingdom={kingdom} />;
-  return <p className="texte-2 fin__note">{CAUSES.get(reason)?.[won ? 0 : 1] ?? OTHER_CAUSE}</p>;
+  const text = CAUSES.get(reason)?.[won ? 0 : 1] ?? OTHER_CAUSE;
+  return <p className="texte-2 fin__note">{opponent ? text.replace(/l'adversaire/i, opponent) : text}</p>;
 }
 
 // The card behind the last damage the player took, and the Duelist Kingdom rule when the damage comes from it.

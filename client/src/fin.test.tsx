@@ -47,6 +47,13 @@ it("nomme l'adversaire dans l'écran de défaite, avec un repli neutre", () => {
   expect(named()).toContain("L&#x27;adversaire l&#x27;emporte au tour");
 });
 
+it("nomme l'adversaire dans la cause de fin, avec un repli neutre", () => {
+  const board = finished(0, 0);
+  const cause = (opponent?: string) => render(<Fin board={board} seat={0} room="r" vsBot={false} opponent={opponent} leave={() => {}} go={() => {}} />);
+  expect(cause("Seto Kaiba")).toContain("Seto Kaiba a abandonné.");
+  expect(cause()).toContain("L&#x27;adversaire a abandonné.");
+});
+
 it("garde le coup final ordinaire hors du Royaume", () => {
   const html = fin(finished(1));
   expect(html).toContain("Coup final");
