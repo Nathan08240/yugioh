@@ -158,3 +158,33 @@ it("clic, Échap et Espace passent la séquence en cours, pas Espace dans un cha
   await vi.runAllTimersAsync();
   await done;
 });
+
+it("fait progresser une interpolation image par image, la termine si on passe, la saute en réduction sauf un fondu", async () => {
+  vi.stubGlobal("requestAnimationFrame", (tick: FrameRequestCallback) => setTimeout(() => tick(Date.now()), 16));
+  vi.stubGlobal("cancelAnimationFrame", (frame: number) => clearTimeout(frame));
+  const seen: number[] = [];
+  const queue = createQueue(() => false);
+  const done = queue.play(async ({ tween }) => {
+    await tween(160, (k) => seen.push(k));
+    await tween(5000, (k) => seen.push(k));
+  });
+  await vi.advanceTimersByTimeAsync(16 * 12);
+  expect(seen.slice(0, 11)).toEqual([0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1].map((k) => expect.closeTo(k, 5)));
+  queue.skip();
+  await done;
+  expect(seen.at(-1)).toBe(1);
+
+  const reduced = createQueue(() => true);
+  const faded: number[] = [];
+  const jumped: number[] = [];
+  const both = reduced.play(async ({ tween }) => {
+    await tween(900, (k) => jumped.push(k));
+    await tween(900, (k) => faded.push(k), true);
+  });
+  await vi.advanceTimersByTimeAsync(FONDU + 32);
+  await both;
+  expect(jumped).toEqual([1]);
+  expect(faded.length).toBeGreaterThan(5);
+  expect(faded.at(-1)).toBe(1);
+  vi.unstubAllGlobals();
+});

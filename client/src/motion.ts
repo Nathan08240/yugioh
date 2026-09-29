@@ -17,6 +17,9 @@ export type Step = {
   anim: (el: Element, keyframes: Keyframe[], options?: AnimOptions) => Promise<void>;
   // A wait; `reading` keeps it with reduced motion (time left to read).
   pause: (ms: number, reading?: boolean) => Promise<void>;
+  // Calls `update` each frame with the progress k (0 to 1), for what the Web Animations API cannot reach (3D, counters).
+  // With reduced motion it jumps to 1, unless `fade` keeps it as a fade of 150 ms.
+  tween: (duration: number, update: (k: number) => void, fade?: boolean) => Promise<void>;
   // Reduced motion: no decoration (sweeps, rays, flashes).
   reduced: boolean;
 };
@@ -71,6 +74,36 @@ export function createQueue(reduced: () => boolean = prefersReduced): Queue {
           };
           const timer = setTimeout(wake, ms / rate());
           run.wakers.add(wake);
+        });
+      },
+      tween(duration, update, fade = false) {
+        const length = isReduced ? Number(fade) * FONDU : duration;
+        if (run.fast || length <= 0) {
+          update(1);
+          return Promise.resolve();
+        }
+        return new Promise((resolve) => {
+          let elapsed = 0;
+          let last: number | undefined;
+          let frame = 0;
+          const end = () => {
+            cancelAnimationFrame(frame);
+            run.wakers.delete(end);
+            update(1);
+            resolve();
+          };
+          const tick = (now: number) => {
+            elapsed += (now - (last ?? now)) * rate();
+            last = now;
+            if (elapsed >= length) {
+              end();
+              return;
+            }
+            update(elapsed / length);
+            frame = requestAnimationFrame(tick);
+          };
+          run.wakers.add(end);
+          frame = requestAnimationFrame(tick);
         });
       },
     };
