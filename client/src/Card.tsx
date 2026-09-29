@@ -87,7 +87,7 @@ export function CardView({ code, position = 0, location = 0, full = false, rarit
   return (
     <article className="detail">
       {card}
-      <Text info={info} name={name} monster={monster} />
+      <Text info={info} name={name} monster={monster} atk={atk} def={def} />
     </article>
   );
 }
@@ -128,7 +128,7 @@ function rest(event: PointerEvent<HTMLDivElement>) {
 }
 
 // Normal monsters carry flavor text, in italics as on the printed cards.
-function Text({ info, name, monster }: Readonly<{ info?: CardInfo; name: string; monster: boolean }>) {
+function Text({ info, name, monster, atk, def }: Readonly<{ info?: CardInfo; name: string; monster: boolean; atk?: number; def?: number }>) {
   if (!info) return null;
   const meta = monster ? `${info.attributeName} · Niveau ${info.level} · ${info.typeLine}` : info.typeLine;
   const flavor = monster && has(info.type, OcgType.NORMAL);
@@ -138,7 +138,7 @@ function Text({ info, name, monster }: Readonly<{ info?: CardInfo; name: string;
       <p className="detail__meta">{meta}</p>
       {monster && (
         <p className="detail__stats">
-          ATK <b>{stat(info.atk)}</b> DEF <b>{stat(info.def)}</b>
+          <DetailStat label="ATK" current={atk ?? info.atk} printed={info.atk} /> <DetailStat label="DEF" current={def ?? info.def} printed={info.def} />
         </p>
       )}
       <p className={flavor ? "detail__desc saveur" : "detail__desc"}>{info.desc}</p>
@@ -146,7 +146,19 @@ function Text({ info, name, monster }: Readonly<{ info?: CardInfo; name: string;
   );
 }
 
-export function CardDetail({ code }: Readonly<{ code?: number }>) {
+// The printed value stays as a reminder when the current one differs.
+function DetailStat({ label, current, printed }: Readonly<{ label: string; current: number; printed: number }>) {
+  const change = statChange(current, printed);
+  return (
+    <>
+      {label} <b className={change && `est-${change}`}>{stat(current)}</b>
+      {change && <small className="detail__imprime">({stat(printed)})</small>}
+    </>
+  );
+}
+
+// `atk` and `def`: current stats of a monster on the field, the printed ones otherwise.
+export function CardDetail({ code, atk, def }: Readonly<{ code?: number; atk?: number; def?: number }>) {
   if (code === undefined) return <p className="detail-vide">Survolez une carte pour la voir en détail.</p>;
-  return <CardView code={code} full />;
+  return <CardView code={code} full atk={atk} def={def} />;
 }

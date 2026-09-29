@@ -414,6 +414,20 @@
   color: var(--texte);
 }
 
+.detail__stats b.est-hausse {
+  color: var(--succes);
+}
+
+.detail__stats b.est-baisse {
+  color: var(--danger);
+}
+
+.detail__imprime {
+  margin-inline-end: var(--e-3);
+  font-size: var(--taille-xs);
+  color: var(--texte-3);
+}
+
 .detail__desc {
   font-size: var(--taille-s);
   line-height: 1.5;
