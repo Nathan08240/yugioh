@@ -10,9 +10,9 @@ import {
   type OcgMessage,
   type OcgResponse,
 } from "@n1xx1/ocgcore-wasm";
-import type { ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { respond as automatic } from "../../server/src/respond.ts";
-import { cardAt, type Board, type EngineMessage, type Place } from "./board.ts";
+import { cardAt, losesAtTurnEnd, type Board, type EngineMessage, type Place } from "./board.ts";
 import type { Targets } from "./Board.tsx";
 import { cardName, effectText, has, useDuelView, type Cards, type Strings } from "./cards.ts";
 import { freePlaces, placeKey, pointDe, type Point } from "./question.ts";
@@ -26,6 +26,8 @@ export type Ctx = {
   strings: Strings;
   picked: string[];
   cible?: string;
+  // Duelist Kingdom duel: ending the turn with no monster loses, so it is confirmed first.
+  kingdom?: boolean;
   setPicked: (keys: string[], point?: Point, cible?: string) => void;
   respond: (response: OcgResponse) => void;
 };
@@ -75,7 +77,11 @@ const range = (min: number, max: number) => (min === max ? String(min) : `${min}
 
 // `depot`: whether a drop on that zone (a zone key, or the opponent's number) takes this action.
 export type Choice = { place: Located; id: string; label: string; response: OcgResponse; depot?: (cible: string) => boolean };
-type Action = { label: string; response: OcgResponse };
+// `warn`: a confirmation to read before the response is sent.
+type Action = { label: string; response: OcgResponse; warn?: string };
+
+const KINGDOM_WARNING = "Règle du Royaume : finir votre tour sans monstre vous fait perdre le duel. Finir quand même ?";
+const endTurn = (ctx: Ctx) => (ctx.kingdom && losesAtTurnEnd(ctx.board) ? KINGDOM_WARNING : undefined);
 
 const ON_BOARD: ReadonlySet<number> = new Set([OcgLocation.HAND, OcgLocation.MZONE, OcgLocation.SZONE]);
 
@@ -104,13 +110,41 @@ function menu(title: string, choices: Choice[], actions: Action[], ctx: Ctx): Ui
 }
 
 function Buttons({ actions, ctx }: Readonly<{ actions: Action[]; ctx: Ctx }>) {
+  const [asked, setAsked] = useState<Action>();
+  if (asked) return <Confirm action={asked} ctx={ctx} cancel={() => setAsked(undefined)} />;
   return (
     <div className="actions">
       {actions.map((action) => (
-        <button key={action.label} type="button" className="btn btn--fantome" onClick={() => ctx.respond(action.response)}>
+        <button key={action.label} type="button" className="btn btn--fantome" onClick={() => (action.warn ? setAsked(action) : ctx.respond(action.response))}>
           {action.label}
         </button>
       ))}
+    </div>
+  );
+}
+
+// Cancel has the focus; Escape cancels too, without reaching the other Escape handlers.
+function Confirm({ action, ctx, cancel }: Readonly<{ action: Action; ctx: Ctx; cancel: () => void }>) {
+  const first = useRef<HTMLButtonElement>(null);
+  useEffect(() => first.current?.focus(), []);
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.stopPropagation();
+      cancel();
+    };
+    document.addEventListener("keydown", onKey, true);
+    return () => document.removeEventListener("keydown", onKey, true);
+  }, [cancel]);
+  return (
+    <div role="alertdialog" aria-label="Confirmation" className="actions">
+      <p>{action.warn}</p>
+      <button ref={first} type="button" className="btn" onClick={cancel}>
+        Annuler
+      </button>
+      <button type="button" className="btn btn--fantome" onClick={() => ctx.respond(action.response)}>
+        Finir le tour
+      </button>
     </div>
   );
 }
@@ -171,7 +205,7 @@ function idle(q: Q<OcgMessageType.SELECT_IDLECMD>, ctx: Ctx): Ui {
   ];
   const actions: Action[] = [];
   if (q.to_bp) actions.push({ label: "Battle Phase", response: idleResponse(SelectIdleCMDAction.TO_BP, null) });
-  if (q.to_ep) actions.push({ label: "End Phase", response: idleResponse(SelectIdleCMDAction.TO_EP, null) });
+  if (q.to_ep) actions.push({ label: "End Phase", response: idleResponse(SelectIdleCMDAction.TO_EP, null), warn: endTurn(ctx) });
   return menu("À vous de jouer : choisissez une carte ou changez de phase", choices, actions, ctx);
 }
 
@@ -194,7 +228,7 @@ function battle(q: Q<OcgMessageType.SELECT_BATTLECMD>, ctx: Ctx): Ui {
   ];
   const actions: Action[] = [];
   if (q.to_m2) actions.push({ label: "Main Phase 2", response: battleResponse(SelectBattleCMDAction.TO_M2, null) });
-  if (q.to_ep) actions.push({ label: "End Phase", response: battleResponse(SelectBattleCMDAction.TO_EP, null) });
+  if (q.to_ep) actions.push({ label: "End Phase", response: battleResponse(SelectBattleCMDAction.TO_EP, null), warn: endTurn(ctx) });
   return menu("Battle Phase : choisissez un monstre qui attaque", choices, actions, ctx);
 }
 
