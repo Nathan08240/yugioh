@@ -34,6 +34,7 @@ const STYLES: Record<Etat, { couleur?: string; force: number; fond: number; puls
   activee: { force: 1.8, fond: 0.08, pulse: 0 },
   cible: { couleur: "--holo", force: 2, fond: 0.06, pulse: 1 },
 };
+const TERRAIN = { l: 2 * PLATEAU.l - 0.1, p: PLATEAU.p - 0.05, opacite: 0.32 };
 const FIELD: ReadonlySet<string> = new Set(["terrain", "monstre", "magie"]);
 const DEPARTS: Record<Depart, string> = { destruction: "--danger", sacrifice: "--or", materiau: "--type-fusion" };
 
@@ -78,6 +79,8 @@ export class Monde {
   private readonly faces = new Map<string, THREE.CanvasTexture>();
   private readonly arts = new Map<number, THREE.Texture>();
   private readonly maillons: THREE.Sprite[] = [];
+  // Half of the mat of each camp, dressed with the artwork of its Field Spell (fades in and out).
+  private readonly terrains: { mesh: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>; code: number; vise: number }[] = [];
   private readonly mat: { tranche: THREE.Material; tranchePile: THREE.Material; dos: THREE.MeshStandardMaterial };
   private readonly geo: { carte: THREE.BufferGeometry; zone: THREE.BufferGeometry };
   private readonly holo: { groupe: THREE.Group; plan: THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial>; cone: THREE.Mesh<THREE.CylinderGeometry, THREE.ShaderMaterial>; anneau: THREE.Mesh<THREE.RingGeometry, THREE.MeshBasicMaterial> };
@@ -151,6 +154,14 @@ export class Monde {
     );
     tapis.renderOrder = 1;
     this.racine.add(tapis);
+    for (const camp of [0, 1]) {
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(TERRAIN.l, TERRAIN.p).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }));
+      mesh.position.set(0, 0.001, (camp === 0 ? 1 : -1) * (TERRAIN.p / 2));
+      mesh.renderOrder = 1.5;
+      mesh.visible = false;
+      this.racine.add(mesh);
+      this.terrains.push({ mesh, code: 0, vise: 0 });
+    }
     const sol = new THREE.Mesh(new THREE.PlaneGeometry(60, 60).rotateX(-Math.PI / 2), effet(FS_SOL, { uColor: uni(hdr("--holo", 0.5)) }, true, VS_MONDE));
     sol.position.y = -0.03;
     this.racine.add(sol);
@@ -279,7 +290,33 @@ export class Monde {
         Object.assign(zone.carte, voulue);
       } else this.poserCarte(zone, voulue);
     }
+    this.syncTerrains(etat);
     this.syncChaine(chain);
+  }
+
+  private syncTerrains(etat: EtatScene) {
+    for (const zone of this.zones.values()) {
+      if (zone.type !== "terrain") continue;
+      const carte = etat.cartes.get(zone.id);
+      void this.habillerTerrain(zone.camp, carte && !carte.cachee ? carte.code : 0);
+    }
+  }
+
+  private async habillerTerrain(camp: number, code: number) {
+    const terrain = this.terrains[camp];
+    if (terrain.code === code) return;
+    terrain.code = code;
+    const img = code ? await art(code, this.cards.get(code)) : undefined;
+    if (terrain.code !== code) return;
+    terrain.vise = img ? TERRAIN.opacite : 0;
+    if (!img) return;
+    // Cover-crop the artwork to the half mat.
+    const map = this.texArt(code, img);
+    const [a, p] = [img.width / img.height, TERRAIN.l / TERRAIN.p];
+    map.repeat.set(Math.min(1, p / a), Math.min(1, a / p));
+    map.offset.set((1 - map.repeat.x) / 2, (1 - map.repeat.y) / 2);
+    terrain.mesh.material.map = map;
+    terrain.mesh.material.needsUpdate = true;
   }
 
   private syncChaine(chain: Board["chain"]) {
@@ -677,6 +714,10 @@ export class Monde {
     const k = reduit ? 1 : 1 - Math.exp(-dt * 12);
     const retombe = reduit ? 0 : Math.exp(-dt * 6);
     for (const zone of this.zones.values()) this.majCarte(zone, k, retombe);
+    for (const { mesh, vise } of this.terrains) {
+      mesh.material.opacity += (vise - mesh.material.opacity) * (reduit ? 1 : 1 - Math.exp(-dt * 3));
+      mesh.visible = mesh.material.opacity > 0.005;
+    }
     const { lacet, tangage, recul } = this.decalage;
     this.poserCamera(this.distance * (1 + recul), lacet, tangage);
     this.decalage.secousse *= retombe;
