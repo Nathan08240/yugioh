@@ -15,9 +15,9 @@ import { dbDeckStore, deckReply, isDeckMessage, poolCard, validDeckMessage, type
 import { activeDeck, createProfile, findProfile, openDb, type ActiveDeck, type Db, type Profile } from "./db.ts";
 import { EXTRA_MAX, isFusion, MAIN_MAX, MAIN_MIN } from "./deckcheck.ts";
 import { KAIBA } from "./decks.ts";
-import { agreeToRules, openDuel, STANDARD_RULES, type Rules, type Seed } from "./duel.ts";
+import { agreeToRules, fieldStats, openDuel, STANDARD_RULES, type Rules, type Seed } from "./duel.ts";
 import { isAllowed, POOL, type Printing } from "./pool.ts";
-import type { CardInfo, ClientMessage, Rewards, Seat, ServerMessage } from "./protocol.ts";
+import type { CardInfo, ClientMessage, DuelEvent, Rewards, Seat, ServerMessage } from "./protocol.ts";
 import { respond } from "./respond.ts";
 import { serveClient } from "./site.ts";
 import { chooseStarter, starterCards, type Starter } from "./starter.ts";
@@ -26,7 +26,8 @@ import { systemStrings } from "./strings.ts";
 import { hideCards, visibleTo } from "./visibility.ts";
 
 type Question = Extract<OcgMessage, { player: number }>;
-type Player = { id: string; socket?: WebSocket; log: OcgMessage[]; deck: readonly number[]; extra?: readonly number[]; bot?: Bot };
+// `stats`: the last stats event sent, as JSON.
+type Player = { id: string; socket?: WebSocket; log: DuelEvent[]; deck: readonly number[]; extra?: readonly number[]; bot?: Bot; stats?: string };
 export type Room = {
   code: string;
   players: Player[];
@@ -218,10 +219,15 @@ function play(room: Room, player: Player, question: OcgMessage, retry: boolean) 
   }, bot.delay).unref();
 }
 
-function broadcast(room: Room, messages: OcgMessage[]) {
+// The messages each player may see, followed by the monster stats as the engine left them.
+function broadcast(room: Room, duel: NonNullable<Room["duel"]>, messages: OcgMessage[]) {
   room.players.forEach((player, seat) => {
-    const visible = messages.flatMap((msg) => visibleTo(msg, seat) ?? []);
-    if (visible.length === 0) return;
+    const visible: DuelEvent[] = messages.flatMap((msg) => visibleTo(msg, seat) ?? []);
+    const stats = fieldStats(duel, seat);
+    const key = JSON.stringify(stats);
+    if (visible.length === 0 && key === player.stats) return;
+    player.stats = key;
+    visible.push(stats);
     player.log.push(...visible);
     send(player.socket, { type: "messages", messages: visible });
   });
@@ -256,7 +262,8 @@ function sendJoined(room: Room, seat: Seat) {
 // Runs the engine until it asks a question or the duel ends. A crash inside the engine closes only this room.
 export function advance(room: Room) {
   if (!room.duel) return;
-  const { lib, handle } = room.duel;
+  const duel = room.duel;
+  const { lib, handle } = duel;
   for (;;) {
     let status: OcgProcessResult;
     let messages: OcgMessage[];
@@ -274,7 +281,7 @@ export function advance(room: Room) {
     const events = messages.filter((msg) => !ANSWERS.has(msg.type));
     // The engine keeps sending WIN without ever reaching END: the first one closes the duel.
     const win = events.findIndex((msg) => msg.type === OcgMessageType.WIN);
-    broadcast(room, win === -1 ? events : events.slice(0, win + 1));
+    broadcast(room, duel, win === -1 ? events : events.slice(0, win + 1));
     const won = events[win];
     if (won?.type === OcgMessageType.WIN) room.onWin?.(won.player);
     if (win !== -1 || status === OcgProcessResult.END) {

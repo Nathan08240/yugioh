@@ -48,6 +48,16 @@ describe("plateau reconstruit à partir des messages du moteur", () => {
     expect(start.players[0].monsters[0]).toBeNull();
   });
 
+  it("garde les stats courantes envoyées par le serveur jusqu'au départ du monstre", () => {
+    const empty = [null, null, null, null, null];
+    const boosted = playAll(summoned, [{ type: "stats", monsters: [[{ atk: 2700, def: 2300 }, ...empty.slice(1)], empty] }]);
+    expect(boosted.players[0].monsters[0]).toEqual({ code: DARK_MAGICIAN, position: FACEUP_ATTACK, atk: 2700, def: 2300 });
+    const destroyed = playAll(boosted, [
+      { type: OcgMessageType.MOVE, card: DARK_MAGICIAN, from: { controller: 0, location: MZONE, sequence: 0, position: FACEUP_ATTACK }, to: { controller: 0, location: GRAVE, sequence: 0, position: FACEUP_ATTACK } },
+    ]);
+    expect(destroyed.players[0].grave).toEqual([{ code: DARK_MAGICIAN, position: FACEUP_ATTACK }]);
+  });
+
   it("pose une carte adverse face cachée sans la connaître, puis la révèle quand elle est retournée", () => {
     const set = playAll(start, [
       { type: OcgMessageType.MOVE, card: 0, from: { controller: 1, location: HAND, sequence: 4, position: FACEDOWN }, to: { controller: 1, location: MZONE, sequence: 2, position: FACEDOWN_DEFENSE } },

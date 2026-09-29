@@ -41,6 +41,13 @@ it("dessine la carte compacte : cadre du type, gemme d'attribut, niveau, nom et 
   expect(compact).not.toContain("Mage suprême");
 });
 
+it("affiche les stats courantes d'un monstre, en vert au-dessus de l'imprimé et en rouge en dessous", () => {
+  const boosted = render(<CardView code={46986414} atk={2700} def={1600} />);
+  expect(boosted).toContain('ATK<b class="est-hausse">2700</b>');
+  expect(boosted).toContain('DEF<b class="est-baisse">1600</b>');
+  expect(render(<CardView code={46986414} atk={2500} />)).toContain("ATK<b>2500</b>");
+});
+
 it("ajoute le texte dans la version complète, en italique pour un monstre normal", () => {
   const full = render(<CardView code={46986414} full />);
   expect(full).toMatch(/^<article class="detail"><div class="carte /);

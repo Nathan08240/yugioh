@@ -11,12 +11,12 @@ import {
 } from "@n1xx1/ocgcore-wasm";
 import type { ReactNode } from "react";
 import { respond as automatic } from "../../server/src/respond.ts";
-import type { Board, Message, Place } from "./board.ts";
+import type { Board, EngineMessage, Place } from "./board.ts";
 import type { Targets } from "./Board.tsx";
 import { cardName, effectText, has, useDuelView, type Cards, type Strings } from "./cards.ts";
 import { freePlaces, placeKey } from "./question.ts";
 
-type Q<T extends OcgMessageType> = Extract<Message, { type: T }>;
+type Q<T extends OcgMessageType> = Extract<EngineMessage, { type: T }>;
 type Located = Place & { code: number };
 export type Ctx = { board: Board; cards: Cards; strings: Strings; picked: string[]; setPicked: (keys: string[]) => void; respond: (response: OcgResponse) => void };
 export type Ui = Omit<Targets, "picked"> & { panel: ReactNode };
@@ -24,7 +24,7 @@ export type Ui = Omit<Targets, "picked"> & { panel: ReactNode };
 const NONE: ReadonlySet<string> = new Set();
 
 // Turns an engine question into clickable cards or zones on the board, and the panel that goes with them.
-export function interaction(question: Message | undefined, ctx: Ctx): Ui {
+export function interaction(question: EngineMessage | undefined, ctx: Ctx): Ui {
   if (!question) return { targets: NONE, panel: <p className="muted">L'adversaire réfléchit…</p> };
   switch (question.type) {
     case OcgMessageType.SELECT_IDLECMD:
@@ -313,7 +313,7 @@ function option(q: Q<OcgMessageType.SELECT_OPTION>, ctx: Ctx): Ui {
 }
 
 // The server's first-valid-option player, or undefined for the questions it cannot answer either.
-function fallback(question: Message): OcgResponse | undefined {
+function fallback(question: EngineMessage): OcgResponse | undefined {
   try {
     // respond() reads no bigint field, so the wire form of a question works as is.
     return automatic(question as unknown as OcgMessage);
@@ -322,7 +322,7 @@ function fallback(question: Message): OcgResponse | undefined {
   }
 }
 
-function generic(question: Message, ctx: Ctx): Ui {
+function generic(question: EngineMessage, ctx: Ctx): Ui {
   const response = fallback(question);
   return {
     targets: NONE,

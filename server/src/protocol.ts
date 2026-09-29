@@ -32,14 +32,20 @@ export type ClientMessage =
 
 export type Deck = { id: number; name: string; main: number[]; extra: number[] };
 
+// Current ATK and DEF of Monster Zones 0-4 of each player, null for an empty zone or a monster the player may not see.
+// Not an engine message: the server adds it after the engine messages, like MSG_UPDATE_DATA in EDOPro.
+export type StatsEvent = { type: "stats"; monsters: [MonsterStats[], MonsterStats[]] };
+export type MonsterStats = { atk: number; def: number } | null;
+export type DuelEvent = OcgMessage | StatsEvent;
+
 // `joined` replays every message the player was allowed to see, which rebuilds the board after a reconnection,
 // from the starting LP, main deck and extra deck sizes (the engine never sends them).
 // `profile` answers `auth`, `pseudo` and `starter`: a null pseudo means the player has to choose one before playing,
 // `needsStarter` means the player has a pseudo but no active deck yet and must pick a starter deck.
 export type ServerMessage =
   | { type: "profile"; pseudo: string | null; needsStarter: boolean }
-  | { type: "joined"; room: string; seat: Seat; lp: number; decks: [number, number]; extras: [number, number]; log: OcgMessage[] }
-  | { type: "messages"; messages: OcgMessage[] }
+  | { type: "joined"; room: string; seat: Seat; lp: number; decks: [number, number]; extras: [number, number]; log: DuelEvent[] }
+  | { type: "messages"; messages: DuelEvent[] }
   | { type: "question"; question: OcgMessage; retry: boolean }
   | { type: "error"; error: string }
   // Owned cards as [passcode, quantity].

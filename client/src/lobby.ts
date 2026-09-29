@@ -1,5 +1,5 @@
 import type { Seat, ServerMessage, StoryArcView, Wire } from "../../server/src/protocol.ts";
-import { newBoard, playAll, type Board, type Message } from "./board.ts";
+import { newBoard, playAll, type Board, type EngineMessage, type Message } from "./board.ts";
 
 export type DeckList = Extract<Wire<ServerMessage>, { type: "decks" }>;
 
@@ -13,7 +13,7 @@ export type Action =
 export type StoryWon = Extract<ServerMessage, { type: "story_won" }>;
 
 // `id` tells two successive questions apart, even identical ones.
-export type Asked = { question: Message; retry: boolean; id: number };
+export type Asked = { question: EngineMessage; retry: boolean; id: number };
 
 export type LobbyState = {
   // undefined until the server has checked the token, null while the player has no pseudo.

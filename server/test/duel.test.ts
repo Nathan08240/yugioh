@@ -1,7 +1,12 @@
+import { OcgLocation, OcgPosition } from "@n1xx1/ocgcore-wasm";
 import { describe, expect, it } from "vitest";
 import { readCard } from "../src/cards.ts";
 import { KAIBA, OBELISK_ANIME, SLIFER_ANIME, YUGI } from "../src/decks.ts";
-import { runDuel } from "../src/duel.ts";
+import { fieldStats, openDuel, runDuel } from "../src/duel.ts";
+
+const DARK_MAGICIAN = 46986414;
+const YAMI = 59197169;
+const BATTLE_OX = 5053103;
 
 describe("duel ocgcore", () => {
   it("utilise deux decks de 40 cartes présentes dans la base", () => {
@@ -23,6 +28,22 @@ describe("duel ocgcore", () => {
     expect(remaining.at(-1)).toBeLessThanOrEqual(0);
     expect(state.winner).not.toBeNull();
     expect((await runDuel([1n, 2n, 3n, 4n], 10)).log).toEqual(state.log);
+  });
+
+  it("donne l'ATK et la DEF courantes des monstres, sans celles d'un monstre face cachée adverse", async () => {
+    const duel = await openDuel([1n, 2n, 3n, 4n], [YUGI, KAIBA], () => {});
+    const add = (team: 0 | 1, code: number, location: OcgLocation, sequence: number, position: OcgPosition) =>
+      duel.lib.duelNewCard(duel.handle, { team, duelist: 0, code, controller: team, location, sequence, position });
+    add(0, DARK_MAGICIAN, OcgLocation.MZONE, 0, OcgPosition.FACEUP_ATTACK);
+    add(0, YAMI, OcgLocation.SZONE, 5, OcgPosition.FACEUP_ATTACK);
+    add(1, BATTLE_OX, OcgLocation.MZONE, 2, OcgPosition.FACEDOWN_DEFENSE);
+    duel.lib.duelProcess(duel.handle);
+
+    const empty = [null, null, null, null, null];
+    // Yami gives Spellcasters 200 ATK and DEF.
+    expect(fieldStats(duel, 0).monsters).toEqual([[{ atk: 2700, def: 2300 }, ...empty.slice(1)], empty]);
+    expect(fieldStats(duel, 1).monsters[1]).toEqual([null, null, { atk: 1700, def: 1000 }, null, null]);
+    duel.lib.destroyDuel(duel.handle);
   });
 
   it("invoque l'Obelisk anime sans erreur de script", async () => {

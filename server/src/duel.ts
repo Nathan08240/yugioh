@@ -15,8 +15,9 @@ import {
 import { announceCard } from "./announce.ts";
 import { cardName, readCard, readScript } from "./cards.ts";
 import { KAIBA, YUGI } from "./decks.ts";
+import type { StatsEvent } from "./protocol.ts";
 import { respond } from "./respond.ts";
-import { hideCards, visibleTo } from "./visibility.ts";
+import { faceUp, hideCards, visibleTo } from "./visibility.ts";
 
 // Goat format (2005): Master Rule 1 plus the pre-2008 rulings, the closest the engine gets to 2002.
 export const RULES = OcgDuelMode.MODE_GOAT;
@@ -174,6 +175,19 @@ export async function openDuel(
   });
   lib.startDuel(handle);
   return { lib, handle };
+}
+
+// The union of flags is typed as a single flag.
+const STATS_QUERY = (OcgQueryFlags.POSITION | OcgQueryFlags.ATTACK | OcgQueryFlags.DEFENSE) as OcgQueryFlags;
+
+// ATK and DEF as the engine computes them now (equips, fields, effects), for the monsters `viewer` may see.
+export function fieldStats({ lib, handle }: Awaited<ReturnType<typeof openDuel>>, viewer: number): StatsEvent {
+  const zones = (controller: 0 | 1) =>
+    lib
+      .duelQueryLocation(handle, { flags: STATS_QUERY, controller, location: OcgLocation.MZONE })
+      .slice(0, 5)
+      .map((card) => (card && (controller === viewer || faceUp(card.position ?? 0)) ? { atk: card.attack ?? 0, def: card.defense ?? 0 } : null));
+  return { type: "stats", monsters: [zones(0), zones(1)] };
 }
 
 // Answers from what its seat may see: the question through hideCards, the messages so far through visibleTo.

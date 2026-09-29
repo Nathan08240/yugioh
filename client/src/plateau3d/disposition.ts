@@ -48,13 +48,14 @@ export function zones(seat: number): Zone[] {
 }
 
 // Code 0: the back. A set card stays readable by its owner under a hatched veil; the opponent sees its back.
-export type CarteScene = { code: number; defense: boolean; cachee: boolean; voile: boolean };
+// `atk` and `def`: current stats of a monster, when known.
+export type CarteScene = { code: number; defense: boolean; cachee: boolean; voile: boolean; atk?: number; def?: number };
 export type PileScene = { nombre: number; code: number };
 export type EtatScene = { cartes: Map<string, CarteScene>; piles: Map<string, PileScene> };
 
 function carteScene(card: Card, location: number, mine: boolean): CarteScene {
   const cachee = has(card.position, OcgPosition.FACEDOWN);
-  return { code: card.code, defense: location === MZONE && has(card.position, OcgPosition.DEFENSE), cachee, voile: cachee && mine && card.code !== 0 };
+  return { code: card.code, defense: location === MZONE && has(card.position, OcgPosition.DEFENSE), cachee, voile: cachee && mine && card.code !== 0, atk: card.atk, def: card.def };
 }
 
 export function etatScene(board: Board, seat: number): EtatScene {

@@ -3,7 +3,7 @@ import { OcgType } from "@n1xx1/ocgcore-wasm";
 import * as THREE from "three";
 import type { CardInfo } from "../../../server/src/protocol.ts";
 import ville from "../assets/ville.svg";
-import { attributeKey, frame, has, ICONS } from "../cards.ts";
+import { attributeKey, frame, has, ICONS, statChange } from "../cards.ts";
 import { PLATEAU, ZONE, type TypeZone, type Zone } from "./disposition.ts";
 
 const jeton = (nom: string) => getComputedStyle(document.documentElement).getPropertyValue(nom).trim();
@@ -129,9 +129,11 @@ function dessinerVoile(g: CanvasRenderingContext2D, u: number) {
 }
 
 const stat = (value: number) => (value === -2 ? "?" : String(value));
+// Current stats above or below the printed ones, as in cartes.css.
+const TEINTES = { hausse: "--succes", baisse: "--danger" };
 
-// Small field card (cartes.css under 100 px): artwork, gem, ATK/DEF. Drawn again into `c` once the artwork is loaded.
-export function dessinerFace(c: HTMLCanvasElement, res: Ressources, info: CardInfo | undefined, illustration: HTMLImageElement | undefined, voile: boolean) {
+// Small field card (cartes.css under 100 px): artwork, gem, ATK/DEF (current ones when given). Drawn again into `c` once the artwork is loaded.
+export function dessinerFace(c: HTMLCanvasElement, res: Ressources, info: CardInfo | undefined, illustration: HTMLImageElement | undefined, voile: boolean, atk?: number, def?: number) {
   const { l, h } = TEX;
   const u = l / 100;
   const g = c.getContext("2d") as CanvasRenderingContext2D;
@@ -193,12 +195,15 @@ export function dessinerFace(c: HTMLCanvasElement, res: Ressources, info: CardIn
   dessinerGemme(g, u, attr ? jeton(`--attr-${attr}`) : couleur, icone);
   if (monstre && info) {
     g.font = `800 ${13 * u}px Oxanium`;
-    g.fillStyle = jeton("--texte");
     g.textBaseline = "alphabetic";
-    g.textAlign = "left";
-    g.fillText(stat(info.atk), m + 3 * u, h - 8 * u);
-    g.textAlign = "right";
-    g.fillText(stat(info.def), l - m - 3 * u, h - 8 * u);
+    const chiffre = (courante: number, imprimee: number, x: number, align: CanvasTextAlign) => {
+      const change = statChange(courante, imprimee);
+      g.fillStyle = jeton(change ? TEINTES[change] : "--texte");
+      g.textAlign = align;
+      g.fillText(stat(courante), x, h - 8 * u);
+    };
+    chiffre(atk ?? info.atk, info.atk, m + 3 * u, "left");
+    chiffre(def ?? info.def, info.def, l - m - 3 * u, "right");
   }
   if (voile) dessinerVoile(g, u);
   g.restore();

@@ -1,9 +1,11 @@
 import { OcgLocation, OcgMessageType, type OcgMessage } from "@n1xx1/ocgcore-wasm";
-import type { Wire } from "../../server/src/protocol.ts";
+import type { DuelEvent, StatsEvent, Wire } from "../../server/src/protocol.ts";
 
-export type Message = Wire<OcgMessage>;
-// Code 0: a card this player is not allowed to see.
-export type Card = { code: number; position: number };
+// Everything the server sends about the duel, and the engine messages alone (questions).
+export type Message = Wire<DuelEvent>;
+export type EngineMessage = Wire<OcgMessage>;
+// Code 0: a card this player is not allowed to see. `atk` and `def`: current stats of a monster on the field, when known.
+export type Card = { code: number; position: number; atk?: number; def?: number };
 export type Place = { controller: number; location: OcgLocation; sequence: number };
 export type Side = {
   lp: number;
@@ -102,6 +104,15 @@ function reveal(board: Board, place: Place, code: number, position: number) {
   if (card) Object.assign(card, { code, position });
 }
 
+function setStats(board: Board, msg: StatsEvent) {
+  board.players.forEach((side, controller) =>
+    side.monsters.forEach((card, sequence) => {
+      const stats = msg.monsters[controller][sequence];
+      if (card) Object.assign(card, { atk: stats?.atk, def: stats?.def });
+    }),
+  );
+}
+
 // LP are sent as unsigned 32-bit values: below 0 they wrap around.
 const int32 = (value: number) => value | 0;
 
@@ -173,6 +184,9 @@ function apply(board: Board, msg: Message) {
       break;
     case OcgMessageType.WIN:
       board.winner = msg.player;
+      break;
+    case "stats":
+      setStats(board, msg);
       break;
     default:
       break;

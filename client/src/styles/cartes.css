@@ -175,6 +175,14 @@
   color: var(--texte);
 }
 
+.carte__stats b.est-hausse {
+  color: var(--succes);
+}
+
+.carte__stats b.est-baisse {
+  color: var(--danger);
+}
+
 /* Petites cartes (terrain, listes) : l'illustration et les stats suffisent */
 @container (max-width: 100px) {
   .carte__nom,

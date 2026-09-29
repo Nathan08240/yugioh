@@ -72,7 +72,8 @@ describe("bot", () => {
     expect(answer).toHaveBeenCalled();
     const log = answer.mock.lastCall?.[1] ?? [];
     // Everything the bot got had already gone through the filter of its seat.
-    expect(log.map((msg) => visibleTo(msg, 1))).toEqual(log);
+    const engine = log.flatMap((msg) => (msg.type === "stats" ? [] : [msg]));
+    expect(engine.map((msg) => visibleTo(msg, 1))).toEqual(engine);
     for (const [question] of answer.mock.calls) expect(hideCards(question, 1)).toEqual(question);
     const drawn = log.flatMap((msg) => (msg.type === OcgMessageType.DRAW && msg.player === 0 ? msg.drawn : []));
     const hidden = drawn.filter((card) => (card.position & OcgPosition.FACEUP) === 0);

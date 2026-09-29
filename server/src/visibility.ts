@@ -3,7 +3,7 @@ import { OcgHintType, OcgLocation, OcgMessageType, OcgPosition, type OcgLocPos, 
 // The engine sends every card code in clear: each player only gets what the rules let them see.
 const PUBLIC_ZONES = OcgLocation.GRAVE | OcgLocation.OVERLAY;
 
-const faceUp = (position: number) => (position & OcgPosition.FACEUP) !== 0;
+export const faceUp = (position: number) => (position & OcgPosition.FACEUP) !== 0;
 
 // Verified against EDOPro's GenericDuel::Sending (gframe/generic_duel.cpp, case MSG_HINT): these hint types
 // report the acting player's choice, so they go to the other side, which doesn't already know it. CARD goes to both.
