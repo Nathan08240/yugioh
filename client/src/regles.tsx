@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import "./styles/histoire.css";
 
 export type Rule = { title: string; details: string[] };
@@ -65,8 +66,28 @@ export function RuleBlock({ rule, open }: Readonly<{ rule: Rule; open?: boolean 
 
 // During a duel: a badge that opens the same list as the briefing.
 export function RulesBadge({ rules }: Readonly<{ rules: Rule[] }>) {
+  const details = useRef<HTMLDetailsElement>(null);
+  // Escape or a press outside closes the list, and Escape gives the focus back to the badge.
+  useEffect(() => {
+    const el = details.current;
+    if (!el) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || !el.open) return;
+      el.open = false;
+      el.querySelector("summary")?.focus();
+    };
+    const onDown = (event: PointerEvent) => {
+      if (!el.contains(event.target as Node)) el.open = false;
+    };
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("pointerdown", onDown);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("pointerdown", onDown);
+    };
+  }, []);
   return (
-    <details className="regles-duel">
+    <details ref={details} className="regles-duel">
       <summary className="puce puce--or">Règles spéciales</summary>
       <div className="regles-duel__liste">
         {rules.map((rule) => (

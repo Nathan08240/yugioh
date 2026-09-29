@@ -319,15 +319,18 @@ function Bulle({ point, choix, choisir, fermer }: Readonly<{ point: Point; choix
   }, [point]);
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") fermer();
+      if (event.key !== "Escape") return;
+      event.stopPropagation();
+      fermer();
     };
     const onDown = (event: PointerEvent) => {
       if (!bulle.current?.contains(event.target as Node)) fermer();
     };
-    document.addEventListener("keydown", onKey);
+    // Capture phase and stopPropagation: Escape closes only the bubble, the top layer.
+    document.addEventListener("keydown", onKey, true);
     document.addEventListener("pointerdown", onDown);
     return () => {
-      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("keydown", onKey, true);
       document.removeEventListener("pointerdown", onDown);
     };
   }, [fermer]);
