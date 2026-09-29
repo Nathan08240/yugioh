@@ -3,6 +3,7 @@ import {
   OcgMessageType,
   OcgPosition,
   OcgResponseType,
+  OcgType,
   SelectBattleCMDAction,
   SelectIdleCMDAction,
   ocgMessageTypeStrings,
@@ -11,15 +12,25 @@ import {
 } from "@n1xx1/ocgcore-wasm";
 import type { ReactNode } from "react";
 import { respond as automatic } from "../../server/src/respond.ts";
-import type { Board, EngineMessage, Place } from "./board.ts";
+import { cardAt, type Board, type EngineMessage, type Place } from "./board.ts";
 import type { Targets } from "./Board.tsx";
 import { cardName, effectText, has, useDuelView, type Cards, type Strings } from "./cards.ts";
-import { freePlaces, placeKey } from "./question.ts";
+import { freePlaces, placeKey, pointDe, type Point } from "./question.ts";
 
 type Q<T extends OcgMessageType> = Extract<EngineMessage, { type: T }>;
 type Located = Place & { code: number };
-export type Ctx = { board: Board; cards: Cards; strings: Strings; picked: string[]; setPicked: (keys: string[]) => void; respond: (response: OcgResponse) => void };
-export type Ui = Omit<Targets, "picked"> & { panel: ReactNode };
+// `cible`: the zone a card was dropped on, when several actions could take it there.
+export type Ctx = {
+  board: Board;
+  cards: Cards;
+  strings: Strings;
+  picked: string[];
+  cible?: string;
+  setPicked: (keys: string[], point?: Point, cible?: string) => void;
+  respond: (response: OcgResponse) => void;
+};
+// `bulle`: the actions of the picked card, shown on it. `deposer`: the actions a card dropped on a zone can take there.
+export type Ui = Omit<Targets, "picked"> & { panel: ReactNode; bulle?: Choice[]; deposer?: (key: string, cible: string) => Choice[] };
 
 const NONE: ReadonlySet<string> = new Set();
 
@@ -62,31 +73,30 @@ export function interaction(question: EngineMessage | undefined, ctx: Ctx): Ui {
 
 const range = (min: number, max: number) => (min === max ? String(min) : `${min} à ${max}`);
 
-type Choice = { place: Located; id: string; label: string; response: OcgResponse };
+// `depot`: whether a drop on that zone (a zone key, or the opponent's number) takes this action.
+export type Choice = { place: Located; id: string; label: string; response: OcgResponse; depot?: (cible: string) => boolean };
 type Action = { label: string; response: OcgResponse };
 
-// Card actions (summon, attack, activate...): click a highlighted card, then one of its actions.
+const ON_BOARD: ReadonlySet<number> = new Set([OcgLocation.HAND, OcgLocation.MZONE, OcgLocation.SZONE]);
+
+// Card actions (summon, attack, activate...): click a highlighted card, then one of its actions in the bubble; or drop it on a zone.
 function menu(title: string, choices: Choice[], actions: Action[], ctx: Ctx): Ui {
+  const own = (key: string | undefined) => choices.filter((choice) => placeKey(choice.place) === key);
+  const deposer = (key: string | undefined, cible: string) => own(key).filter((choice) => choice.depot?.(cible));
   const focused = ctx.picked[0];
-  const own = choices.filter((choice) => placeKey(choice.place) === focused);
   const places = [...new Map(choices.map((choice) => [placeKey(choice.place), choice.place])).values()];
-  const focus = (key: string) => ctx.setPicked([key]);
+  const focus = (key: string, point: Point) => ctx.setPicked([key], point);
+  // The cards of the piles and the Extra Deck stay listed: not every board lets you click them.
+  const listed = places.filter((place) => !ON_BOARD.has(place.location));
   return {
     targets: new Set(places.map(placeKey)),
     onPick: focus,
+    bulle: ctx.cible ? deposer(focused, ctx.cible) : own(focused),
+    deposer,
     panel: (
       <>
         <h3>{title}</h3>
-        {places.length > 0 && <Chips places={places} picked={ctx.picked} onPick={focus} />}
-        {own.length > 0 && (
-          <div className="actions">
-            {own.map((choice) => (
-              <button key={choice.id} type="button" className="btn" onClick={() => ctx.respond(choice.response)}>
-                {choice.label}
-              </button>
-            ))}
-          </div>
-        )}
+        {listed.length > 0 && <Chips places={listed} picked={ctx.picked} onPick={focus} />}
         <Buttons actions={actions} ctx={ctx} />
       </>
     ),
@@ -111,24 +121,52 @@ const activateLabel = (ctx: Ctx, description: string) => {
 };
 
 const IDLE_LISTS = [
-  ["summons", SelectIdleCMDAction.SELECT_SUMMON, "Invoquer"],
-  ["special_summons", SelectIdleCMDAction.SELECT_SPECIAL_SUMMON, "Invocation spéciale"],
-  ["pos_changes", SelectIdleCMDAction.SELECT_POS_CHANGE, "Changer de position"],
-  ["monster_sets", SelectIdleCMDAction.SELECT_MONSTER_SET, "Poser"],
-  ["spell_sets", SelectIdleCMDAction.SELECT_SPELL_SET, "Poser"],
+  ["summons", SelectIdleCMDAction.SELECT_SUMMON, "Invoquer", OcgLocation.MZONE],
+  ["special_summons", SelectIdleCMDAction.SELECT_SPECIAL_SUMMON, "Invocation spéciale", OcgLocation.MZONE],
+  ["pos_changes", SelectIdleCMDAction.SELECT_POS_CHANGE, "Changer de position", undefined],
+  ["monster_sets", SelectIdleCMDAction.SELECT_MONSTER_SET, "Poser", OcgLocation.MZONE],
+  ["spell_sets", SelectIdleCMDAction.SELECT_SPELL_SET, "Poser", OcgLocation.SZONE],
 ] as const;
+
+const lieu = (cible: string): Place => {
+  const [controller, location, sequence] = cible.split(":").map(Number);
+  return { controller, location: location as OcgLocation, sequence };
+};
+
+// A card of the hand goes to a free zone of its owner: a Monster Zone, or a Spell/Trap Zone (the Field Zone for a Field Spell).
+function versZone(ctx: Ctx, card: Located, location: OcgLocation | undefined): Choice["depot"] {
+  if (card.location !== OcgLocation.HAND || !location) return undefined;
+  const terrain = has(ctx.cards.get(card.code)?.type ?? 0, OcgType.FIELD);
+  return (cible) => {
+    const zone = lieu(cible);
+    if (zone.controller !== card.controller || zone.location !== location || zone.sequence === undefined) return false;
+    if (location === OcgLocation.SZONE && (zone.sequence === 5) !== terrain) return false;
+    return !cardAt(ctx.board, zone);
+  };
+}
+
+// A monster dropped on an opponent's monster attacks it; anywhere else on the opponent's side, it attacks directly if it can.
+function versAdversaire(ctx: Ctx, card: Located & { can_direct: boolean }): Choice["depot"] {
+  return (cible) => {
+    const zone = lieu(cible);
+    if (zone.controller === card.controller) return false;
+    return (zone.location === OcgLocation.MZONE && Boolean(cardAt(ctx.board, zone))) || card.can_direct;
+  };
+}
 
 function idle(q: Q<OcgMessageType.SELECT_IDLECMD>, ctx: Ctx): Ui {
   const idleResponse = (action: SelectIdleCMDAction, index: number | null): OcgResponse => ({ type: OcgResponseType.SELECT_IDLECMD, action, index });
   const choices: Choice[] = [
-    ...IDLE_LISTS.flatMap(([list, action, label]) =>
-      q[list].map((card, index) => ({ place: card, id: `${action}-${index}`, label, response: idleResponse(action, index) })),
+    ...IDLE_LISTS.flatMap(([list, action, label, zone]) =>
+      q[list].map((card, index) => ({ place: card, id: `${action}-${index}`, label, response: idleResponse(action, index), depot: versZone(ctx, card, zone) })),
     ),
     ...q.activates.map((card, index) => ({
       place: card,
       id: `activate-${index}`,
       label: activateLabel(ctx, card.description),
       response: idleResponse(SelectIdleCMDAction.SELECT_ACTIVATE, index),
+      // A Spell activated from the hand goes to a zone; a monster's effect does not.
+      depot: versZone(ctx, card, has(ctx.cards.get(card.code)?.type ?? 0, OcgType.SPELL) ? OcgLocation.SZONE : undefined),
     })),
   ];
   const actions: Action[] = [];
@@ -140,7 +178,13 @@ function idle(q: Q<OcgMessageType.SELECT_IDLECMD>, ctx: Ctx): Ui {
 function battle(q: Q<OcgMessageType.SELECT_BATTLECMD>, ctx: Ctx): Ui {
   const battleResponse = (action: SelectBattleCMDAction, index: number | null): OcgResponse => ({ type: OcgResponseType.SELECT_BATTLECMD, action, index });
   const choices: Choice[] = [
-    ...q.attacks.map((card, index) => ({ place: card, id: `attack-${index}`, label: "Attaquer", response: battleResponse(SelectBattleCMDAction.SELECT_BATTLE, index) })),
+    ...q.attacks.map((card, index) => ({
+      place: card,
+      id: `attack-${index}`,
+      label: "Attaquer",
+      response: battleResponse(SelectBattleCMDAction.SELECT_BATTLE, index),
+      depot: versAdversaire(ctx, card),
+    })),
     ...q.chains.map((card, index) => ({
       place: card,
       id: `chain-${index}`,
@@ -352,7 +396,7 @@ function placeLabel(place: Place): string {
 }
 
 // Question cards as a list: hidden opponent cards come with code 0, their place tells them apart.
-function Chips({ places, picked, onPick }: Readonly<{ places: Located[]; picked: readonly string[]; onPick: (key: string) => void }>) {
+function Chips({ places, picked, onPick }: Readonly<{ places: Located[]; picked: readonly string[]; onPick: (key: string, point: Point) => void }>) {
   const { cards, show, seat } = useDuelView();
   return (
     <ul className="chips">
@@ -361,7 +405,7 @@ function Chips({ places, picked, onPick }: Readonly<{ places: Located[]; picked:
         const reveal = () => show(located.code);
         return (
           <li key={key}>
-            <button type="button" className={picked.includes(key) ? "chip picked" : "chip"} onClick={() => onPick(key)} onMouseEnter={reveal} onFocus={reveal}>
+            <button type="button" className={picked.includes(key) ? "chip picked" : "chip"} onClick={(event) => onPick(key, pointDe(event))} onMouseEnter={reveal} onFocus={reveal}>
               {cardName(cards, located.code)}
               <small>
                 {placeLabel(located)}

@@ -7,11 +7,11 @@ import { CardDetail, CardView } from "./Card.tsx";
 import { cardName, DuelView, phaseName, useCards, useDuelView, useSystemStrings, type Cards } from "./cards.ts";
 import type { Asked } from "./lobby.ts";
 import { D1, D2, D3, D4, ELAN, RESSORT } from "./motion.ts";
-import { cibles3D } from "./plateau3d/disposition.ts";
+import { cibles3D, zones } from "./plateau3d/disposition.ts";
 import { etapes, type Effet } from "./plateau3d/effets.ts";
 import { jouer, type Jeu, type Regie } from "./plateau3d/spectacle.ts";
-import { interaction, type Ui } from "./Question.tsx";
-import { placeKey } from "./question.ts";
+import { interaction, type Choice, type Ui } from "./Question.tsx";
+import { placeKey, pointDe, reponseVisee, type Appui, type Point } from "./question.ts";
 import "./styles/duel.css";
 import { Icon } from "./ui.tsx";
 
@@ -19,6 +19,9 @@ import { Icon } from "./ui.tsx";
 const Plateau3D = lazy(() => import("./plateau3d/Plateau3D.tsx"));
 
 type Feed = { id: number; messages: Message[] };
+// Cards picked for the current question; `point` and `cible`: where the bubble of a picked card opens, the zone it was dropped on.
+type Picks = { id?: number; keys: string[]; point?: Point; cible?: string };
+type Sonde = RefObject<((x: number, y: number) => string | undefined) | null>;
 type Props = {
   board: Board;
   seat: number;
@@ -92,20 +95,43 @@ export function Duel({ board, seat, asked, respond, leave, feed, lp, pseudo }: R
   const [mode, setMode] = useState<"3d" | "2d" | "perdu">(() => (webgl2() ? "3d" : "2d"));
   const [pile, setPile] = useState<string>();
   // A new question starts with nothing picked.
-  const [picks, setPicks] = useState<{ id?: number; keys: string[] }>({ keys: [] });
-  const picked = picks.id === asked?.id ? picks.keys : [];
-  const setPicked = (keys: string[]) => setPicks({ id: asked?.id, keys });
+  const [picks, setPicks] = useState<Picks>(AUCUN);
+  const courant = picks.id === asked?.id ? picks : AUCUN;
+  const picked = courant.keys;
+  const setPicked = (keys: string[], point?: Point, cible?: string) => setPicks({ id: asked?.id, keys, point, cible });
   const question = idle ? asked?.question : undefined;
-  const ui = interaction(question, { board: shown, cards, strings, picked, setPicked, respond });
-  const cibles = useMemo(() => cibles3D(ui.targets), [ui.targets]);
+  const ui = interaction(question, { board: shown, cards, strings, picked, cible: courant.cible, setPicked, respond });
+  const visee = useVisee(asked, respond);
+  const repondre = (response: OcgResponse, cible: string | undefined) => {
+    if (cible) visee(cible);
+    respond(response);
+  };
+  const sonde: Sonde = useRef(null);
+  // What a card can be dropped on: zones of the 3D board, and the opponent's plate for a direct attack.
+  const depots = (key: string) => [...zones(seat).map((zone) => zone.id), String(1 - seat)].filter((id) => (ui.deposer?.(key, id).length ?? 0) > 0);
+  // One action goes at once; several open the bubble where the card was dropped.
+  const deposer = (key: string, x: number, y: number) => {
+    const cible = cibleSous(x, y, sonde);
+    const choix = cible ? (ui.deposer?.(key, cible) ?? []) : [];
+    if (choix.length === 1) repondre(choix[0].response, cible);
+    else if (choix.length > 1) setPicked([key], { x, y }, cible);
+  };
+  const { glisse, fantome, glisser } = useGlisser(deposer);
+  // No drag and drop on the 2D board.
+  const appui = (key: string, code: number, event: Appui) => {
+    if (mode === "3d" && depots(key).length > 0) glisser(key, code, event);
+  };
+  const enDepot = glisse ? depots(glisse.key) : undefined;
+  const normales = useMemo(() => cibles3D(ui.targets), [ui.targets]);
+  const cibles = enDepot ? new Set(enDepot) : normales;
   const choisies = useMemo(() => cibles3D(picked), [picked]);
   const cadre = useRef<HTMLDivElement>(null);
   const start = lp ?? Math.max(...board.players.map((side) => side.lp), 1);
 
-  const onZone = (id: string) => {
+  const onZone = (id: string, point: Point) => {
     const location = Number(id.split(":")[1]);
     if (location === GRAVE || location === REMOVED) setPile(id);
-    else if (ui.targets.has(id)) ui.onPick?.(id);
+    else if (ui.targets.has(id)) ui.onPick?.(id, point);
     else if (codeAt(shown, id)) setDetail(codeAt(shown, id));
   };
   const onSurvol = (id: string | undefined) => {
@@ -120,7 +146,20 @@ export function Duel({ board, seat, asked, respond, leave, feed, lp, pseudo }: R
         <h1 className="sr">Duel</h1>
         {mode === "3d" && cards.size > 0 && (
           <Suspense fallback={<p className="plateau-chargement surtitre">Chargement du plateau…</p>}>
-            <Plateau3D board={shown} seat={seat} cards={cards} cibles={cibles} choisies={choisies} onZone={onZone} onSurvol={onSurvol} regie={regie} cadre={cadre} onPerdu={() => setMode("perdu")} />
+            <Plateau3D
+              board={shown}
+              seat={seat}
+              cards={cards}
+              cibles={cibles}
+              choisies={choisies}
+              onZone={onZone}
+              onSurvol={onSurvol}
+              onAppui={(id, event) => appui(id, codeAt(shown, id), event)}
+              sonde={sonde}
+              regie={regie}
+              cadre={cadre}
+              onPerdu={() => setMode("perdu")}
+            />
           </Suspense>
         )}
         <div ref={cadre} className="cadre-3d">
@@ -132,7 +171,7 @@ export function Duel({ board, seat, asked, respond, leave, feed, lp, pseudo }: R
           )}
         </div>
         <div className="hud">
-          <Plaque board={shown} player={1 - seat} start={start} name="Adversaire" refs={hud.refs} />
+          <Plaque board={shown} player={1 - seat} start={start} name="Adversaire" refs={hud.refs} visee={enDepot?.includes(String(1 - seat))} />
           <section className="main-adverse" ref={hud.refs.mains[1 - seat]} aria-label={`Main de l'adversaire : ${cartes(shown.players[1 - seat].hand.length)}`}>
             {[...shown.players[1 - seat].hand.keys()].map((i) => (
               <CardView key={i} code={0} />
@@ -145,7 +184,7 @@ export function Duel({ board, seat, asked, respond, leave, feed, lp, pseudo }: R
             </div>
             <Plaque board={shown} player={seat} start={start} name={pseudo ?? "Vous"} refs={hud.refs} />
           </aside>
-          <Hand hand={shown.players[seat].hand} seat={seat} ui={targets} main={hud.refs.mains[seat]} />
+          <Hand hand={shown.players[seat].hand} seat={seat} ui={targets} main={hud.refs.mains[seat]} appui={appui} />
           <aside className="colonne colonne--droite">
             {shown.chain.length > 0 && <Chain chain={shown.chain} seat={seat} />}
             <Log log={shown.log} />
@@ -157,6 +196,20 @@ export function Duel({ board, seat, asked, respond, leave, feed, lp, pseudo }: R
           </aside>
         </div>
         {pile && <PileList id={pile} board={shown} seat={seat} ui={ui} close={() => setPile(undefined)} />}
+        {courant.point && ui.bulle && ui.bulle.length > 0 && (
+          <Bulle
+            key={`${picked[0]}|${courant.point.x}|${courant.point.y}`}
+            point={courant.point}
+            choix={ui.bulle}
+            choisir={(choice) => repondre(choice.response, courant.cible)}
+            fermer={() => setPicked([])}
+          />
+        )}
+        {glisse && (
+          <div ref={fantome} className="fantome" style={{ translate: `${glisse.x}px ${glisse.y}px` }} aria-hidden="true">
+            <CardView code={glisse.code} />
+          </div>
+        )}
         <div className="bandeau" ref={hud.refs.bandeau} aria-hidden="true">
           <p />
         </div>
@@ -172,6 +225,112 @@ export function Duel({ board, seat, asked, respond, leave, feed, lp, pseudo }: R
 }
 
 const cartes = (n: number) => (n > 1 ? `${n} cartes` : `${n} carte`);
+const AUCUN: Picks = { keys: [] };
+
+// What lies under a point of the screen: the opponent's plate, or a zone of the 3D board.
+function cibleSous(x: number, y: number, sonde: Sonde) {
+  const sous = document.elementFromPoint(x, y);
+  const plaque = sous?.closest<HTMLElement>("[data-cible]")?.dataset.cible;
+  if (plaque) return plaque;
+  return sous?.closest(".plateau-3d") ? sonde.current?.(x, y) : undefined;
+}
+
+// A drop remembers the zone or the monster it landed on, and answers the next questions that offer it (SELECT_PLACE, SELECT_CARD); any other question forgets it.
+function useVisee(asked: Asked | undefined, respond: (response: OcgResponse) => void) {
+  const visee = useRef<{ apres: number; cible: string }>(undefined);
+  useEffect(() => {
+    const intention = visee.current;
+    if (!asked || !intention || asked.id === intention.apres) return;
+    const response = asked.retry ? undefined : reponseVisee(asked.question, intention.cible);
+    visee.current = response && { apres: asked.id, cible: intention.cible };
+    if (response) respond(response);
+  }, [asked, respond]);
+  return (cible: string) => {
+    if (asked) visee.current = { apres: asked.id, cible };
+  };
+}
+
+const SEUIL = 8;
+
+// Drag a card with the mouse or a finger: past a few pixels it follows the pointer, released it lands on what is under it.
+function useGlisser(deposer: (key: string, x: number, y: number) => void) {
+  const [glisse, setGlisse] = useState<{ key: string; code: number; x: number; y: number }>();
+  const fantome = useRef<HTMLDivElement>(null);
+  const dernier = useRef(deposer);
+  useLayoutEffect(() => {
+    dernier.current = deposer;
+  });
+  const glisser = (key: string, code: number, depart: Appui) => {
+    if (depart.button !== 0) return;
+    let parti = false;
+    const suivre = (event: PointerEvent) => {
+      if (event.pointerId !== depart.pointerId) return;
+      if (!parti && Math.hypot(event.clientX - depart.clientX, event.clientY - depart.clientY) < SEUIL) return;
+      if (!parti) setGlisse({ key, code, x: event.clientX, y: event.clientY });
+      parti = true;
+      fantome.current?.style.setProperty("translate", `${event.clientX}px ${event.clientY}px`);
+    };
+    const lacher = (event: PointerEvent) => {
+      if (event.pointerId !== depart.pointerId) return;
+      document.removeEventListener("pointermove", suivre);
+      document.removeEventListener("pointerup", lacher);
+      document.removeEventListener("pointercancel", lacher);
+      if (!parti) return;
+      setGlisse(undefined);
+      // The click that ends a drag is not a click on what lies under it.
+      const avaler = (click: Event) => click.stopPropagation();
+      document.addEventListener("click", avaler, { capture: true, once: true });
+      setTimeout(() => document.removeEventListener("click", avaler, true));
+      if (event.type === "pointerup") dernier.current(key, event.clientX, event.clientY);
+    };
+    document.addEventListener("pointermove", suivre);
+    document.addEventListener("pointerup", lacher);
+    document.addEventListener("pointercancel", lacher);
+  };
+  return { glisse, fantome, glisser };
+}
+
+// The actions of the picked card, in a bubble beside it: the first one takes the focus, Escape or a press elsewhere closes it.
+function Bulle({ point, choix, choisir, fermer }: Readonly<{ point: Point; choix: Choice[]; choisir: (choice: Choice) => void; fermer: () => void }>) {
+  const { cards } = useDuelView();
+  const bulle = useRef<HTMLDialogElement>(null);
+  useLayoutEffect(() => {
+    const el = bulle.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const haut = point.y - r.height - 12;
+    el.style.left = `${Math.min(Math.max(point.x - r.width / 2, 8), innerWidth - r.width - 8)}px`;
+    el.style.top = `${haut < 8 ? point.y + 12 : haut}px`;
+    const avant = document.activeElement;
+    el.querySelector("button")?.focus({ preventScroll: true });
+    return () => {
+      if (avant instanceof HTMLElement) avant.focus({ preventScroll: true });
+    };
+  }, [point]);
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") fermer();
+    };
+    const onDown = (event: PointerEvent) => {
+      if (!bulle.current?.contains(event.target as Node)) fermer();
+    };
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("pointerdown", onDown);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("pointerdown", onDown);
+    };
+  }, [fermer]);
+  return (
+    <dialog open ref={bulle} className="panneau bulle" aria-label={`Actions : ${cardName(cards, choix[0].place.code)}`}>
+      {choix.map((choice) => (
+        <button key={choice.id} type="button" className="btn" onClick={() => choisir(choice)}>
+          {choice.label}
+        </button>
+      ))}
+    </dialog>
+  );
+}
 
 // HUD ---------------------------------------------------------------------------------------
 
@@ -292,7 +451,8 @@ function useHud(regie: Regie, seat: number, cards: Cards) {
   return { refs };
 }
 
-function Plaque({ board, player, start, name, refs }: Readonly<{ board: Board; player: number; start: number; name: string; refs: Refs }>) {
+// `visee`: a monster being dragged can attack this player directly.
+function Plaque({ board, player, start, name, refs, visee }: Readonly<{ board: Board; player: number; start: number; name: string; refs: Refs; visee?: boolean }>) {
   const { seat } = useDuelView();
   const side = board.players[player];
   const lp = Math.max(side.lp, 0);
@@ -308,7 +468,7 @@ function Plaque({ board, player, start, name, refs }: Readonly<{ board: Board; p
   }, [lp, side.lp, valeur]);
   const label = mine ? `Vos points de vie : ${lp} sur ${start}` : `Points de vie de l'adversaire : ${lp} sur ${start}`;
   return (
-    <div ref={refs.plaques[player]} className={mine ? "plaque plaque--moi" : "plaque plaque--adverse"}>
+    <div ref={refs.plaques[player]} className={`plaque plaque--${mine ? "moi" : "adverse"}${visee ? " est-visee" : ""}`} data-cible={mine ? undefined : String(player)}>
       <span className="avatar" aria-hidden="true">
         {name.charAt(0).toUpperCase()}
       </span>
@@ -380,8 +540,8 @@ function Turn({ board, seat, leave }: Readonly<{ board: Board; seat: number; lea
   );
 }
 
-// Your hand as a fan: a card the question lets you play is highlighted and clickable.
-function Hand({ hand, seat, ui, main }: Readonly<{ hand: Card[]; seat: number; ui: Targets; main: RefObject<HTMLElement | null> }>) {
+// Your hand as a fan: a card the question lets you play is highlighted, clickable, and can be dragged to the board.
+function Hand({ hand, seat, ui, main, appui }: Readonly<{ hand: Card[]; seat: number; ui: Targets; main: RefObject<HTMLElement | null>; appui: (key: string, code: number, event: Appui) => void }>) {
   const { cards, show } = useDuelView();
   const middle = (hand.length - 1) / 2;
   return (
@@ -402,7 +562,9 @@ function Hand({ hand, seat, ui, main }: Readonly<{ hand: Card[]; seat: number; u
             aria-label={target ? `${cardName(cards, code)}, jouable` : cardName(cards, code)}
             onMouseEnter={() => show(code)}
             onFocus={() => show(code)}
-            onClick={() => (target ? ui.onPick?.(key) : show(code))}
+            onClick={(event) => (target ? ui.onPick?.(key, pointDe(event)) : show(code))}
+            onPointerDown={target ? (event) => appui(key, code, event) : undefined}
+            onDragStart={(event) => event.preventDefault()}
           >
             <CardView code={code} className={classes || undefined} />
           </button>
@@ -540,7 +702,7 @@ function PileList({ id, board, seat, ui, close }: Readonly<{ id: string; board: 
                   aria-label={target ? `${cardName(cards, code)}, à choisir` : cardName(cards, code)}
                   onMouseEnter={() => show(code)}
                   onFocus={() => show(code)}
-                  onClick={() => (target ? ui.onPick?.(key) : show(code))}
+                  onClick={(event) => (target ? ui.onPick?.(key, pointDe(event)) : show(code))}
                 >
                   <CardView code={code} className={target ? "est-cible" : undefined} />
                   <span>{cardName(cards, code)}</span>
