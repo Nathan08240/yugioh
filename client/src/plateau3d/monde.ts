@@ -8,7 +8,7 @@ import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
 import type { Board } from "../board.ts";
 import type { Cards } from "../cards.ts";
-import { D2, D3, D4, prefersReduced } from "../motion.ts";
+import { D2, D3, D4 } from "../motion.ts";
 import { placeKey } from "../question.ts";
 import { CARTE, pileId, PLATEAU, ZONE, zones, type CarteScene, type EtatScene, type PileScene, type Zone } from "./disposition.ts";
 import type { Depart, Effet } from "./effets.ts";

@@ -62,6 +62,8 @@ const ATTRIBUTES = new Map<number, string>([
   [OcgAttribute.DIVINE, "divin"],
 ]);
 export const attributeKey = (attribute: number) => ATTRIBUTES.get(attribute);
+// The Egyptian Gods, and every other DIVINE monster.
+export const isDivine = (cards: Cards, code: number) => cards.get(code)?.attribute === OcgAttribute.DIVINE;
 
 // Printing rarities of the server (server/src/pool.ts): their treatment (r-* and rarete--* classes) and their name.
 const RARITIES = new Map<string, [string, string]>([

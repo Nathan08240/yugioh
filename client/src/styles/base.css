@@ -490,8 +490,7 @@ a {
   }
 }
 
-/* Écrans pas encore refaits (plateau, collection, boosters, histoire) : leurs anciennes classes, à la charte.
-   Chaque écran porte la classe `ancien` sur sa racine ; ce bloc part avec le dernier écran refait. */
+/* Anciennes classes du plateau 2D, à la charte : seul le repli sans WebGL (Duel.tsx, classe `ancien`) s'en sert encore. */
 .ancien :is(h2, h3) {
   font-family: var(--police-titre);
   font-stretch: 88%;
