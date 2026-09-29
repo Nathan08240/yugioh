@@ -75,6 +75,9 @@
 - [x] F-regles-speciales-visibles : règles spéciales et cause de la défaite expliquées (feat/F-regles-speciales-visibles)
 - [x] F-nom-adversaire-journal : nom de l'adversaire dans le journal, la chaîne et les textes de fin (feat/F-nom-adversaire-journal)
 - [x] F-echap-fermetures : Échap ferme seulement la fenêtre du dessus, badge des règles compris (fix/F-echap-fermetures)
+- [x] F-bot-stats-reelles : le bot décide avec les ATK et DEF actuelles du terrain (feat/F-bot-stats-reelles)
+- [x] F-alerte-fin-tour-royaume : confirmation avant End Phase sans monstre sous la règle du Royaume (feat/F-alerte-fin-tour-royaume)
+- [x] F-apercu-combat : estimation du combat au glisser et au choix de la cible (feat/F-apercu-combat)
 - [ ] Nom français du Noyau de Diabound (511000118)
 
 ## Mise en ligne
