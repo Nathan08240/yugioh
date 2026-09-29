@@ -48,3 +48,12 @@ export function Rewards({ rewards, featured = false }: Readonly<{ rewards: Earne
     </>
   );
 }
+
+// Estimate of a battle before an attack (see apercuCombat).
+export function Apercu({ texte }: Readonly<{ texte: string }>) {
+  return (
+    <p className="apercu">
+      {texte} <small>Estimation, hors effets de cartes.</small>
+    </p>
+  );
+}

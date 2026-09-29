@@ -1,10 +1,10 @@
-import { OcgHintTiming, OcgLocation, OcgMessageType, OcgPosition, OcgResponseType, OcgType } from "@n1xx1/ocgcore-wasm";
+import { OcgHintTiming, OcgLocation, OcgMessageType, OcgPosition, OcgResponseType, OcgType, SelectBattleCMDAction } from "@n1xx1/ocgcore-wasm";
 import { expect, it } from "vitest";
 import type { CardInfo } from "../../server/src/protocol.ts";
 import { newBoard, type EngineMessage, type Message } from "./board.ts";
 import type { Cards } from "./cards.ts";
 import { interaction } from "./Question.tsx";
-import { autoAnswer, freePlaces, placeKey, reponseVisee } from "./question.ts";
+import { apercuCombat, attaquantChoisi, autoAnswer, freePlaces, placeKey, reponseVisee } from "./question.ts";
 
 const { MZONE, SZONE } = OcgLocation;
 
@@ -109,4 +109,53 @@ it("répond à la question suivante avec la zone ou la cible du dépôt, si elle
   expect(reponseVisee(direct, key(1, MZONE, 2))).toEqual({ type: OcgResponseType.SELECT_YESNO, yes: false });
   expect(reponseVisee({ ...direct, description: "30" }, "1")).toBeUndefined();
   expect(reponseVisee({ type: OcgMessageType.SELECT_POSITION, player: 0, code: 10, positions: OcgPosition.FACEUP_ATTACK }, "1")).toBeUndefined();
+});
+
+const { FACEUP_ATTACK, FACEUP_DEFENSE, FACEDOWN_DEFENSE } = OcgPosition;
+const monstre = (position: number, atk?: number, def?: number) => ({ code: 10, position, atk, def });
+const apercu = (attaquant: ReturnType<typeof monstre>, cible: ReturnType<typeof monstre> | null) => apercuCombat(cards, attaquant, cible, "Kaiba");
+
+it("annonce les dégâts d'une attaque directe", () => {
+  expect(apercu(monstre(FACEUP_ATTACK, 1800), null)).toBe("1800 dégâts à Kaiba.");
+});
+
+it("compare ATK et ATK : gagnant, perdant, égalité", () => {
+  const adverse = monstre(FACEUP_ATTACK, 1500, 1000);
+  expect(apercu(monstre(FACEUP_ATTACK, 1800), adverse)).toBe("Le monstre adverse est détruit, 300 dégâts à Kaiba.");
+  expect(apercu(monstre(FACEUP_ATTACK, 1200), adverse)).toBe("Votre monstre est détruit, 300 dégâts pour vous.");
+  expect(apercu(monstre(FACEUP_ATTACK, 1500), adverse)).toBe("Les deux monstres sont détruits, pas de dégâts.");
+});
+
+it("compare ATK et DEF, avec renvoi de dégâts seulement si la DEF est plus haute", () => {
+  const defense = monstre(FACEUP_DEFENSE, 500, 2000);
+  expect(apercu(monstre(FACEUP_ATTACK, 2500), defense)).toBe("Le monstre adverse est détruit, pas de dégâts.");
+  expect(apercu(monstre(FACEUP_ATTACK, 2000), defense)).toBe("Aucun monstre détruit, pas de dégâts.");
+  expect(apercu(monstre(FACEUP_ATTACK, 1700), defense)).toBe("Aucun monstre détruit, 300 dégâts pour vous.");
+});
+
+it("ne révèle rien d'un monstre face cachée, même si ses stats sont connues", () => {
+  expect(apercu(monstre(FACEUP_ATTACK, 1800), monstre(FACEDOWN_DEFENSE, 100, 100))).toBe("Monstre face cachée : DEF inconnue (?). Restez prudent.");
+});
+
+it("se rabat sur les stats imprimées, et se tait si elles sont inconnues", () => {
+  const imprimees: Cards = new Map([[10, { atk: 1000, def: 800 } as CardInfo], [30, { atk: -2, def: 0 } as CardInfo]]);
+  expect(apercuCombat(imprimees, monstre(FACEUP_ATTACK), monstre(FACEUP_DEFENSE), "Kaiba")).toBe("Le monstre adverse est détruit, pas de dégâts.");
+  expect(apercuCombat(imprimees, { code: 30, position: FACEUP_ATTACK }, null, "Kaiba")).toBeUndefined();
+});
+
+it("retient l'attaquant choisi jusqu'à la question de la cible", () => {
+  const battle: EngineMessage = {
+    type: OcgMessageType.SELECT_BATTLECMD,
+    player: 0,
+    chains: [],
+    attacks: [{ ...at(0, MZONE, 3, 10), can_direct: true }],
+    to_m2: true,
+    to_ep: true,
+  };
+  const attaque = { type: OcgResponseType.SELECT_BATTLECMD, action: SelectBattleCMDAction.SELECT_BATTLE, index: 0 } as const;
+  expect(attaquantChoisi(battle, attaque)).toBe(key(0, MZONE, 3));
+  expect(attaquantChoisi(battle, { ...attaque, action: SelectBattleCMDAction.TO_EP, index: null })).toBeUndefined();
+  const directe: EngineMessage = { type: OcgMessageType.SELECT_YESNO, player: 0, description: "31" };
+  expect(attaquantChoisi(directe, { type: OcgResponseType.SELECT_YESNO, yes: false }, "0:4:3")).toBe("0:4:3");
+  expect(attaquantChoisi(undefined, attaque)).toBeUndefined();
 });

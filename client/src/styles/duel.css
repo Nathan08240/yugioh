@@ -576,6 +576,32 @@
   box-shadow: var(--ombre-3);
 }
 
+/* Aperçu d'un combat : dans le panneau de question, ou à côté de la carte qu'on glisse */
+.apercu {
+  margin: var(--e-2) 0 0;
+  padding: var(--e-2) var(--e-3);
+  border-radius: var(--r-2) var(--r-1);
+  background: rgb(255 197 61 / 0.12);
+  box-shadow: inset 3px 0 0 var(--choisi);
+  font-size: var(--taille-s);
+}
+
+.apercu small {
+  display: block;
+  font-size: var(--taille-xs);
+  color: var(--texte-2);
+}
+
+.fantome .apercu {
+  position: absolute;
+  inset: -1.5rem auto auto 3rem;
+  inline-size: max-content;
+  max-inline-size: 16rem;
+  margin: 0;
+  background: var(--surface-forte);
+  box-shadow: var(--ombre-3), inset 3px 0 0 var(--choisi);
+}
+
 /* Liste d'un Cimetière ou des cartes bannies, ouverte depuis le plateau */
 .pile-liste {
   position: absolute;

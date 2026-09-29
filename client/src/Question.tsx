@@ -402,7 +402,7 @@ function Chips({ places, picked, onPick }: Readonly<{ places: Located[]; picked:
     <ul className="chips">
       {places.map((located) => {
         const key = placeKey(located);
-        const reveal = () => show(located.code);
+        const reveal = () => show(located.code, key);
         return (
           <li key={key}>
             <button type="button" className={picked.includes(key) ? "chip picked" : "chip"} onClick={(event) => onPick(key, pointDe(event))} onMouseEnter={reveal} onFocus={reveal}>

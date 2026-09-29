@@ -1,4 +1,4 @@
-import { OcgLocation, OcgPhase, type OcgResponse } from "@n1xx1/ocgcore-wasm";
+import { OcgLocation, OcgMessageType, OcgPhase, type OcgResponse } from "@n1xx1/ocgcore-wasm";
 import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from "react";
 import { flushSync } from "react-dom";
 import { cardAt, playAll, type Board, type Card, type LogEntry, type Message } from "./board.ts";
@@ -11,10 +11,10 @@ import { cibles3D, zones } from "./plateau3d/disposition.ts";
 import { etapes, type Effet } from "./plateau3d/effets.ts";
 import { jouer, type Jeu, type Regie } from "./plateau3d/spectacle.ts";
 import { interaction, type Choice, type Ui } from "./Question.tsx";
-import { placeKey, pointDe, reponseVisee, type Appui, type Point } from "./question.ts";
+import { apercuCombat, attaquantChoisi, placeKey, pointDe, reponseVisee, type Appui, type Point } from "./question.ts";
 import { RulesBadge, type Rule } from "./regles.tsx";
 import "./styles/duel.css";
-import { Icon } from "./ui.tsx";
+import { Apercu, Icon } from "./ui.tsx";
 
 // The 3D board and three.js are fetched when a duel starts (their own chunk).
 const Plateau3D = lazy(() => import("./plateau3d/Plateau3D.tsx"));
@@ -106,13 +106,22 @@ export function Duel({ board, seat, asked, respond, leave, feed, lp, pseudo, opp
   const picked = courant.keys;
   const setPicked = (keys: string[], point?: Point, cible?: string) => setPicks({ id: asked?.id, keys, point, cible });
   const question = idle ? asked?.question : undefined;
-  const ui = interaction(question, { board: shown, cards, strings, picked, cible: courant.cible, setPicked, respond });
+  // The attacker stays known until the next question, the one asking for the target.
+  const [attaque, setAttaque] = useState<{ apres: number; key: string }>();
+  const repondreDuel = (response: OcgResponse) => {
+    const key = attaquantChoisi(asked?.question, response, attaque?.key);
+    if (asked && key) setAttaque({ apres: asked.id, key });
+    respond(response);
+  };
+  const ui = interaction(question, { board: shown, cards, strings, picked, cible: courant.cible, setPicked, respond: repondreDuel });
   const visee = useVisee(asked, respond);
   const repondre = (response: OcgResponse, cible: string | undefined) => {
     if (cible) visee(cible);
-    respond(response);
+    repondreDuel(response);
   };
   const sonde: Sonde = useRef(null);
+  const nom = opponent ?? "Adversaire";
+  const [pointe, setPointe] = useState<string>();
   // What a card can be dropped on: zones of the 3D board, and the opponent's plate for a direct attack.
   const depots = (key: string) => [...zones(seat).map((zone) => zone.id), String(1 - seat)].filter((id) => (ui.deposer?.(key, id).length ?? 0) > 0);
   // One action goes at once; several open the bubble where the card was dropped.
@@ -122,7 +131,12 @@ export function Duel({ board, seat, asked, respond, leave, feed, lp, pseudo, opp
     if (choix.length === 1) repondre(choix[0].response, cible);
     else if (choix.length > 1) setPicked([key], { x, y }, cible);
   };
-  const { glisse, fantome, glisser } = useGlisser(deposer);
+  const { glisse, fantome, glisser } = useGlisser(deposer, (x, y) => setPointe(cibleSous(x, y, sonde)));
+  // Preview of the attack being dragged onto a target, or of the target of the attack question that is hovered or focused.
+  const attaqueGlissee = glisse && pointe && ui.deposer?.(glisse.key, pointe).some((choice) => choice.id.startsWith("attack"));
+  const apercuGlisse = attaqueGlissee ? apercuVers(shown, cards, glisse.key, pointe, nom) : undefined;
+  const cibleAttaque = question?.type === OcgMessageType.SELECT_CARD && attaque && asked?.id === attaque.apres + 1 ? detail?.place : undefined;
+  const apercuCible = cibleAttaque && ui.targets.has(cibleAttaque) ? apercuVers(shown, cards, attaque?.key, cibleAttaque, nom) : undefined;
   // No drag and drop on the 2D board.
   const appui = (key: string, code: number, event: Appui) => {
     if (mode === "3d" && depots(key).length > 0) glisser(key, code, event);
@@ -142,7 +156,7 @@ export function Duel({ board, seat, asked, respond, leave, feed, lp, pseudo, opp
   };
   const onSurvol = (id: string | undefined) => {
     const code = id ? codeAt(shown, id) : 0;
-    if (code) setDetail({ code, place: id });
+    if (code || (id && ui.targets.has(id))) setDetail({ code, place: id });
   };
   // Current stats of the shown card while it stays on the field, followed live.
   const enJeu = detail?.place ? zoneCard(shown, detail.place) : undefined;
@@ -202,6 +216,7 @@ export function Duel({ board, seat, asked, respond, leave, feed, lp, pseudo, opp
               <p className="surtitre surtitre--or">{asked && idle ? "À vous de répondre" : "Duel en cours"}</p>
               {asked?.retry && idle && <p className="error">Choix refusé par le moteur : essayez autre chose.</p>}
               {idle || !asked ? ui.panel : <p className="muted">Action en cours…</p>}
+              {apercuCible && <Apercu texte={apercuCible} />}
             </section>
           </aside>
         </div>
@@ -218,6 +233,7 @@ export function Duel({ board, seat, asked, respond, leave, feed, lp, pseudo, opp
         {glisse && (
           <div ref={fantome} className="fantome" style={{ translate: `${glisse.x}px ${glisse.y}px` }} aria-hidden="true">
             <CardView code={glisse.code} />
+            {apercuGlisse && <Apercu texte={apercuGlisse} />}
           </div>
         )}
         <div className="bandeau" ref={hud.refs.bandeau} aria-hidden="true">
@@ -245,6 +261,15 @@ function cibleSous(x: number, y: number, sonde: Sonde) {
   return sous?.closest(".plateau-3d") ? sonde.current?.(x, y) : undefined;
 }
 
+// Preview of `attaquant` (zone key) attacking `cible`: the opponent's plate (its number, for a direct attack) or a zone of the board.
+function apercuVers(board: Board, cards: Cards, attaquant: string | undefined, cible: string | undefined, nom: string): string | undefined {
+  const monstre = attaquant && zoneCard(board, attaquant);
+  if (!monstre || !cible) return undefined;
+  if (!cible.includes(":")) return apercuCombat(cards, monstre, null, nom);
+  const adverse = cible.split(":")[1] === String(OcgLocation.MZONE) ? zoneCard(board, cible) : undefined;
+  return adverse && apercuCombat(cards, monstre, adverse, nom);
+}
+
 // A drop remembers the zone or the monster it landed on, and answers the next questions that offer it (SELECT_PLACE, SELECT_CARD); any other question forgets it.
 function useVisee(asked: Asked | undefined, respond: (response: OcgResponse) => void) {
   const visee = useRef<{ apres: number; cible: string }>(undefined);
@@ -263,7 +288,7 @@ function useVisee(asked: Asked | undefined, respond: (response: OcgResponse) => 
 const SEUIL = 8;
 
 // Drag a card with the mouse or a finger: past a few pixels it follows the pointer, released it lands on what is under it.
-function useGlisser(deposer: (key: string, x: number, y: number) => void) {
+function useGlisser(deposer: (key: string, x: number, y: number) => void, survoler: (x: number, y: number) => void) {
   const [glisse, setGlisse] = useState<{ key: string; code: number; x: number; y: number }>();
   const fantome = useRef<HTMLDivElement>(null);
   const dernier = useRef(deposer);
@@ -279,6 +304,7 @@ function useGlisser(deposer: (key: string, x: number, y: number) => void) {
       if (!parti) setGlisse({ key, code, x: event.clientX, y: event.clientY });
       parti = true;
       fantome.current?.style.setProperty("translate", `${event.clientX}px ${event.clientY}px`);
+      survoler(event.clientX, event.clientY);
     };
     const lacher = (event: PointerEvent) => {
       if (event.pointerId !== depart.pointerId) return;
