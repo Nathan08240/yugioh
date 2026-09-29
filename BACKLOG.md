@@ -62,8 +62,19 @@
 - [x] F-ui-collection-deck : collection et deck builder (feat/F-ui-collection-deck)
 - [x] F-ui-boosters : écran et ouverture des boosters (feat/F-ui-boosters)
 - [x] F-ui-histoire : écrans du mode Histoire (feat/F-ui-histoire)
-- [ ] Rareté des exemplaires dans la collection (le serveur ne l'envoie pas)
-- [ ] Nom de l'adversaire en fin de duel, noms français des Dieux anime
+- [ ] Rareté des exemplaires dans la collection (le serveur ne l'envoie pas ; `yugioh.collection` ne garde que passcode et quantité, donc migration)
+- [x] Nom de l'adversaire en fin de duel, noms français des Dieux anime (feat/F-nom-adversaire, fix/F-dieux-anime-noms-fr)
+
+## Retours de jeu
+
+- [x] F-stats-monstres-a-jour : ATK et DEF actuelles sur le plateau (feat/F-stats-monstres-a-jour)
+- [x] F-stats-fiche-detail : ATK et DEF actuelles dans la fiche de détail (feat/F-stats-fiche-detail)
+- [x] F-coup-final-mauvaise-carte : coup final attribué à la carte qui inflige les dégâts (fix/F-coup-final-mauvaise-carte)
+- [x] F-terrain-change-plateau : le plateau prend l'illustration de la Magie de Terrain (feat/F-terrain-change-plateau, fix/F-terrain-plus-visible)
+- [x] F-glisser-deposer-cartes : glisser-déposer et actions sur les cartes (feat/F-glisser-deposer-cartes)
+- [x] F-regles-speciales-visibles : règles spéciales et cause de la défaite expliquées (feat/F-regles-speciales-visibles)
+- [ ] Journal du duel et textes de fin : « Adversaire » à remplacer par son nom
+- [ ] Nom français du Noyau de Diabound (511000118)
 
 ## Mise en ligne
 
