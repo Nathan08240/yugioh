@@ -9,7 +9,7 @@ import { EXTRA_MAX } from "./deckcheck.ts";
 import type { Rules } from "./duel.ts";
 import { parisDay } from "./economy.ts";
 import { isAllowed } from "./pool.ts";
-import { REPLAY_BOOSTERS_MAX, REPLAY_WINS, type Rewards, type StoryArcView, type StoryLevel, type StoryResult, type StoryStatus } from "./protocol.ts";
+import { REPLAY_BOOSTERS_MAX, REPLAY_WINS, type Rewards, type StoryArcView, type StoryLevel, type StoryPlayer, type StoryResult, type StoryStatus } from "./protocol.ts";
 
 // Format of each data/story/*.json file, version STORY_VERSION. Texts are short summaries written by us, never anime dialogue.
 export type StoryDuel = {
@@ -28,6 +28,8 @@ export type StoryDuel = {
   rewards: Rewards;
   // Ids of duels placed before this one, or of earlier arcs, met once every duel of the arc is won.
   requires: string[];
+  // Pool cards only; the player plays their active deck when absent.
+  player?: StoryPlayer;
 };
 export type Arc = { id: string; title: string; duels: StoryDuel[] };
 // `anime`: unofficial cards the opponents may play, outside the pool.
@@ -73,6 +75,13 @@ function checkExtra(extra: StoryDuel["extra"] = []): string[] {
   return errors;
 }
 
+function checkPlayer(player?: StoryPlayer): string[] {
+  if (!player) return [];
+  const errors = [...checkDeck(player.deck, new Set()), ...checkExtra(player.extra)];
+  if (!player.name.trim()) errors.push("nom vide");
+  return errors.map((problem) => `deck imposé : ${problem}`);
+}
+
 function checkRules({ lp, hand, special = [] }: StoryDuel["rules"]): string[] {
   const errors: string[] = [];
   if (!Number.isInteger(lp) || lp <= 0) errors.push(`LP de départ invalides : ${lp}`);
@@ -112,7 +121,7 @@ export function validateStory(story: Story): string[] {
   const rewarded = new Set<number>();
   for (const arc of story.arcs) {
     for (const duel of arc.duels) {
-      const problems = [...checkTexts(duel), ...checkDeck(duel.deck, anime), ...checkRules(duel.rules), ...checkRewards(duel.rewards, rewarded)];
+      const problems = [...checkTexts(duel), ...checkDeck(duel.deck, anime), ...checkRules(duel.rules), ...checkRewards(duel.rewards, rewarded), ...checkPlayer(duel.player)];
       if (before.has(duel.id)) problems.push("identifiant en double");
       for (const id of duel.requires) if (!before.has(id)) problems.push(`prérequis ${id} inconnu ou placé après`);
       errors.push(...problems.map((problem) => `${duel.id} : ${problem}`));
@@ -144,6 +153,9 @@ const expand = (list: [code: number, copies: number][]) => list.flatMap(([code, 
 export const storyDeck = (duel: StoryDuel) => expand(duel.deck);
 
 export const storyExtra = (duel: StoryDuel) => expand(duel.extra ?? []);
+
+// The deck the duel imposes on the player, undefined when they play their active deck.
+export const playerDeck = ({ player }: StoryDuel) => player && { main: expand(player.deck), extra: expand(player.extra ?? []) };
 
 export const storyRules = ({ rules }: StoryDuel, level: StoryLevel = "normal"): Rules => ({
   lp: rules.lp,
@@ -193,6 +205,7 @@ export function storyView(done: ReadonlyMap<string, number>, story = STORY): Sto
       requires: duel.requires,
       status: statusOf(duel, done, story),
       stars: done.get(duel.id) ?? 0,
+      player: duel.player,
     })),
   }));
 }

@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type Ref } from "react";
-import { REPLAY_BOOSTERS_MAX, REPLAY_WINS, type ClientMessage, type StoryArcView, type StoryDuelView, type StoryLevel, type StoryStatus } from "../../server/src/protocol.ts";
+import { REPLAY_BOOSTERS_MAX, REPLAY_WINS, type ClientMessage, type StoryArcView, type StoryDuelView, type StoryLevel, type StoryPlayer, type StoryStatus } from "../../server/src/protocol.ts";
 import { cardName, isDivine, useDuelView, type Cards } from "./cards.ts";
 import { createQueue, entrance } from "./motion.ts";
 import { RuleBlock, specialRules } from "./regles.tsx";
@@ -290,6 +290,27 @@ function StarRules({ duel }: Readonly<{ duel: StoryDuelView }>) {
   );
 }
 
+// The deck the duel imposes instead of the active one, card by card.
+function ImposedDeck({ player }: Readonly<{ player: StoryPlayer }>) {
+  const { cards } = useDuelView();
+  const size = player.deck.reduce((sum, [, copies]) => sum + copies, 0);
+  return (
+    <details className="regles panneau" open data-entree>
+      <summary>
+        Deck imposé : {player.name}, {size} cartes
+      </summary>
+      <p className="texte-2">Ce duel se joue avec ce deck, pas avec votre deck actif. Ses cartes ne rejoignent pas votre collection.</p>
+      <ul>
+        {[...player.deck, ...(player.extra ?? [])].map(([code, copies]) => (
+          <li key={code}>
+            {copies} × {cardName(cards, code)}
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
+}
+
 // Before the duel: the opponent projected by the Duel Disk, the story so far, the rules, what can be won.
 export function Briefing({ ref, duel, label, back, start }: Readonly<BriefingProps>) {
   const { cards } = useDuelView();
@@ -332,6 +353,7 @@ export function Briefing({ ref, duel, label, back, start }: Readonly<BriefingPro
         {rules.map((rule) => (
           <RuleBlock key={rule.title} rule={rule} open />
         ))}
+        {duel.player && <ImposedDeck player={duel.player} />}
         <Difficulty duel={duel} level={level} choose={setLevel} />
         <StarRules duel={duel} />
         <div className="briefing__bas" data-entree>

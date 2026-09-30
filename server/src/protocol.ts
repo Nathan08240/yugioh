@@ -300,7 +300,10 @@ export type StoryDuelView = {
   status: StoryStatus;
   // Best stars won, 0 until the duel is won.
   stars: number;
+  player?: StoryPlayer;
 };
+// The deck a story duel imposes on the player instead of their active deck, as [passcode, copies]; never added to the collection.
+export type StoryPlayer = { name: string; deck: [code: number, copies: number][]; extra?: [code: number, copies: number][] };
 export type StoryArcView = { id: string; title: string; duels: StoryDuelView[] };
 
 // GET /api/cards: every card of the pool by passcode, from BabelCDB with French name and text from YGOJSON (English when
