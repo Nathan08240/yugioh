@@ -8,6 +8,7 @@
     "typecheck": "pnpm -r typecheck",
     "vendor": "pnpm --filter server vendor",
     "import-sets": "pnpm --filter server import-sets",
+    "lflist": "pnpm --filter server lflist",
     "images": "pnpm --filter server images",
     "test:db": "pnpm --filter server test:db",
     "test:e2e": "pnpm --filter client test:e2e"

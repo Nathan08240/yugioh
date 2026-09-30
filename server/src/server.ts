@@ -13,13 +13,14 @@ import { Bot } from "./bot.ts";
 import { clientCard, RULE_CARDS } from "./cards.ts";
 import { dbDeckStore, deckReply, isDeckMessage, poolCard, validDeckMessage, type DeckMessage, type DeckStore } from "./collection.ts";
 import { activeDeck, createProfile, findProfile, openDb, type ActiveDeck, type Db, type Profile } from "./db.ts";
-import { EXTRA_MAX, isFusion, MAIN_MAX, MAIN_MIN } from "./deckcheck.ts";
+import { EXTRA_MAX, isFusion, limitError, MAIN_MAX, MAIN_MIN } from "./deckcheck.ts";
 import { KAIBA } from "./decks.ts";
 import { agreeToRules, fieldMoves, fieldStats, lpLeft, lpOf, openDuel, STANDARD_RULES, type Placed, type Rules, type Seed } from "./duel.ts";
 import { CRAFT_COSTS, dbEconomyStore, economyReply, isEconomyMessage, validEconomyMessage, type EconomyMessage, type EconomyStore } from "./economy.ts";
 import { EMOTE_DELAY, EMOTE_IDS, type EmoteId } from "./emotes.ts";
 import { claimEvent, eventOf, eventRules, eventWon, type WeeklyEvent } from "./event.ts";
 import { dbFriendStore, friendHub, isFriendMessage, validFriendMessage, type FriendStore } from "./friends.ts";
+import { GOAT } from "./limits.ts";
 import { isAllowed, POOL, SETS, type Printing } from "./pool.ts";
 import { dbProfileStore, isProfileMessage, profileReply, validProfileMessage, type ProfileMessage, type ProfileStore } from "./profile.ts";
 import { PUZZLE_FAILED, REPORT_MAX, SPECTATORS_MAX, type BotLevel, type CardInfo, type ClientMessage, type DeckResult, type DuelEvent, type Seat, type ServerMessage, type StoryLevel, type StoryResult, type TowerView } from "./protocol.ts";
@@ -663,6 +664,9 @@ const isPoolFusion = (code: number) => {
 const validDeck = ({ main, extra }: ActiveDeck) =>
   main.length >= MAIN_MIN && main.length <= MAIN_MAX && main.every(isAllowed) && extra.length <= EXTRA_MAX && extra.every(isPoolFusion);
 
+// Where the Goat list applies besides the ranked queue: a room or a bot duel of the weekly event.
+const EVENT_LIMITS = "en événement";
+
 type FriendEntry = { deck: () => Promise<ActiveDeck | string>; enter: (room: Room, deck: ActiveDeck) => string | undefined };
 
 // The bot takes seat 1.
@@ -874,11 +878,13 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
       }
     }
 
-    // The active deck of the player, or the error that keeps them out of a duel.
-    async function duelDeck(userId: string): Promise<ActiveDeck | string> {
+    // The active deck of the player, or the error that keeps them out of a duel. `where` ("en classé") also holds it to the Goat list.
+    async function duelDeck(userId: string, where?: string): Promise<ActiveDeck | string> {
       const deck = await accounts.activeDeck(userId);
       if (!deck) return "deck actif requis";
-      return validDeck(deck) ? deck : "deck actif invalide";
+      if (!validDeck(deck)) return "deck actif invalide";
+      const over = where && limitError([...deck.main, ...deck.extra], poolCard, GOAT, where);
+      return over || deck;
     }
 
     // Stores the result of the duel for each human player. A failure is logged, the duel is over anyway.
@@ -934,12 +940,10 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
 
     // An online room rewards its winner with a booster, a quick duel against the bot rewards nothing.
     async function enterRoom(userId: string, msg: Extract<ClientMessage, { type: "create" | "join" | "bot" }>): Promise<string | undefined> {
-      const deck = await duelDeck(userId);
+      const joined = msg.type === "join" ? rooms.get(msg.room.toUpperCase()) : undefined;
+      const deck = await duelDeck(userId, (msg.type === "join" ? joined?.event : msg.event) ? EVENT_LIMITS : undefined);
       if (typeof deck === "string") return deck;
-      if (msg.type === "join") {
-        const joined = rooms.get(msg.room.toUpperCase());
-        return joined ? enter(userId, joined, deck) : "salle introuvable";
-      }
+      if (msg.type === "join") return joined ? enter(userId, joined, deck) : "salle introuvable";
       const room: Room = { code: newCode(rooms), players: [], mode: { mode: "online" } };
       if (msg.event) {
         room.event = eventOf();
@@ -1081,7 +1085,7 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
       }
       if (room.rematch === index) return undefined;
       room.over = false;
-      const decks = await Promise.all(room.players.map((player) => duelDeck(player.id)));
+      const decks = await Promise.all(room.players.map((player) => duelDeck(player.id, room.event && EVENT_LIMITS)));
       const invalid = decks.find((deck): deck is string => typeof deck === "string");
       if (invalid !== undefined) {
         room.over = true;
@@ -1169,7 +1173,7 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
 
     // Waits in the ranked queue with the active deck of the moment, until matched or disconnected.
     async function queueRanked(userId: string): Promise<string | undefined> {
-      const deck = await duelDeck(userId);
+      const deck = await duelDeck(userId, "en classé");
       if (typeof deck === "string") return deck;
       const { rating } = await accounts.rating(userId);
       if (socket.readyState !== socket.OPEN) return undefined;

@@ -58,3 +58,30 @@ export function deckError(deck: DeckDraft, card: CardLookup, owned: ReadonlyMap<
   if (notOwned !== undefined) return `${data(notOwned).name} : plus d'exemplaires que dans ${source}`;
   return undefined;
 }
+
+// Copies allowed per card (passcode of the original): 0 forbidden, 1 limited, 2 semi-limited. A card without entry keeps COPIES_MAX.
+export type Limits = ReadonlyMap<number, number>;
+export type Excess = { name: string; max: number; copies: number };
+
+// The cards a deck plays beyond `limits`, each once, in deck order. Cards outside the lookup are skipped: deckError rejects them.
+export function overLimit(codes: number[], card: CardLookup, limits: Limits): Excess[] {
+  const known = codes.filter((code) => card(code));
+  const key = (code: number) => sameCard(code, card(code) as DeckCard);
+  const copies = countBy(known, key);
+  const seen = new Set<number>();
+  const excess: Excess[] = [];
+  for (const code of known) {
+    const max = limits.get(key(code));
+    if (max === undefined || seen.has(key(code)) || (copies.get(key(code)) ?? 0) <= max) continue;
+    seen.add(key(code));
+    excess.push({ name: (card(code) as DeckCard).name, max, copies: copies.get(key(code)) as number });
+  }
+  return excess;
+}
+
+// "Pot de Cupidité : 1 exemplaire au plus en classé", or undefined when the deck follows the list; `where`: "en classé".
+export function limitError(codes: number[], card: CardLookup, limits: Limits, where: string): string | undefined {
+  const excess = overLimit(codes, card, limits);
+  if (excess.length === 0) return undefined;
+  return excess.map(({ name, max }) => `${name} : ${max === 0 ? "interdite" : `${max} exemplaire${max > 1 ? "s" : ""} au plus`} ${where}`).join(" ; ");
+}

@@ -1,6 +1,10 @@
 import { YUGI } from "../src/decks.ts";
+import { GOAT } from "../src/limits.ts";
 import type { SealedStore } from "../src/sealed.ts";
 import type { Accounts } from "../src/server.ts";
+
+// Yugi's starter deck without the cards the Goat list forbids (Raigeki, Dark Hole...), swapped one for one for Flame Swordsman.
+export const GOAT_YUGI = YUGI.map((code) => (GOAT.get(code) === 0 ? 45231177 : code));
 
 // A player without any Sealed session.
 export const noSealed: SealedStore = {

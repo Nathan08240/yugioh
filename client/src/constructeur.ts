@@ -1,6 +1,6 @@
 import { OcgType } from "@n1xx1/ocgcore-wasm";
 import keyCards from "../../server/data/key-cards.json";
-import { COPIES_MAX, countBy, EXTRA_MAX, MAIN_MIN, sameCard, type DeckDraft } from "../../server/src/deckcheck.ts";
+import { COPIES_MAX, countBy, EXTRA_MAX, MAIN_MIN, sameCard, type DeckDraft, type Limits } from "../../server/src/deckcheck.ts";
 import type { CardInfo } from "../../server/src/protocol.ts";
 import { has, type Cards } from "./cards.ts";
 import { kindOf } from "./collection.ts";
@@ -95,7 +95,8 @@ function tally(names: string[]): Map<string, number> {
 
 // Owned cards only, deterministic: kept cards, the base deck, tier 1 keys, key monsters, monsters by power (theme first),
 // Field and Equip spells boosting them, other keys, other spells and traps, then anything owned. Short when too few cards.
-export function buildDeck(cards: Cards, owned: ReadonlyMap<number, number>, style: Style = {}, keep: Pick<DeckDraft, "main" | "extra"> = { main: [], extra: [] }): Built {
+// `limits`: copies allowed per card (the Goat list), COPIES_MAX for the others.
+export function buildDeck(cards: Cards, owned: ReadonlyMap<number, number>, style: Style = {}, keep: Pick<DeckDraft, "main" | "extra"> = { main: [], extra: [] }, limits?: Limits): Built {
   const { theme } = style;
   const main: number[] = [];
   const used = new Map<number, number>();
@@ -115,7 +116,7 @@ export function buildDeck(cards: Cards, owned: ReadonlyMap<number, number>, styl
     main.push(code);
     record(code);
   };
-  const left = (code: number) => Math.min((owned.get(code) ?? 0) - count(used, code), COPIES_MAX - count(copies, key(code)));
+  const left = (code: number) => Math.min((owned.get(code) ?? 0) - count(used, code), (limits?.get(key(code)) ?? COPIES_MAX) - count(copies, key(code)));
 
   const fits = (code: number, capped: boolean) => {
     const found = card(code);

@@ -1,8 +1,11 @@
 import { useEffect } from "react";
 import type { ClientMessage } from "../../server/src/protocol.ts";
-import { useNow } from "./Accueil.tsx";
+import { activeDeck, useNow } from "./Accueil.tsx";
+import { useDuelView } from "./cards.ts";
+import { GoatReminder } from "./goat.tsx";
 import { minutes, type LobbyState } from "./lobby.ts";
 import "./styles/classe.css";
+import type { Page } from "./Shell.tsx";
 import { Avatar } from "./ui.tsx";
 
 type Send = (msg: ClientMessage) => void;
@@ -10,14 +13,16 @@ type Send = (msg: ClientMessage) => void;
 const games = (count: number) => `${count} partie${count > 1 ? "s" : ""}`;
 
 // The rating of the player, the search for an opponent and the leaderboard.
-export function ClasseView({ state, send, now }: Readonly<{ state: LobbyState; send: Send; now: number }>) {
+export function ClasseView({ state, send, now, go }: Readonly<{ state: LobbyState; send: Send; now: number; go: (page: Page) => void }>) {
   const { ranked, rankedSince } = state;
+  const { cards } = useDuelView();
   return (
     <div className="classe">
       <div className="classe__tete" data-entree>
         <p className="surtitre">Mode classé</p>
         <h1 className="titre">Classement {ranked ? <span className="chiffres">{ranked.rating}</span> : "…"}</h1>
         <p className="texte-2">{ranked ? games(ranked.games) : "Chargement…"} · un adversaire de votre niveau, avec votre deck actif. Le gagnant reçoit un booster.</p>
+        <GoatReminder deck={activeDeck(state.decks)} cards={cards} where="en classé" go={() => go("collection")} />
         {rankedSince === undefined ? (
           <button type="button" className="btn btn--grand" onClick={() => send({ type: "ranked_queue" })}>
             Chercher un adversaire
@@ -65,11 +70,12 @@ export function ClasseView({ state, send, now }: Readonly<{ state: LobbyState; s
   );
 }
 
-export function Classe({ state, send }: Readonly<{ state: LobbyState; send: Send }>) {
+export function Classe({ state, send, go }: Readonly<{ state: LobbyState; send: Send; go: (page: Page) => void }>) {
   const now = useNow();
   // Once per visit: `send` changes on every render of the lobby.
   useEffect(() => {
     send({ type: "ranked" });
+    send({ type: "decks" });
   }, []);
-  return <ClasseView state={state} send={send} now={now} />;
+  return <ClasseView state={state} send={send} now={now} go={go} />;
 }
