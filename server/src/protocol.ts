@@ -123,7 +123,9 @@ export type ClientMessage =
   // active deck, until the duel starts with `joined`; `ranked_cancel` stops waiting. Both are answered with `ranked_queue`.
   | { type: "ranked" }
   | { type: "ranked_queue" }
-  | { type: "ranked_cancel" };
+  | { type: "ranked_cancel" }
+  // Daily missions and achievements (missions.ts), answered with `missions`.
+  | { type: "missions" };
 
 export type DuelMode = "online" | "bot" | "story";
 // Wins and losses of a player with a deck in a mode (and at a level, against the bot or in Story mode); `deck` is null for a deck deleted since.
@@ -211,7 +213,16 @@ export type ServerMessage =
   | ({ type: "ranked" } & RankedView)
   | { type: "ranked_queue"; waiting: boolean }
   // End of a ranked duel: the change of the player's rating, and the new one.
-  | { type: "ranked_result"; delta: number; rating: number };
+  | { type: "ranked_result"; delta: number; rating: number }
+  // Also sent after each duel or booster that moved them. A mission or achievement is paid once its `progress` reaches `goal`.
+  | { type: "missions"; missions: MissionView[]; achievements: AchievementView[] };
+
+// Missions of the day (Europe/Paris), 3 per player: counted duels are against the bot, in Story mode, ranked, in an event, or
+// online against an opponent not yet faced that day. MISSIONS_BONUS boosters once the 3 are done.
+export const MISSIONS_BONUS = 1;
+export type MissionReward = { points?: number; boosters?: number };
+export type MissionView = { id: string; text: string; progress: number; goal: number; reward: MissionReward };
+export type AchievementView = MissionView & { title: string };
 
 // Online is connected and not in a room, "duel" is in a room. Never stored.
 export type Presence = "online" | "duel" | "offline";

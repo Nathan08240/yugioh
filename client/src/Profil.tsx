@@ -5,6 +5,7 @@ import { cardName, useDuelView } from "./cards.ts";
 import { filterCollection, noFilters, ownedCodes, setProgress, type Kind } from "./collection.ts";
 import { tally } from "./DeckRecord.tsx";
 import type { LobbyState } from "./lobby.ts";
+import { Succes } from "./Missions.tsx";
 import "./styles/profil.css";
 import { Avatar } from "./ui.tsx";
 
@@ -153,6 +154,9 @@ export function ProfilView({ state, sets, send }: Readonly<ViewProps>) {
           <h2 className="titre-bloc">Carte favorite</h2>
           {favorite === undefined ? <p className="texte-2">Aucune carte favorite choisie.</p> : <CardView code={favorite} />}
         </section>
+        <section className="panneau profil__bloc" data-entree>
+          <Succes achievements={state.missions?.achievements} />
+        </section>
       </div>
     </div>
   );
@@ -167,6 +171,7 @@ export function Profil({ state, send }: Readonly<{ state: LobbyState; send: Send
     send({ type: "collection" });
     send({ type: "duel_results" });
     send({ type: "story" });
+    send({ type: "missions" });
     fetch("/api/sets")
       .then((res) => res.json())
       .then((data: { cards: number[] }[]) => setSets(data.map((set) => set.cards)))

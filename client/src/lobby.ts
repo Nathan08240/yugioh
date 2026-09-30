@@ -113,6 +113,8 @@ export type LobbyState = {
   ranked?: RankedView;
   rankedSince?: number;
   rankedResult?: { delta: number; rating: number };
+  // Missions of the day and achievements, loaded by the home and profile screens, sent again after each duel or booster.
+  missions?: Omit<Extract<Wire<ServerMessage>, { type: "missions" }>, "type">;
 };
 
 export const initialLobby: LobbyState = { started: false, spectators: 0, asked: 0, emotes: {}, closed: false, needsStarter: false, openedCount: 0, storyOpen: false, reported: 0, challenges: [] };
@@ -240,6 +242,8 @@ export function reduce(state: LobbyState, action: Action): LobbyState {
       return { ...state, rankedSince: action.waiting ? Date.now() : undefined, error: undefined };
     case "ranked_result":
       return { ...state, rankedResult: { delta: action.delta, rating: action.rating } };
+    case "missions":
+      return { ...state, missions: { missions: action.missions, achievements: action.achievements } };
   }
 }
 

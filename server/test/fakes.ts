@@ -1,6 +1,7 @@
 import { YUGI } from "../src/decks.ts";
 import { GOAT } from "../src/limits.ts";
 import type { DraftStore } from "../src/draft.ts";
+import type { MissionStore } from "../src/missions.ts";
 import type { SealedStore } from "../src/sealed.ts";
 import type { Accounts } from "../src/server.ts";
 
@@ -29,6 +30,12 @@ export const noDraft: DraftStore = {
   draftResult: async () => undefined,
   abandonDraft: async () => undefined,
   draftBotDeck: async () => ({ main: [], extra: [] }),
+};
+
+// A player without any mission progress.
+export const noMissions: MissionStore = {
+  missions: async () => ({ missions: [], achievements: [] }),
+  progressMissions: async () => ({ missions: [], achievements: [] }),
 };
 
 // Accounts where every token is the user id, every user has a pseudo and plays Yugi's deck; `overrides` replaces any part.
@@ -74,6 +81,7 @@ export function fakeAccounts(overrides: Partial<Accounts> = {}): Accounts {
     winTower: async (_userId, floor) => ({ floor, best: floor, boosters: 0 }),
     ...noSealed,
     ...noDraft,
+    ...noMissions,
     friendList: async () => [],
     requestFriend: async () => "joueur introuvable",
     acceptFriend: async () => undefined,

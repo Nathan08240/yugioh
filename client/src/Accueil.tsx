@@ -4,6 +4,7 @@ import { CardView } from "./Card.tsx";
 import { cardName, stat, strongest, useDuelView } from "./cards.ts";
 import { GoatReminder } from "./goat.tsx";
 import { countdown, inviteLink, type DeckList, type LobbyState } from "./lobby.ts";
+import { MissionsDuJour } from "./Missions.tsx";
 import { RuleBlock, specialRules } from "./regles.tsx";
 import type { Page } from "./Shell.tsx";
 import { towerLine } from "./Tour.tsx";
@@ -48,6 +49,7 @@ export function Accueil({ state, send, go }: Readonly<{ state: LobbyState; send:
     send({ type: "collection" });
     send({ type: "decks" });
     send({ type: "event" });
+    send({ type: "missions" });
   }, []);
 
   const [choosingLevel, setChoosingLevel] = useState(false);
@@ -68,6 +70,7 @@ export function Accueil({ state, send, go }: Readonly<{ state: LobbyState; send:
             Récompense du jour : 1 booster gagné, à ouvrir dans Boosters.
           </p>
         )}
+        <MissionsDuJour missions={state.missions?.missions} />
         <article className="mode mode--principal" data-entree>
           <div className="mode__tete">
             <Icon id="ui-en-ligne" className="mode__ic" />
