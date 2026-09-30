@@ -25,6 +25,7 @@ import { chooseStarter, starterCards, type Starter } from "./starter.ts";
 import { completeDuel, completedDuels, isUnlocked, STORY, STORY_DUELS, storyDeck, storyExtra, storyRules, storyView, type StoryDuel } from "./story.ts";
 import { systemStrings } from "./strings.ts";
 import { hideCards, visibleTo } from "./visibility.ts";
+import { dbWishStore, isWishMessage, validWishMessage, wishReply, type WishMessage, type WishStore } from "./wishlist.ts";
 
 type Question = Extract<OcgMessage, { player: number }>;
 // `stats`: the last stats event sent, as JSON.
@@ -59,7 +60,7 @@ const deckSizes = (room: Room): [number, number] => [
 const extraSizes = (room: Room): [number, number] => [room.players[0]?.extra?.length ?? 0, room.players[1]?.extra?.length ?? 0];
 
 // Identity, profile, deck, booster and Story mode storage, faked in tests.
-export type Accounts = DeckStore & {
+export type Accounts = DeckStore & WishStore & {
   verify: (token: string) => Promise<string | null>;
   findProfile: (userId: string) => Promise<Profile | undefined>;
   // Resolves to undefined when the pseudo is already taken.
@@ -94,6 +95,7 @@ export function dbAccounts(db: Db): Accounts {
     storyProgress: (userId) => completedDuels(db, userId),
     completeStory: (userId, duel) => completeDuel(db, userId, duel),
     ...dbDeckStore(db),
+    ...dbWishStore(db),
   };
 }
 
@@ -222,7 +224,8 @@ function parse(data: string): ClientMessage | undefined {
     msg.type === "booster_state" ||
     (msg.type === "open_booster" && typeof msg.set === "string") ||
     (msg.type === "admin_boosters" && typeof msg.count === "number" && Number.isInteger(msg.count) && msg.count >= 1 && msg.count <= ADMIN_BOOSTERS_MAX) ||
-    validDeckMessage(msg);
+    validDeckMessage(msg) ||
+    validWishMessage(msg);
   return valid ? (msg as ClientMessage) : undefined;
 }
 
@@ -576,6 +579,13 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
       return undefined;
     }
 
+    async function manageWishes(player: { id: string }, msg: WishMessage): Promise<string | undefined> {
+      const reply = await wishReply(accounts, player.id, msg);
+      if (typeof reply === "string") return reply;
+      send(socket, reply);
+      return undefined;
+    }
+
     async function grantBoosters(player: { id: string }, count: number): Promise<string | undefined> {
       if (!admins.has(player.id)) return "commande réservée";
       await accounts.creditBoosters(player.id, count);
@@ -714,6 +724,7 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
       if (!user.pseudo) return "pseudo à choisir d'abord";
       if (msg.type === "starter") return pickStarter(user, msg.starter);
       if (isDeckMessage(msg)) return manageDecks(user, msg);
+      if (isWishMessage(msg)) return manageWishes(user, msg);
       if (msg.type === "booster_state") return sendBoosterState(user);
       if (msg.type === "open_booster") return openBoosterFor(user, msg.set);
       if (msg.type === "admin_boosters") return grantBoosters(user, msg.count);

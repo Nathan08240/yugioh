@@ -35,6 +35,10 @@ export type ClientMessage =
   | { type: "save_deck"; deck: DeckDraft }
   | { type: "delete_deck"; id: number }
   | { type: "active_deck"; id: number }
+  // Wishlist (wishlist.ts): each message is answered with `wishlist`. `wish_add` fails for a card out of the pool or past WISH_MAX.
+  | { type: "wishlist" }
+  | { type: "wish_add"; code: number }
+  | { type: "wish_remove"; code: number }
   // Boosters: `booster_state` is answered with `booster_state`, `open_booster` with `booster_opened` or an error.
   | { type: "booster_state" }
   | { type: "open_booster"; set: string }
@@ -76,6 +80,8 @@ export type ServerMessage =
   // `saved` is the deck a `save_deck` just stored.
   | { type: "decks"; decks: Deck[]; active: number | null; saved?: number }
   | { type: "duel_error"; error: string }
+  // Wished passcodes, oldest first. Owned cards stay in the list until the player removes them.
+  | { type: "wishlist"; cards: number[] }
   | { type: "booster_state"; nextFreeAt: string; pending: number }
   | { type: "booster_opened"; set: string; cards: Printing[] }
   | { type: "story"; arcs: StoryArcView[] }

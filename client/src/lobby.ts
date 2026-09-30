@@ -51,6 +51,8 @@ export type LobbyState = {
   // Owned cards as [passcode, quantity] and the player's decks, loaded by the collection screen.
   collection?: [number, number][];
   decks?: DeckList;
+  // Wished passcodes, loaded by the collection and boosters screens.
+  wishlist?: number[];
   // Booster timer and pending count, loaded by the boosters screen.
   boosters?: { nextFreeAt: string; pending: number };
   // The cards of the last booster opened, and a counter so a new opening resets the reveal animation.
@@ -116,6 +118,8 @@ export function reduce(state: LobbyState, action: Action): LobbyState {
       return { ...state, collection: action.cards };
     case "decks":
       return { ...state, decks: action, error: undefined };
+    case "wishlist":
+      return { ...state, wishlist: action.cards, error: undefined };
     case "error":
       return { ...state, error: action.error };
     case "duel_error":
