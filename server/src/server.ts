@@ -70,6 +70,7 @@ export type Room = {
   mode?: Pick<DuelResult, "mode" | "level">;
   turns?: number;
   onEnd?: (winner: Seat, reason: number) => void;
+  onWatch?: () => void;
   // A duel still running when the room expires is lost by seat 0 (Sealed mode).
   forfeit?: boolean;
   // A ranked duel: its end updates both ratings, and it has no rematch.
@@ -637,6 +638,7 @@ async function start(room: Room, seed: Seed) {
   if (online(room)) {
     room.watch = { log: [], sockets: room.watch?.sockets ?? [] };
     room.watch.sockets.forEach((socket) => sendWatching(room, socket));
+    room.onWatch?.();
   }
   room.record = { seed, decks: decks.map((main, seat) => ({ main: [...main], extra: [...extras[seat]] })), turn: 0, responses: [] };
   room.duel = await openDuel(seed, decks, (text) => console.error(`[salle ${room.code}] ${text}`), undefined, rulesOf(room), extras, room.field);
@@ -740,7 +742,7 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
     const room: Room = { code: newCode(rooms), players: [], mode: { mode: "online" } };
     room.onWin = (winner) => creditWinner(room, winner as Seat, accounts);
     return challenger.enter(room, host) ?? acceptor.enter(room, guest);
-  });
+  }, (code) => rooms.get(code)?.watch !== undefined);
 
   const newBot = (room: Room) => new Bot(1, lpOf(rulesOf(room), 1), deckSizes(room), botDelay, extraSizes(room), room.level);
 
@@ -900,7 +902,8 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
       const index = sit(room, userId, socket, deck, user?.pseudo, user?.avatar);
       if (index === undefined) return "salle complète";
       seat = { room, index };
-      friends.seat(socket);
+      room.onWatch = () => friends.opened(room.code);
+      friends.seat(socket, room.code);
       if (bot) addBot(room, bot.deck, bot.name, bot.level);
       return undefined;
     }

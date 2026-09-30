@@ -223,7 +223,7 @@ export function reduce(state: LobbyState, action: Action): LobbyState {
     case "friends":
       return { ...state, friends: action.friends, error: undefined };
     case "friend_status":
-      return { ...state, friends: state.friends?.map((friend) => (friend.pseudo === action.pseudo ? { ...friend, status: action.status } : friend)) };
+      return { ...state, friends: state.friends?.map((friend) => (friend.pseudo === action.pseudo ? { ...friend, status: action.status, watch: action.watch } : friend)) };
     case "friend_notice":
       return { ...state, notice: { text: action.text, n: (state.notice?.n ?? 0) + 1 } };
     case "challenged":

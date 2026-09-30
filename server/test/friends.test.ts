@@ -151,6 +151,38 @@ describe("amis", () => {
     await vi.waitFor(() => expect(fred.received).toContainEqual({ type: "error", error: "défi expiré" }));
   });
 
+  it("donne le code de la salle d'un duel en ligne aux seuls amis acceptés, jamais celui d'un duel contre le bot", { timeout: 30_000 }, async () => {
+    const rows = [{ from: "erin", to: "fred", accepted: true }, { from: "gina", to: "erin", accepted: true }, { from: "gina", to: "ivan", accepted: true }];
+    const { connect } = await setup(memoryFriends(rows));
+    const gina = await connect("gina");
+    const hank = await connect("hank");
+    const erin = await connect("erin");
+    const fred = await connect("fred");
+    erin.send({ type: "challenge", pseudo: "fred" });
+    await vi.waitFor(() => expect(fred.received.some((msg) => msg.type === "challenged")).toBe(true));
+    fred.send({ type: "challenge_reply", pseudo: "erin", accept: true });
+    const code = async () => {
+      await vi.waitFor(() => expect(erin.received.find((msg) => msg.type === "joined")).toBeDefined());
+      return (erin.received.find((msg) => msg.type === "joined") as { room: string }).room;
+    };
+    const room = await code();
+    await vi.waitFor(() => expect(gina.received).toContainEqual({ type: "friend_status", pseudo: "erin", status: "duel", watch: room }), { timeout: 20_000 });
+    gina.send({ type: "friends" });
+    await vi.waitFor(() => expect(gina.lists().at(-1)).toContainEqual({ ...friend("erin", "duel"), watch: room }));
+    expect(hank.received.some((msg) => msg.type === "friend_status" || msg.type === "friends")).toBe(false);
+    expect(JSON.stringify(hank.received)).not.toContain(room);
+
+    gina.send({ type: "spectate", room });
+    await vi.waitFor(() => expect(gina.received.find((msg) => msg.type === "joined")).toMatchObject({ room, spectating: { name: "erin" } }));
+
+    const ivan = await connect("ivan");
+    ivan.send({ type: "bot" });
+    await vi.waitFor(() => expect(ivan.received.some((msg) => msg.type === "joined")).toBe(true));
+    const statuses = gina.received.filter((msg) => msg.type === "friend_status" && msg.pseudo === "ivan");
+    expect(statuses.at(-1)).toMatchObject({ status: "duel" });
+    expect(statuses.some((msg) => msg.type === "friend_status" && msg.watch)).toBe(false);
+  });
+
   it("une invitation sans réponse expire au bout de 60 s, celle d'un joueur parti disparaît", async () => {
     const { connect } = await setup(memoryFriends([{ from: "hugo", to: "iris", accepted: true }]));
     const hugo = await connect("hugo");

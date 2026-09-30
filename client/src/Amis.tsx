@@ -86,6 +86,11 @@ export function AmisView({ friends, send }: Readonly<{ friends?: Friend[]; send:
                     Défier
                   </button>
                 )}
+                {friend.watch && (
+                  <button type="button" className="btn" onClick={() => send({ type: "spectate", room: friend.watch ?? "" })}>
+                    Regarder
+                  </button>
+                )}
                 {remove(friend, "Retirer")}
               </Ami>
             ))}

@@ -96,14 +96,14 @@ export const dbFriendStore = (db: Db): FriendStore => ({
 });
 
 // An authenticated connection with a pseudo; `entry` is what the server needs to seat it in a room.
-type Session<E> = { id: string; pseudo: string; seated: boolean; entry: E };
+type Session<E> = { id: string; pseudo: string; seated: boolean; room?: string; entry: E };
 type Challenge = { from: string; pseudo: string; to: string; socket: WebSocket; timer: NodeJS.Timeout };
 type Send = (socket: WebSocket | undefined, msg: ServerMessage) => void;
 
 const same = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
 
 // Presence of the connected players and challenges between friends, in memory. `startDuel` seats both players of an accepted challenge.
-export function friendHub<E>(store: FriendStore, send: Send, startDuel: (challenger: E, acceptor: E) => Promise<string | undefined>) {
+export function friendHub<E>(store: FriendStore, send: Send, startDuel: (challenger: E, acceptor: E) => Promise<string | undefined>, watchable: (room: string) => boolean) {
   const sessions = new Map<WebSocket, Session<E>>();
   const challenges = new Set<Challenge>();
 
@@ -117,7 +117,13 @@ export function friendHub<E>(store: FriendStore, send: Send, startDuel: (challen
     return mine.some(([, session]) => session.seated) ? "duel" : "online";
   }
 
-  const view = (row: FriendRow): Friend => ({ pseudo: row.pseudo, avatar: row.avatar, status: row.status === "accepted" ? presence(row.id) : row.status });
+  // The room code of a friend in a room that can be watched, given to accepted friends only.
+  const watchOf = (id: string) => socketsOf(id).find(([, session]) => session.room && watchable(session.room))?.[1].room;
+
+  const view = (row: FriendRow): Friend => {
+    if (row.status !== "accepted") return { pseudo: row.pseudo, avatar: row.avatar, status: row.status };
+    return { pseudo: row.pseudo, avatar: row.avatar, status: presence(row.id), watch: watchOf(row.id) };
+  };
 
   async function pushList(id: string) {
     if (socketsOf(id).length === 0) return;
@@ -125,10 +131,11 @@ export function friendHub<E>(store: FriendStore, send: Send, startDuel: (challen
   }
 
   // Tells the connected friends of the player about a new presence.
-  async function announce(session: Session<E>, before: Presence) {
+  async function announce(session: Session<E>, before?: Presence) {
     const status = presence(session.id);
     if (status === before) return;
-    for (const row of await store.friendList(session.id)) if (row.status === "accepted") sendTo(row.id, { type: "friend_status", pseudo: session.pseudo, status });
+    const watch = watchOf(session.id);
+    for (const row of await store.friendList(session.id)) if (row.status === "accepted") sendTo(row.id, { type: "friend_status", pseudo: session.pseudo, status, watch });
   }
 
   function close(challenge: Challenge) {
@@ -221,10 +228,15 @@ export function friendHub<E>(store: FriendStore, send: Send, startDuel: (challen
       sessions.set(socket, session);
       announce(session, before).catch((error: unknown) => console.error(error));
     },
-    seat: (socket: WebSocket) =>
+    seat: (socket: WebSocket, room: string) =>
       update(socket, (session) => {
         session.seated = true;
+        session.room = room;
       }),
+    // The duel of the room can now be watched: tells the friends of its players.
+    opened(room: string) {
+      for (const session of sessions.values()) if (session.room === room) announce(session).catch((error: unknown) => console.error(error));
+    },
     leave: (socket: WebSocket) => update(socket, () => sessions.delete(socket)),
     handle,
   };

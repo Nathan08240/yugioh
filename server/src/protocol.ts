@@ -173,7 +173,7 @@ export type ServerMessage =
   // (request received or accepted, challenge refused or unanswered). `challenged`: `from` challenges the player, for `ms`;
   // `challenge_gone`: that challenge was answered, withdrawn or expired.
   | { type: "friends"; friends: Friend[] }
-  | { type: "friend_status"; pseudo: string; status: Presence }
+  | { type: "friend_status"; pseudo: string; status: Presence; watch?: string }
   | { type: "friend_notice"; text: string }
   | { type: "challenged"; from: string; ms: number }
   | { type: "challenge_gone"; from: string }
@@ -209,7 +209,8 @@ export type ServerMessage =
 export type Presence = "online" | "duel" | "offline";
 // `status`: the presence of an accepted friend, else the request "sent" by the player or "received" from that player.
 // `avatar`: passcode of the card chosen as avatar, null until chosen.
-export type Friend = { pseudo: string; avatar: number | null; status: Presence | "sent" | "received" };
+// `watch`: code of the room to watch when an accepted friend is in an online duel between two players.
+export type Friend = { pseudo: string; avatar: number | null; status: Presence | "sent" | "received"; watch?: string };
 
 // A player of the ranked leaderboard; `avatar` is null until chosen.
 export type RankedPlayer = { pseudo: string; avatar: number | null; rating: number; games: number };
