@@ -1,0 +1,83 @@
+/* Liste de souhaits : cœur (Souhait.tsx), filtre du classeur et badges des boosters. */
+
+.souhait {
+  display: inline-flex;
+  gap: var(--e-2);
+  align-items: center;
+  justify-content: center;
+  min-inline-size: 32px;
+  min-block-size: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-rond);
+  background: rgb(6 8 23 / 0.75);
+  box-shadow: inset 0 0 0 1px var(--trait-fort);
+  font: 700 var(--taille-m) / 1 var(--police-etroite);
+  color: var(--texte-2);
+  cursor: pointer;
+}
+
+.souhait:hover {
+  color: var(--texte);
+}
+
+.souhait[aria-pressed="true"] {
+  background: rgb(255 77 109 / 0.18);
+  box-shadow: inset 0 0 0 1px var(--danger);
+  color: var(--danger);
+}
+
+.souhait--texte {
+  padding-inline: var(--e-4);
+  border-radius: var(--r-3) var(--r-1);
+  font-size: var(--taille-s);
+  letter-spacing: 0.04em;
+}
+
+/* Cœur posé sur une carte du classeur. */
+.grille-collection li {
+  position: relative;
+}
+
+.grille-collection li .souhait {
+  position: absolute;
+  inset: 6px 6px auto auto;
+  grid-column: auto;
+  border-radius: var(--r-rond);
+  background: rgb(6 8 23 / 0.75);
+}
+
+.grille-collection li .souhait[aria-pressed="true"] {
+  background: rgb(255 77 109 / 0.18);
+}
+
+.classeur__filtre {
+  align-self: start;
+}
+
+.classeur__detail .souhait--texte {
+  margin-block-start: var(--e-3);
+}
+
+/* Cartes souhaitées qu'un booster peut donner. */
+.boutique__souhaits,
+.series .series__souhaits {
+  color: var(--danger);
+}
+
+.classeur__filtre[aria-pressed="true"] {
+  box-shadow: inset 0 0 0 1px var(--danger);
+  color: var(--danger);
+}
+
+/* Souhait exaucé à l'ouverture d'un booster. */
+.puce--souhait {
+  font-size: var(--taille-m);
+  color: var(--danger);
+  box-shadow: inset 0 0 0 1px var(--danger), 0 0 18px rgb(255 77 109 / 0.5);
+}
+
+.nouveau--souhait {
+  background: var(--danger);
+  color: var(--texte);
+}

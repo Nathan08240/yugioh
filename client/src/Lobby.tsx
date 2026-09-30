@@ -188,7 +188,7 @@ function Screen({ state, page, send, reconnect, leave, respond, go, vsBot, story
   return (
     <Shell id={page} background={page === "collection" ? "nuit" : "ville"} pseudo={state.pseudo} page={page} go={go} pending={state.boosters?.pending} signOut={signOut} notice={page === "accueil"}>
       {page === "accueil" && <Accueil state={state} send={send} go={go} />}
-      {page === "collection" && <Collection collection={state.collection} rarities={state.rarities} decks={state.decks} results={state.results} send={send} />}
+      {page === "collection" && <Collection collection={state.collection} rarities={state.rarities} decks={state.decks} results={state.results} wishlist={state.wishlist} send={send} />}
       {page === "boosters" && <Boosters state={state} send={send} go={go} />}
       {page === "histoire" && <Story arcs={state.story} send={send} />}
       {page === "regles" && <Regles />}

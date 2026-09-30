@@ -4,10 +4,10 @@ import { Classeur } from "./Classeur.tsx";
 import { DeckBuilder } from "./DeckBuilder.tsx";
 import type { DeckList } from "./lobby.ts";
 
-type Props = { collection?: [number, number][]; rarities?: [number, string, number][]; decks?: DeckList; results?: DeckResult[]; send: (msg: ClientMessage) => void };
+type Props = { collection?: [number, number][]; rarities?: [number, string, number][]; decks?: DeckList; results?: DeckResult[]; wishlist?: number[]; send: (msg: ClientMessage) => void };
 
 // The collection screen: deck building, or the binder of each booster.
-export function Collection({ collection, rarities, decks, results, send }: Readonly<Props>) {
+export function Collection({ collection, rarities, decks, results, wishlist, send }: Readonly<Props>) {
   const [tab, setTab] = useState<"decks" | "classeur">("decks");
   return (
     <>
@@ -19,7 +19,7 @@ export function Collection({ collection, rarities, decks, results, send }: Reado
           Classeur
         </button>
       </div>
-      {tab === "decks" ? <DeckBuilder collection={collection} rarities={rarities} decks={decks} results={results} send={send} /> : <Classeur collection={collection} rarities={rarities} send={send} />}
+      {tab === "decks" ? <DeckBuilder collection={collection} rarities={rarities} decks={decks} results={results} send={send} /> : <Classeur collection={collection} rarities={rarities} wishlist={wishlist} send={send} />}
     </>
   );
 }

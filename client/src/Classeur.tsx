@@ -3,6 +3,8 @@ import type { ClientMessage } from "../../server/src/protocol.ts";
 import { CardDetail, CardView } from "./Card.tsx";
 import { cardName, DuelView, useCards } from "./cards.ts";
 import { bestRarity, copiesByRarity, ownedCodes, setProgress } from "./collection.ts";
+import { WishButton } from "./Souhait.tsx";
+import { WISH_MAX } from "./wishlist.ts";
 import "./styles/classeur.css";
 import "./styles/collection.css";
 import { BestRarity } from "./ui.tsx";
@@ -10,23 +12,29 @@ import { BestRarity } from "./ui.tsx";
 type SetCards = { code: string; name: string; date: string; cards: number[] };
 
 // Binder: one page per booster or starter deck, the cards not owned yet greyed out.
-type Props = { collection?: [number, number][]; rarities?: [number, string, number][]; send: (msg: ClientMessage) => void };
+type Props = { collection?: [number, number][]; rarities?: [number, string, number][]; wishlist?: number[]; send: (msg: ClientMessage) => void };
 
-export function Classeur({ collection, rarities, send }: Readonly<Props>) {
+export function Classeur({ collection, rarities, wishlist, send }: Readonly<Props>) {
   const cards = useCards();
   const [sets, setSets] = useState<SetCards[]>();
   const [selected, setSelected] = useState(0);
   const [shown, setShown] = useState<number>();
+  const [onlyWished, setOnlyWished] = useState(false);
   const view = useMemo(() => ({ cards, show: setShown, seat: 0 }), [cards]);
   const owned = useMemo(() => ownedCodes(collection ?? []), [collection]);
   const quantities = useMemo(() => new Map(collection), [collection]);
   const copies = useMemo(() => copiesByRarity(collection ?? [], rarities ?? []), [collection, rarities]);
+  const wished = useMemo(() => new Set(wishlist), [wishlist]);
   const set = sets?.[selected];
-  const setCards = useMemo(() => set?.cards.toSorted((a, b) => (cards.get(a)?.name ?? "").localeCompare(cards.get(b)?.name ?? "")) ?? [], [set, cards]);
+  const setCards = useMemo(
+    () => set?.cards.filter((code) => !onlyWished || wished.has(code)).toSorted((a, b) => (cards.get(a)?.name ?? "").localeCompare(cards.get(b)?.name ?? "")) ?? [],
+    [set, cards, onlyWished, wished],
+  );
 
   // Once per visit of the screen: `send` changes on every render of the lobby.
   useEffect(() => {
     send({ type: "collection" });
+    send({ type: "wishlist" });
     fetch("/api/sets")
       .then((res) => res.json())
       .then((data: SetCards[]) => setSets(data))
@@ -62,6 +70,10 @@ export function Classeur({ collection, rarities, send }: Readonly<Props>) {
           <p className="texte-3">
             {current.owned} cartes possédées sur {current.total} ({current.percent} %) · {current.total - current.owned} manquantes
           </p>
+          <button type="button" className="btn btn--fantome classeur__filtre" aria-pressed={onlyWished} onClick={() => setOnlyWished(!onlyWished)}>
+            ♥ Souhaits ({wished.size} / {WISH_MAX})
+          </button>
+          {onlyWished && setCards.length === 0 && <p className="texte-2">Aucun souhait dans ce set.</p>}
           <ul className="grille-collection">
             {setCards.map((code) => {
               const quantity = quantities.get(code) ?? 0;
@@ -82,6 +94,7 @@ export function Classeur({ collection, rarities, send }: Readonly<Props>) {
                       ×{quantity}
                     </span>
                   )}
+                  {(quantity === 0 || wished.has(code)) && <WishButton code={code} wished={wished.has(code)} send={send} />}
                 </li>
               );
             })}
@@ -89,6 +102,12 @@ export function Classeur({ collection, rarities, send }: Readonly<Props>) {
         </section>
         <aside className="panneau classeur__detail" aria-label="Détail de la carte" data-entree>
           <CardDetail code={shown} copies={shown === undefined ? undefined : copies.get(shown)} />
+          {shown !== undefined && (
+            <>
+              <WishButton code={shown} wished={wished.has(shown)} send={send} label />
+              {wished.has(shown) && owned.has(shown) && <p className="puce puce--succes">Possédée : souhait exaucé</p>}
+            </>
+          )}
         </aside>
       </div>
     </DuelView>

@@ -9,6 +9,7 @@ import { EMOTE_DELAY } from "../src/emotes.ts";
 import { POOL, SETS } from "../src/pool.ts";
 import type { CardInfo, ClientMessage, ServerMessage, Wire } from "../src/protocol.ts";
 import { respond } from "../src/respond.ts";
+import { WISH_MAX } from "../src/wishlist.ts";
 import { advance, creditWinner, DECISION_TIME, RECONNECT_TIME, startServer, type Accounts, type Room } from "../src/server.ts";
 
 const FLAME_SWORDSMAN = 45231177;
@@ -20,6 +21,7 @@ type Answer = (question: OcgMessage, retry: boolean) => OcgResponse | undefined;
 const decks = new Map<string, number[]>([["alice", YUGI], ["bob", KAIBA], ["carol", YUGI], ["dave", YUGI], ["eve", YUGI]]);
 // Extra decks, empty unless a test sets one.
 const extras = new Map<string, number[]>();
+const wishes = new Map<string, Set<number>>();
 
 // Token "jeton-<id>" identifies user <id>; "nouveau" has no profile yet and "pris" is a taken pseudo.
 const accounts: Accounts = {
@@ -40,6 +42,18 @@ const accounts: Accounts = {
   saveDeck: async () => ({ error: "non simulé" }),
   deleteDeck: async () => false,
   activateDeck: async () => false,
+  // Souhaits en mémoire, par joueur.
+  wishlist: async (userId) => [...(wishes.get(userId) ?? [])],
+  addWish: async (userId, code) => {
+    const list = wishes.get(userId) ?? new Set<number>();
+    wishes.set(userId, list);
+    if (!list.has(code) && list.size >= WISH_MAX) return false;
+    list.add(code);
+    return true;
+  },
+  removeWish: async (userId, code) => {
+    wishes.get(userId)?.delete(code);
+  },
   boosterState: async () => ({ nextFreeAt: new Date(0).toISOString(), pending: 0 }),
   // "sansdroit" a un profil mais aucun droit d'ouverture ; le set "ZZZ" n'existe pas.
   openBooster: async (userId, set) => {
@@ -339,6 +353,40 @@ describe("serveur de partie", () => {
     await vi.waitFor(() => expect(p.received.length).toBeGreaterThanOrEqual(3));
     expect(p.received).toContainEqual({ type: "booster_state", nextFreeAt: new Date(0).toISOString(), pending: 0 });
     expect(p.received).toContainEqual({ type: "booster_opened", set: "LOB", cards: [{ code: 1, rarity: "common" }] });
+  });
+
+  it("ajoute et retire des souhaits, refuse une carte hors du pool et la 101e carte", async () => {
+    const [first, second] = [...POOL];
+    const p = await connect("wisher");
+    await vi.waitFor(() => expect(p.received).toHaveLength(1));
+    const last = () => p.received.at(-1);
+    const ask = async (msg: ClientMessage) => {
+      const count = p.received.length;
+      p.send(msg);
+      await vi.waitFor(() => expect(p.received.length).toBeGreaterThan(count));
+    };
+    await ask({ type: "wishlist" });
+    expect(last()).toEqual({ type: "wishlist", cards: [] });
+    await ask({ type: "wish_add", code: first });
+    await ask({ type: "wish_add", code: second });
+    await ask({ type: "wish_add", code: first });
+    expect(last()).toEqual({ type: "wishlist", cards: [first, second] });
+    await ask({ type: "wish_add", code: 1 });
+    expect(last()).toEqual({ type: "error", error: "carte inconnue" });
+    await ask({ type: "wish_remove", code: first });
+    expect(last()).toEqual({ type: "wishlist", cards: [second] });
+
+    const before = p.received.length;
+    for (const code of [...POOL].slice(2, WISH_MAX + 1)) p.send({ type: "wish_add", code });
+    await vi.waitFor(() => expect(p.received).toHaveLength(before + WISH_MAX - 1));
+    expect(last()).toMatchObject({ type: "wishlist", cards: expect.arrayContaining([second]) });
+    expect((last() as { cards: number[] }).cards).toHaveLength(WISH_MAX);
+    await ask({ type: "wish_add", code: first });
+    expect(last()).toEqual({ type: "error", error: `liste de souhaits pleine (${WISH_MAX} cartes au maximum)` });
+    await ask({ type: "wish_add", code: second });
+    expect((last() as { cards: number[] }).cards).toHaveLength(WISH_MAX);
+    p.send({ type: "wish_add", code: 1.5 });
+    await vi.waitFor(() => expect(p.received.at(-1)).toEqual({ type: "error", error: "message invalide" }));
   });
 
   it("réserve l'ajout de boosters aux comptes admin", async () => {

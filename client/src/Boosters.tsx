@@ -5,11 +5,14 @@ import { openPack, place, revealCard, STRONG, type Scene, type Shown } from "./b
 import { isDone, revealAll, revealOrder, settle, startReveal, touch, type RevealState } from "./boosterReveal.ts";
 import { CardView } from "./Card.tsx";
 import { rarityKey, rarityLabel } from "./cards.ts";
+import { ownedCodes } from "./collection.ts";
 import { countdown, type LobbyState } from "./lobby.ts";
 import { createQueue, type Step } from "./motion.ts";
 import type { Page } from "./Shell.tsx";
 import "./styles/boosters.css";
+import "./styles/souhaits.css";
 import { Icon, Rarity } from "./ui.tsx";
+import { grantedWishes, wishedMissing } from "./wishlist.ts";
 
 type Send = (msg: ClientMessage) => void;
 type BoosterSet = { code: string; name: string; date: string };
@@ -65,6 +68,8 @@ function Pack({ set, className = "", ref }: Readonly<{ set: BoosterSet; classNam
 // Boosters screen: free-booster countdown, earned boosters, choice of the set, then the opening.
 export function Boosters({ state, send, go }: Readonly<{ state: LobbyState; send: Send; go: (page: Page) => void }>) {
   const [sets, setSets] = useState<BoosterSet[]>([]);
+  // Passcodes of each set, for the wished cards a booster can hold.
+  const [contents, setContents] = useState<ReadonlyMap<string, number[]>>(new Map());
   const [selected, setSelected] = useState(0);
   const [now, setNow] = useState(Date.now());
   // Openings seen before this visit do not play again.
@@ -74,12 +79,17 @@ export function Boosters({ state, send, go }: Readonly<{ state: LobbyState; send
   useEffect(() => {
     send({ type: "booster_state" });
     send({ type: "collection" });
+    send({ type: "wishlist" });
   }, [state.openedCount]);
 
   useEffect(() => {
     fetch("/api/boosters")
       .then((res) => res.json())
       .then((data: BoosterSet[]) => setSets(data))
+      .catch((error: unknown) => console.error(error));
+    fetch("/api/sets")
+      .then((res) => res.json())
+      .then((data: { code: string; cards: number[] }[]) => setContents(new Map(data.map(({ code, cards }) => [code, cards]))))
       .catch((error: unknown) => console.error(error));
   }, []);
 
@@ -93,6 +103,10 @@ export function Boosters({ state, send, go }: Readonly<{ state: LobbyState; send
   const free = Boolean(boosters) && remainingMs === 0;
   const available = (boosters?.pending ?? 0) + (free ? 1 : 0);
   const set = sets[selected];
+  const wished = useMemo(() => state.wishlist && new Set(state.wishlist), [state.wishlist]);
+  const owned = useMemo(() => state.collection && ownedCodes(state.collection), [state.collection]);
+  // Wished cards not owned yet that a booster can give; undefined until the wishlist and the collection are loaded.
+  const wishCount = (code: string) => (wished && owned ? wishedMissing(contents.get(code) ?? [], wished, owned) : undefined);
   const open = (code: string) => send({ type: "open_booster", set: code });
   const opening = state.opened && state.openedCount > dismissedCount ? state.opened : undefined;
 
@@ -103,6 +117,7 @@ export function Boosters({ state, send, go }: Readonly<{ state: LobbyState; send
         opened={opening}
         set={sets.find((candidate) => candidate.code === opening.set) ?? { code: opening.set, name: opening.set, date: "" }}
         owned={state.collection}
+        wished={state.wishlist}
         left={available}
         next={() => open(opening.set)}
         collection={() => go("collection")}
@@ -173,6 +188,7 @@ export function Boosters({ state, send, go }: Readonly<{ state: LobbyState; send
             <span className="chiffres">{set.code}</span> · paru en <span className="chiffres">{year(set)}</span>
           </p>
           <p className="texte-2">9 cartes : 7 communes, 1 rare et 1 carte brillante, révélées de la moins rare à la plus rare.</p>
+          <WishCount count={wishCount(set.code)} />
           <h3 className="titre-bloc titre-bloc--petit">Carte phare</h3>
           <div className="phares">
             <CardView code={PACKS.get(set.code)?.[0] ?? 0} />
@@ -186,11 +202,27 @@ export function Boosters({ state, send, go }: Readonly<{ state: LobbyState; send
             <button type="button" aria-pressed={index === selected} aria-label={candidate.name} title={candidate.name} onClick={() => setSelected(index)}>
               <b>{candidate.code}</b>
               <span className="chiffres">{year(candidate)}</span>
+              {Boolean(wishCount(candidate.code)) && (
+                <span className="series__souhaits chiffres" title="Cartes souhaitées à obtenir">
+                  ♥ {wishCount(candidate.code)}
+                </span>
+              )}
             </button>
           </li>
         ))}
       </ol>
     </div>
+  );
+}
+
+// How many cards of the wishlist the selected booster can still give.
+function WishCount({ count }: Readonly<{ count?: number }>) {
+  if (count === undefined) return null;
+  if (count === 0) return <p className="texte-2">Aucune carte de vos souhaits dans ce booster.</p>;
+  return (
+    <p className="texte-2 boutique__souhaits">
+      ♥ <b className="chiffres">{count}</b> {count > 1 ? "cartes souhaitées à obtenir" : "carte souhaitée à obtenir"} dans ce booster.
+    </p>
   );
 }
 
@@ -221,6 +253,7 @@ type OpeningProps = {
   set: BoosterSet;
   // The collection before this booster.
   owned?: [number, number][];
+  wished?: number[];
   // Boosters left to open.
   left: number;
   next: () => void;
@@ -256,9 +289,10 @@ async function revealNext(step: Step, refs: Refs, rarity: string, slot?: Element
 }
 
 // The pack tears open, then one card per touch from the least to the most rare; a touch during an animation skips it.
-function BoosterOpening({ opened, set, owned, left, next, collection, close }: Readonly<OpeningProps>) {
+function BoosterOpening({ opened, set, owned, wished, left, next, collection, close }: Readonly<OpeningProps>) {
   const order = useMemo(() => revealOrder(opened.cards), [opened]);
   const [fresh] = useState(() => freshCards(order, owned));
+  const [granted] = useState(() => grantedWishes(order, fresh, new Set(wished)));
   const [reveal, setReveal] = useState<RevealState>(() => startReveal(order.length));
   const queue = useMemo(() => createQueue(), []);
   const started = useRef(false);
@@ -364,8 +398,8 @@ function BoosterOpening({ opened, set, owned, left, next, collection, close }: R
               {rarityLabel(shown.rarity)}
             </p>
             {fresh.has(index) && (
-              <p key={`n${index}`} ref={refs.badge} className={`puce puce--or${hidden}`}>
-                Nouvelle carte
+              <p key={`n${index}`} ref={refs.badge} className={`puce puce--or${granted.has(index) ? " puce--souhait" : ""}${hidden}`}>
+                {granted.has(index) ? "♥ Souhait exaucé !" : "Nouvelle carte"}
               </p>
             )}
           </>
@@ -374,11 +408,11 @@ function BoosterOpening({ opened, set, owned, left, next, collection, close }: R
         )}
       </div>
 
-      <Row ref={row} cards={order.slice(0, -1)} placed={Math.max(0, index)} fresh={fresh} />
+      <Row ref={row} cards={order.slice(0, -1)} placed={Math.max(0, index)} fresh={fresh} granted={granted} />
 
       <div className="ouverture__actions">
         {done ? (
-          <Recap total={order.length} fresh={owned ? fresh.size : undefined} left={left} next={next} collection={collection} close={close} />
+          <Recap total={order.length} fresh={owned ? fresh.size : undefined} granted={granted.size} left={left} next={next} collection={collection} close={close} />
         ) : (
           <button type="button" className="btn btn--fantome" onClick={showAll}>
             Tout révéler
@@ -402,10 +436,10 @@ function BoosterOpening({ opened, set, owned, left, next, collection, close }: R
   );
 }
 
-type RowProps = { cards: Opened["cards"]; placed: number; fresh: ReadonlySet<number>; ref: Ref<HTMLOListElement> };
+type RowProps = { cards: Opened["cards"]; placed: number; fresh: ReadonlySet<number>; granted: ReadonlySet<number>; ref: Ref<HTMLOListElement> };
 
 // The row under the pile: the `placed` first cards in their slot, empty frames for the others.
-function Row({ cards, placed, fresh, ref }: Readonly<RowProps>) {
+function Row({ cards, placed, fresh, granted, ref }: Readonly<RowProps>) {
   return (
     <ol ref={ref} className="tirage" aria-label="Cartes du booster">
       {cards.map((card, i) => {
@@ -413,7 +447,7 @@ function Row({ cards, placed, fresh, ref }: Readonly<RowProps>) {
         return (
           <li key={`${card.code}-${card.rarity}`}>
             <CardView code={card.code} rarity={card.rarity} />
-            {fresh.has(i) && <span className="nouveau">Nouveau</span>}
+            {fresh.has(i) && <span className={granted.has(i) ? "nouveau nouveau--souhait" : "nouveau"}>{granted.has(i) ? "♥ Exaucé" : "Nouveau"}</span>}
             {rarityKey(card.rarity) !== "commune" && <Rarity rarity={card.rarity} />}
           </li>
         );
@@ -422,19 +456,21 @@ function Row({ cards, placed, fresh, ref }: Readonly<RowProps>) {
   );
 }
 
-type RecapProps = { total: number; fresh?: number; left: number; next: () => void; collection: () => void; close: () => void };
+type RecapProps = { total: number; fresh?: number; granted: number; left: number; next: () => void; collection: () => void; close: () => void };
 
 // Summary once every card is revealed: what joined the collection, and where to go next.
-function Recap({ total, fresh, left, next, collection, close }: Readonly<RecapProps>) {
+function Recap({ total, fresh, granted, left, next, collection, close }: Readonly<RecapProps>) {
   const first = useRef<HTMLButtonElement>(null);
   useEffect(() => first.current?.focus(), []);
   let summary = `${total} cartes ajoutées à votre collection`;
   if (fresh === 1) summary += ", dont 1 nouvelle";
   else if (fresh) summary += `, dont ${fresh} nouvelles`;
+  summary += ".";
+  if (granted > 0) summary += ` ${granted > 1 ? `${granted} souhaits exaucés` : "1 souhait exaucé"} !`;
   return (
     <>
       <p className="ouverture__bilan" role="status">
-        {summary}.
+        {summary}
       </p>
       {left > 0 && (
         <button type="button" className="btn btn--grand" onClick={next} ref={first}>
