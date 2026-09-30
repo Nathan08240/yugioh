@@ -3,6 +3,7 @@ import { GOAT } from "../src/limits.ts";
 import type { DraftStore } from "../src/draft.ts";
 import type { SealedStore } from "../src/sealed.ts";
 import type { Accounts } from "../src/server.ts";
+import type { TradeStore } from "../src/trade.ts";
 
 // Yugi's starter deck without the cards the Goat list forbids (Raigeki, Dark Hole...), swapped one for one for Flame Swordsman.
 export const GOAT_YUGI = YUGI.map((code) => (GOAT.get(code) === 0 ? 45231177 : code));
@@ -29,6 +30,15 @@ export const noDraft: DraftStore = {
   draftResult: async () => undefined,
   abandonDraft: async () => undefined,
   draftBotDeck: async () => ({ main: [], extra: [] }),
+};
+
+// A player without any trade offer nor friend to trade with.
+export const noTrades: TradeStore = {
+  trades: async () => ({ received: [], sent: [], left: 3 }),
+  tradeCards: async () => "ami introuvable",
+  offerTrade: async () => "ami introuvable",
+  acceptTrade: async () => "offre expirée ou déjà traitée",
+  removeTrade: async () => undefined,
 };
 
 // Accounts where every token is the user id, every user has a pseudo and plays Yugi's deck; `overrides` replaces any part.
@@ -78,6 +88,7 @@ export function fakeAccounts(overrides: Partial<Accounts> = {}): Accounts {
     requestFriend: async () => "joueur introuvable",
     acceptFriend: async () => undefined,
     removeFriend: async () => undefined,
+    ...noTrades,
     rating: async () => ({ rating: 1000, games: 0, seasonGames: 0 }),
     ranked: async () => ({ rating: 1000, games: 0, season: "2026-10", daysLeft: 31, seasonGames: 0, leaderboard: [], previousSeason: "2026-09", previousLeaderboard: [], lastResult: null }),
     rateDuel: async () => [

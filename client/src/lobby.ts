@@ -108,6 +108,9 @@ export type LobbyState = {
   challenges: { from: string; until: number }[];
   // Last friend notice; `n` tells two successive ones apart.
   notice?: { text: string; n: number };
+  // Trade offers, loaded by the friends screen and kept up to date by the server; the cards to trade with the friend last asked for.
+  trades?: Extract<Wire<ServerMessage>, { type: "trades" }>;
+  tradeCards?: Extract<Wire<ServerMessage>, { type: "trade_cards" }>;
   // Ranked mode: rating, season and leaderboards, loaded by its screen; when the search for an opponent started (ms since the
   // epoch), and the rating change of the last ranked duel.
   ranked?: RankedView;
@@ -234,6 +237,10 @@ export function reduce(state: LobbyState, action: Action): LobbyState {
       return { ...state, challenges: [...state.challenges.filter((challenge) => challenge.from !== action.from), { from: action.from, until: Date.now() + action.ms }] };
     case "challenge_gone":
       return { ...state, challenges: state.challenges.filter((challenge) => challenge.from !== action.from) };
+    case "trades":
+      return { ...state, trades: action, error: undefined };
+    case "trade_cards":
+      return { ...state, tradeCards: action };
     case "ranked":
       return { ...state, ranked: action };
     case "ranked_queue":

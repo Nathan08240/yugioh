@@ -1,0 +1,104 @@
+/* Échanges de cartes entre amis (Echanges.tsx) : offres reçues et envoyées, choix des doublons */
+
+.echange {
+  display: grid;
+  gap: var(--e-2);
+  padding-block: var(--e-2);
+  border-block-start: 1px solid var(--trait);
+}
+
+.echange__titre {
+  margin: 0;
+}
+
+.echange__sous-titre {
+  margin: var(--e-3) 0 0;
+  padding: 0;
+  font-size: var(--taille-s);
+  color: var(--texte-3);
+}
+
+.echange__cartes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--e-3);
+  align-items: center;
+}
+
+.echange__carte {
+  --carte-l: 64px;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: var(--e-2);
+  align-items: center;
+  min-inline-size: 0;
+}
+
+.echange__carte .carte {
+  grid-row: span 2;
+}
+
+.echange__fleche {
+  font-size: var(--taille-m);
+  color: var(--holo);
+}
+
+.echange__choix-liste {
+  display: grid;
+  gap: var(--e-3);
+}
+
+.echange__choix {
+  min-inline-size: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.echange__grille {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: var(--e-2);
+  max-block-size: 360px;
+  margin: var(--e-2) 0 0;
+  padding: var(--e-1);
+  overflow-y: auto;
+  list-style: none;
+}
+
+.echange__option {
+  --carte-l: 80px;
+  display: grid;
+  justify-items: center;
+  gap: var(--e-1);
+  padding: var(--e-2);
+  border-radius: var(--r-2);
+  text-align: center;
+  font-size: var(--taille-s);
+  cursor: pointer;
+  box-shadow: inset 0 0 0 1px var(--trait);
+}
+
+.echange__option:has(:checked) {
+  box-shadow: inset 0 0 0 2px var(--holo);
+}
+
+.echange__option:has(:focus-visible) {
+  box-shadow: var(--focus);
+}
+
+.echange__option.est-souhaitee {
+  box-shadow: inset 0 0 0 1px var(--danger);
+}
+
+.echange__option.est-souhaitee:has(:checked) {
+  box-shadow: inset 0 0 0 2px var(--danger);
+}
+
+.echange__nom {
+  overflow-wrap: anywhere;
+}
+
+.echange__souhait {
+  color: var(--danger);
+}

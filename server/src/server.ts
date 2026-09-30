@@ -38,6 +38,7 @@ import { systemStrings } from "./strings.ts";
 import { startTower, TOWER, towerLevel, towerRules, towerView, winTower, type TowerWin } from "./tower.ts";
 import { finishTutorial, TUTORIAL_FIELD, TUTORIAL_RULES } from "./tutorial.ts";
 import { hideCards, visibleTo } from "./visibility.ts";
+import { dbTradeStore, isTradeMessage, tradeReply, validTradeMessage, type TradeStore } from "./trade.ts";
 import { dbWishStore, isWishMessage, validWishMessage, wishReply, type WishMessage, type WishStore } from "./wishlist.ts";
 import { dbWonderStore, isWonderMessage, validWonderMessage, wonderReply, type WonderMessage, type WonderStore } from "./wonder.ts";
 
@@ -97,7 +98,7 @@ const deckSizes = (room: Room): [number, number] => [
 const extraSizes = (room: Room): [number, number] => [room.players[0]?.extra?.length ?? 0, room.players[1]?.extra?.length ?? 0];
 
 // Identity, profile, deck, booster and Story mode storage, faked in tests.
-export type Accounts = DeckStore & WishStore & EconomyStore & WonderStore & ProfileStore & SealedStore & DraftStore & FriendStore & RankedStore & {
+export type Accounts = DeckStore & WishStore & EconomyStore & WonderStore & ProfileStore & SealedStore & DraftStore & FriendStore & TradeStore & RankedStore & {
   verify: (token: string) => Promise<string | null>;
   findProfile: (userId: string) => Promise<Profile | undefined>;
   // Resolves to undefined when the pseudo is already taken.
@@ -167,6 +168,7 @@ export function dbAccounts(db: Db): Accounts {
     ...dbSealedStore(db),
     ...dbDraftStore(db),
     ...dbFriendStore(db),
+    ...dbTradeStore(db),
     ...dbRankedStore(db),
   };
 }
@@ -321,7 +323,8 @@ function parse(data: string): ClientMessage | undefined {
     validProfileMessage(msg) ||
     validSealedMessage(msg) ||
     validDraftMessage(msg) ||
-    validFriendMessage(msg);
+    validFriendMessage(msg) ||
+    validTradeMessage(msg);
   return valid ? (msg as ClientMessage) : undefined;
 }
 
@@ -1225,6 +1228,7 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
       if (isProfileMessage(msg)) return manageProfile(user, msg);
       if (isSealedMessage(msg) || isDraftMessage(msg)) return manageLimited(user, msg);
       if (isFriendMessage(msg)) return friends.handle(socket, msg);
+      if (isTradeMessage(msg)) return tradeReply(accounts, { id: user.id, pseudo: user.pseudo }, msg, friends.sendTo);
       if (msg.type === "booster_state") return sendBoosterState(user);
       if (msg.type === "open_booster") return openBoosterFor(user, msg.set);
       if (msg.type === "admin_boosters") return grantBoosters(user, msg.count);

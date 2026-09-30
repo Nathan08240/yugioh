@@ -239,5 +239,7 @@ export function friendHub<E>(store: FriendStore, send: Send, startDuel: (challen
     },
     leave: (socket: WebSocket) => update(socket, () => sessions.delete(socket)),
     handle,
+    // Every connection of a player with a pseudo (trade.ts).
+    sendTo,
   };
 }
