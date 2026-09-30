@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type Ref } from "react";
-import { REPLAY_WINS, type ClientMessage, type StoryArcView, type StoryDuelView, type StoryLevel, type StoryStatus } from "../../server/src/protocol.ts";
+import { REPLAY_BOOSTERS_MAX, REPLAY_WINS, type ClientMessage, type StoryArcView, type StoryDuelView, type StoryLevel, type StoryStatus } from "../../server/src/protocol.ts";
 import { cardName, isDivine, useDuelView, type Cards } from "./cards.ts";
 import { createQueue, entrance } from "./motion.ts";
 import { RuleBlock, specialRules } from "./regles.tsx";
@@ -284,7 +284,7 @@ function StarRules({ duel }: Readonly<{ duel: StoryDuelView }>) {
         ))}
       </ol>
       <p className="texte-3">
-        3 étoiles : 1 booster, une seule fois. Gagner un duel déjà gagné : 1 booster toutes les {REPLAY_WINS} victoires.
+        3 étoiles : 1 booster, une seule fois. Gagner un duel déjà gagné : 1 booster toutes les {REPLAY_WINS} victoires, {REPLAY_BOOSTERS_MAX} par jour au plus.
       </p>
     </div>
   );

@@ -37,7 +37,7 @@ const accounts: Accounts = {
     decks.set(userId, starter === "yugi" ? YUGI : KAIBA);
     return true;
   },
-  collection: async () => ({ cards: [], rarities: [] }),
+  collection: async () => ({ cards: [], rarities: [], points: 7 }),
   decks: async () => ({ decks: [], active: null }),
   saveDeck: async () => ({ error: "non simulé" }),
   deleteDeck: async () => false,
@@ -54,7 +54,7 @@ const accounts: Accounts = {
   removeWish: async (userId, code) => {
     wishes.get(userId)?.delete(code);
   },
-  boosterState: async () => ({ nextFreeAt: new Date(0).toISOString(), pending: 0 }),
+  boosterState: async () => ({ nextFreeAt: new Date(0).toISOString(), pending: 0, ultraIn: 21 }),
   // "sansdroit" a un profil mais aucun droit d'ouverture ; le set "ZZZ" n'existe pas.
   openBooster: async (userId, set) => {
     if (set === "ZZZ") throw new Error(`booster inconnu : ${set}`);
@@ -67,6 +67,11 @@ const accounts: Accounts = {
   recordResult: async () => {},
   duelResults: async () => [],
   saveReport: async () => true,
+  previewConversion: async () => ({ cards: [[1, "", 2]], points: 10 }),
+  convertDuplicates: async (_userId, expected) => (expected === 10 ? undefined : "la collection a changé, relancez l'aperçu"),
+  craftCard: async () => "points insuffisants : 40 nécessaires",
+  // Seul "quotidien" reçoit la récompense du jour à cette connexion.
+  claimDaily: async (userId) => userId === "quotidien",
 };
 // "admin" peut s'ajouter des boosters.
 process.env.ADMIN_USER_IDS = "admin, autreadmin";
@@ -346,12 +351,30 @@ describe("serveur de partie", () => {
     ]);
   });
 
+  it("annonce la récompense du jour, convertit les doublons après l'aperçu et relaie les refus", async () => {
+    const p = await connect("quotidien");
+    p.send({ type: "convert_preview" });
+    p.send({ type: "convert", points: 9 });
+    p.send({ type: "convert", points: 10 });
+    p.send({ type: "craft", code: 1 });
+    p.send({ type: "craft", code: 1.5 } as unknown as ClientMessage);
+    await vi.waitFor(() => expect(p.received).toHaveLength(6));
+    expect(p.received).toEqual([
+      { type: "profile", pseudo: "quotidien", needsStarter: true, daily: true },
+      { type: "conversion", cards: [[1, "", 2]], points: 10 },
+      { type: "error", error: "la collection a changé, relancez l'aperçu" },
+      { type: "collection", cards: [], rarities: [], points: 7 },
+      { type: "error", error: "points insuffisants : 40 nécessaires" },
+      { type: "error", error: "message invalide" },
+    ]);
+  });
+
   it("renvoie l'état des boosters et les cartes d'une ouverture réussie", async () => {
     const p = await connect("carol");
     p.send({ type: "booster_state" });
     p.send({ type: "open_booster", set: "LOB" });
     await vi.waitFor(() => expect(p.received.length).toBeGreaterThanOrEqual(3));
-    expect(p.received).toContainEqual({ type: "booster_state", nextFreeAt: new Date(0).toISOString(), pending: 0 });
+    expect(p.received).toContainEqual({ type: "booster_state", nextFreeAt: new Date(0).toISOString(), pending: 0, ultraIn: 21 });
     expect(p.received).toContainEqual({ type: "booster_opened", set: "LOB", cards: [{ code: 1, rarity: "common" }] });
   });
 

@@ -161,6 +161,17 @@ export function Boosters({ state, send, go }: Readonly<{ state: LobbyState; send
             </button>
           )}
         </div>
+        {boosters && (
+          <div className="panneau compteur" data-entree>
+            <span className="compteur__grand chiffres">{boosters.ultraIn}</span>
+            <p>
+              <b>
+                Ultra garantie dans {boosters.ultraIn} booster{boosters.ultraIn > 1 ? "s" : ""}
+              </b>
+              <span className="texte-2">Après 20 boosters sans Ultra Rare ou mieux, le suivant en contient une.</span>
+            </p>
+          </div>
+        )}
       </aside>
 
       <div className="carrousel" data-entree>

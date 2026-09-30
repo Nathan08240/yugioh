@@ -99,6 +99,7 @@ it("montre les étoiles obtenues, la suivante et la série de rejeu d'un duel d'
   for (const text of ["3 étoiles : 1 booster gagné.", "Victoire de rejeu 3/3 : 1 booster gagné.", "Ouvrir mes boosters"]) expect(full).toContain(text);
   expect(full).not.toContain("Gagnez en Normal");
   expect(end({ ...base, stars: 1, best: 1 })).toContain("Gagnez en Normal pour la 2e étoile.");
+  expect(end({ ...base, stars: 1, best: 2, replayLimit: true })).toContain("2 boosters de rejeu déjà gagnés aujourd&#x27;hui : cette victoire ne compte pas");
 });
 
 it("montre le badge « Règles spéciales » d'un duel d'histoire seulement", () => {

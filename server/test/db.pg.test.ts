@@ -73,9 +73,10 @@ describe("migration yugioh sur Postgres jetable", () => {
     const url = `ws://localhost:${(wss.address() as AddressInfo).port}`;
     const choose = (id: string, pseudo: string) => exchange(url, [{ type: "auth", token: id }, { type: "pseudo", pseudo }], 2);
     try {
+      // The first connection of the day with a profile earns the daily booster.
       expect(await choose(lea.id, "Lea")).toEqual([
         { type: "profile", pseudo: null, needsStarter: false },
-        { type: "profile", pseudo: "Lea", needsStarter: true },
+        { type: "profile", pseudo: "Lea", needsStarter: true, daily: true },
       ]);
       expect(await choose(max.id, "LEA")).toEqual([
         { type: "profile", pseudo: null, needsStarter: false },

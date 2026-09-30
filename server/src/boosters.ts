@@ -47,11 +47,25 @@ export function drawPack(set: CardSet): Printing[] {
   return [...pack];
 }
 
-// Date of the next free booster and the number of earned boosters still waiting to be opened.
-export async function boosterState(db: Db, userId: string): Promise<{ nextFreeAt: string; pending: number }> {
-  const [row] = await db<{ nextFreeAt: Date; pending: number }[]>`
-    select next_free_at as "nextFreeAt", pending from yugioh.booster_state where user_id = ${userId}`;
-  return row ? { nextFreeAt: row.nextFreeAt.toISOString(), pending: row.pending } : { nextFreeAt: new Date().toISOString(), pending: 0 };
+// Boosters opened in a row without an Ultra Rare or better, after which the next one holds one.
+export const ULTRA_PITY = 20;
+const ULTRA = new Set(["ultra", "ultimate", "secret"]);
+export const hasUltra = (pack: Printing[]) => pack.some((card) => ULTRA.has(card.rarity));
+
+// A pack holding an Ultra Rare or better, with the odds of the set otherwise: every booster has some.
+// ponytail: redraws the whole pack, about 8 draws on average.
+export function ultraPack(set: CardSet): Printing[] {
+  let pack = drawPack(set);
+  while (!hasUltra(pack)) pack = drawPack(set);
+  return pack;
+}
+
+// Date of the next free booster, the number of earned boosters still waiting to be opened, and the opening that holds an Ultra for sure.
+export async function boosterState(db: Db, userId: string): Promise<{ nextFreeAt: string; pending: number; ultraIn: number }> {
+  const [row] = await db<{ nextFreeAt: Date; pending: number; sinceUltra: number }[]>`
+    select next_free_at as "nextFreeAt", pending, since_ultra as "sinceUltra" from yugioh.booster_state where user_id = ${userId}`;
+  if (!row) return { nextFreeAt: new Date().toISOString(), pending: 0, ultraIn: ULTRA_PITY + 1 };
+  return { nextFreeAt: row.nextFreeAt.toISOString(), pending: row.pending, ultraIn: Math.max(1, ULTRA_PITY + 1 - row.sinceUltra) };
 }
 
 // Boosters won in duels or Story mode, opened later in the set of the player's choice.
@@ -68,11 +82,12 @@ export async function openBooster(db: Db, userId: string, setCode: string): Prom
   if (!set) throw new Error(`booster inconnu : ${setCode}`);
   return db.begin(async (sql) => {
     await sql`insert into yugioh.booster_state (user_id) values (${userId}) on conflict do nothing`;
-    const [state] = await sql<{ free: boolean; pending: number }[]>`
-      select next_free_at <= now() as free, pending from yugioh.booster_state where user_id = ${userId} for update`;
+    const [state] = await sql<{ free: boolean; pending: number; sinceUltra: number }[]>`
+      select next_free_at <= now() as free, pending, since_ultra as "sinceUltra" from yugioh.booster_state where user_id = ${userId} for update`;
     if (!state.free && state.pending === 0) throw new Error("aucun booster disponible");
     const source = state.free ? "free" : "earned";
-    const cards = drawPack(set);
+    const cards = state.sinceUltra >= ULTRA_PITY ? ultraPack(set) : drawPack(set);
+    await sql`update yugioh.booster_state set since_ultra = ${hasUltra(cards) ? 0 : state.sinceUltra + 1} where user_id = ${userId}`;
     const codes = cards.map((card) => card.code);
     await sql`
       insert into yugioh.booster_openings (user_id, set_code, source, cards) values (${userId}, ${set.code}, ${source}, ${codes})`;

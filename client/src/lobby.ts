@@ -29,6 +29,8 @@ export type LobbyState = {
   needsStarter: boolean;
   // Account listed in the server's ADMIN_USER_IDS: sees the admin commands.
   admin?: boolean;
+  // This connection earned the daily booster, announced on the home screen.
+  daily?: boolean;
   room?: string;
   seat?: Seat;
   // Name of the other seat, once known.
@@ -53,13 +55,16 @@ export type LobbyState = {
   collection?: [number, number][];
   // Copies of known rarity as [passcode, rarity, quantity].
   rarities?: [number, string, number][];
+  // Collection points, and the last conversion preview: cleared by the next collection, which follows a conversion.
+  points?: number;
+  conversion?: Extract<ServerMessage, { type: "conversion" }>;
   decks?: DeckList;
   // Wins and losses per deck and mode, loaded with the decks.
   results?: DeckResult[];
   // Wished passcodes, loaded by the collection and boosters screens.
   wishlist?: number[];
-  // Booster timer and pending count, loaded by the boosters screen.
-  boosters?: { nextFreeAt: string; pending: number };
+  // Booster timer, pending count and openings left before a sure Ultra Rare, loaded by the boosters screen.
+  boosters?: { nextFreeAt: string; pending: number; ultraIn: number };
   // The cards of the last booster opened, and a counter so a new opening resets the reveal animation.
   opened?: { set: string; cards: { code: number; rarity: string }[] };
   openedCount: number;
@@ -84,7 +89,7 @@ export function reduce(state: LobbyState, action: Action): LobbyState {
     case "left":
       return { ...state, room: undefined, seat: undefined, board: undefined, started: false, question: undefined, error: undefined, won: undefined, rematch: undefined, answerBy: undefined, away: undefined, emotes: {} };
     case "profile":
-      return { ...state, pseudo: action.pseudo, needsStarter: action.needsStarter, admin: action.admin, error: undefined };
+      return { ...state, pseudo: action.pseudo, needsStarter: action.needsStarter, admin: action.admin, daily: action.daily || state.daily, error: undefined };
     case "joined":
       return {
         ...state,
@@ -122,7 +127,9 @@ export function reduce(state: LobbyState, action: Action): LobbyState {
     case "answered":
       return { ...state, question: undefined };
     case "collection":
-      return { ...state, collection: action.cards, rarities: action.rarities };
+      return { ...state, collection: action.cards, rarities: action.rarities, points: action.points, conversion: undefined };
+    case "conversion":
+      return { ...state, conversion: action };
     case "decks":
       return { ...state, decks: action, error: undefined };
     case "duel_results":
@@ -134,7 +141,7 @@ export function reduce(state: LobbyState, action: Action): LobbyState {
     case "duel_error":
       return { ...state, error: action.error, question: undefined, answerBy: undefined, away: undefined };
     case "booster_state":
-      return { ...state, boosters: { nextFreeAt: action.nextFreeAt, pending: action.pending } };
+      return { ...state, boosters: { nextFreeAt: action.nextFreeAt, pending: action.pending, ultraIn: action.ultraIn } };
     case "booster_opened":
       return { ...state, opened: { set: action.set, cards: action.cards }, openedCount: state.openedCount + 1 };
     case "story_menu":

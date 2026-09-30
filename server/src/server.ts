@@ -16,6 +16,7 @@ import { activeDeck, createProfile, findProfile, openDb, type ActiveDeck, type D
 import { EXTRA_MAX, isFusion, MAIN_MAX, MAIN_MIN } from "./deckcheck.ts";
 import { KAIBA } from "./decks.ts";
 import { agreeToRules, fieldStats, lpLeft, lpOf, openDuel, STANDARD_RULES, type Rules, type Seed } from "./duel.ts";
+import { CRAFT_COSTS, dbEconomyStore, economyReply, isEconomyMessage, validEconomyMessage, type EconomyMessage, type EconomyStore } from "./economy.ts";
 import { EMOTE_DELAY, EMOTE_IDS, type EmoteId } from "./emotes.ts";
 import { isAllowed, POOL, SETS, type Printing } from "./pool.ts";
 import { REPORT_MAX, type BotLevel, type CardInfo, type ClientMessage, type DeckResult, type DuelEvent, type Seat, type ServerMessage, type StoryLevel, type StoryResult } from "./protocol.ts";
@@ -68,7 +69,7 @@ const deckSizes = (room: Room): [number, number] => [
 const extraSizes = (room: Room): [number, number] => [room.players[0]?.extra?.length ?? 0, room.players[1]?.extra?.length ?? 0];
 
 // Identity, profile, deck, booster and Story mode storage, faked in tests.
-export type Accounts = DeckStore & WishStore & {
+export type Accounts = DeckStore & WishStore & EconomyStore & {
   verify: (token: string) => Promise<string | null>;
   findProfile: (userId: string) => Promise<Profile | undefined>;
   // Resolves to undefined when the pseudo is already taken.
@@ -76,7 +77,7 @@ export type Accounts = DeckStore & WishStore & {
   activeDeck: (userId: string) => Promise<ActiveDeck | undefined>;
   // Resolves to false when the player already has an active deck.
   chooseStarter: (userId: string, starter: Starter) => Promise<boolean>;
-  boosterState: (userId: string) => Promise<{ nextFreeAt: string; pending: number }>;
+  boosterState: (userId: string) => Promise<{ nextFreeAt: string; pending: number; ultraIn: number }>;
   // Rejects with a clear message: no right to open, or an unknown set.
   openBooster: (userId: string, setCode: string) => Promise<Printing[]>;
   creditBoosters: (userId: string, count: number) => Promise<void>;
@@ -112,6 +113,7 @@ export function dbAccounts(db: Db): Accounts {
     saveReport: (userId, message, report) => saveReport(db, userId, message, report),
     ...dbDeckStore(db),
     ...dbWishStore(db),
+    ...dbEconomyStore(db),
   };
 }
 
@@ -187,6 +189,11 @@ function serveHttp(req: IncomingMessage, res: ServerResponse) {
     res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify(body));
     return;
   }
+  if (req.method === "GET" && req.url === "/api/craft") {
+    // Points to obtain each booster card as [passcode, cost].
+    res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify([...CRAFT_COSTS]));
+    return;
+  }
   if (req.method === "GET" && req.url === "/api/sets") {
     // Boosters then starter decks, each passcode once per set (an Ultimate Rare variant repeats it).
     const body = SETS.map(({ code, name, date, cards }) => ({ code, name, date, cards: [...new Set(cards.map((card) => card.code))] }));
@@ -212,6 +219,7 @@ function send(socket: WebSocket | undefined, data: ServerMessage) {
 export const ADMIN_BOOSTERS_MAX = 50;
 // Comma-separated Supabase user ids allowed to use the admin commands.
 const adminIds = (value = "") => new Set(value.split(",").map((id) => id.trim()).filter(Boolean));
+const dailyFlag = (daily: boolean) => (daily ? { daily: true as const } : {});
 
 const BOT_LEVELS = new Set<unknown>(["debutant", "normal", "expert"] satisfies BotLevel[]);
 const STORY_LEVELS = new Set<unknown>(["normal", "facile"] satisfies StoryLevel[]);
@@ -243,7 +251,8 @@ function parse(data: string): ClientMessage | undefined {
     (msg.type === "open_booster" && typeof msg.set === "string") ||
     (msg.type === "admin_boosters" && typeof msg.count === "number" && Number.isInteger(msg.count) && msg.count >= 1 && msg.count <= ADMIN_BOOSTERS_MAX) ||
     validDeckMessage(msg) ||
-    validWishMessage(msg);
+    validWishMessage(msg) ||
+    validEconomyMessage(msg);
   return valid ? (msg as ClientMessage) : undefined;
 }
 
@@ -594,7 +603,8 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
       if (!id) return "jeton invalide";
       const profile = await accounts.findProfile(id);
       user = { id, pseudo: profile?.pseudo };
-      send(socket, { type: "profile", pseudo: user.pseudo ?? null, needsStarter: profile !== undefined && profile.activeDeckId === null, ...adminFlag(id) });
+      const daily = profile !== undefined && (await accounts.claimDaily(id));
+      send(socket, { type: "profile", pseudo: user.pseudo ?? null, needsStarter: profile !== undefined && profile.activeDeckId === null, ...adminFlag(id), ...dailyFlag(daily) });
       return undefined;
     }
 
@@ -604,7 +614,8 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
       const profile = await accounts.createProfile(player.id, pseudo);
       if (!profile) return "pseudo déjà pris";
       player.pseudo = profile.pseudo;
-      send(socket, { type: "profile", pseudo: profile.pseudo, needsStarter: profile.activeDeckId === null, ...adminFlag(player.id) });
+      const daily = await accounts.claimDaily(player.id);
+      send(socket, { type: "profile", pseudo: profile.pseudo, needsStarter: profile.activeDeckId === null, ...adminFlag(player.id), ...dailyFlag(daily) });
       return undefined;
     }
 
@@ -624,6 +635,13 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
 
     async function manageWishes(player: { id: string }, msg: WishMessage): Promise<string | undefined> {
       const reply = await wishReply(accounts, player.id, msg);
+      if (typeof reply === "string") return reply;
+      send(socket, reply);
+      return undefined;
+    }
+
+    async function manageEconomy(player: { id: string }, msg: EconomyMessage): Promise<string | undefined> {
+      const reply = await economyReply(accounts, player.id, msg);
       if (typeof reply === "string") return reply;
       send(socket, reply);
       return undefined;
@@ -802,6 +820,7 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
       if (msg.type === "starter") return pickStarter(user, msg.starter);
       if (isDeckMessage(msg)) return manageDecks(user, msg);
       if (isWishMessage(msg)) return manageWishes(user, msg);
+      if (isEconomyMessage(msg)) return manageEconomy(user, msg);
       if (msg.type === "booster_state") return sendBoosterState(user);
       if (msg.type === "open_booster") return openBoosterFor(user, msg.set);
       if (msg.type === "admin_boosters") return grantBoosters(user, msg.count);

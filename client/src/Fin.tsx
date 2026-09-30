@@ -8,7 +8,7 @@ import type { Page } from "./Shell.tsx";
 import { Signaler, type Report } from "./Signaler.tsx";
 import { jouer as jouerSon } from "./son.ts";
 import "./styles/fin.css";
-import { REPLAY_WINS } from "../../server/src/protocol.ts";
+import { REPLAY_BOOSTERS_MAX, REPLAY_WINS } from "../../server/src/protocol.ts";
 import { nextStar, Rewards, Stars } from "./ui.tsx";
 
 type Props = {
@@ -211,6 +211,7 @@ function StoryStars({ won, lp }: Readonly<{ won: StoryWon; lp?: number }>) {
   let replay: string | undefined;
   if (won.replays === REPLAY_WINS) replay = `Victoire de rejeu ${REPLAY_WINS}/${REPLAY_WINS} : 1 booster gagné.`;
   else if (won.replays !== undefined) replay = `Victoires de rejeu : ${won.replays}/${REPLAY_WINS} avant le prochain booster.`;
+  else if (won.replayLimit) replay = `${REPLAY_BOOSTERS_MAX} boosters de rejeu déjà gagnés aujourd'hui : cette victoire ne compte pas, la série reprend demain.`;
   return (
     <div className="fin__etoiles">
       <Stars count={won.stars} />

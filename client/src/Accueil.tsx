@@ -57,6 +57,11 @@ export function Accueil({ state, send, go }: Readonly<{ state: LobbyState; send:
         <h1 className="titre" data-entree>
           Prêt pour le duel ?
         </h1>
+        {state.daily && (
+          <p className="puce puce--succes" role="status" data-entree>
+            Récompense du jour : 1 booster gagné, à ouvrir dans Boosters.
+          </p>
+        )}
         <article className="mode mode--principal" data-entree>
           <div className="mode__tete">
             <Icon id="ui-en-ligne" className="mode__ic" />

@@ -59,6 +59,7 @@ describe("collection et decks sur Postgres jetable", () => {
         type: "collection",
         cards: [...new Set(codes)].sort((a, b) => a - b).map((code) => [code, 1]),
         rarities: printings.toSorted((a, b) => a.code - b.code).map(({ code, rarity }) => [code, rarity, 1]),
+        points: 0,
       });
 
       const listed = await yugi.ask({ type: "decks" });

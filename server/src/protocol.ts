@@ -11,6 +11,9 @@ export type Seat = 0 | 1;
 // Longest text of a bug report.
 export const REPORT_MAX = 500;
 
+// Copies of a card a duplicate conversion keeps, and the most a card can be obtained up to with collection points.
+export const KEEP_COPIES = 3;
+
 export type BotLevel = "debutant" | "normal" | "expert";
 // Story duel difficulty: "facile" doubles the starting LP of the player.
 export type StoryLevel = "normal" | "facile";
@@ -45,6 +48,12 @@ export type ClientMessage =
   | { type: "wishlist" }
   | { type: "wish_add"; code: number }
   | { type: "wish_remove"; code: number }
+  // Collection points (economy.ts): `convert_preview` is answered with `conversion`. `convert` turns the copies past 3 of
+  // each card into points if they still give `points`, the preview confirmed; `craft` spends points on one Common copy of a
+  // booster card owned fewer than 3 times. Both are answered with `collection`.
+  | { type: "convert_preview" }
+  | { type: "convert"; points: number }
+  | { type: "craft"; code: number }
   // Boosters: `booster_state` is answered with `booster_state`, `open_booster` with `booster_opened` or an error.
   | { type: "booster_state" }
   | { type: "open_booster"; set: string }
@@ -73,8 +82,9 @@ export type DuelEvent = OcgMessage | StatsEvent;
 // `opponent` is the name of the other seat once someone (a player, the bot or a story character) sits there.
 // `profile` answers `auth`, `pseudo` and `starter`: a null pseudo means the player has to choose one before playing,
 // `needsStarter` means the player has a pseudo but no active deck yet and must pick a starter deck.
+// `daily`: this connection is the first of the day (Europe/Paris), which earned a booster.
 export type ServerMessage =
-  | { type: "profile"; pseudo: string | null; needsStarter: boolean; admin?: true }
+  | { type: "profile"; pseudo: string | null; needsStarter: boolean; admin?: true; daily?: true }
   | { type: "joined"; room: string; seat: Seat; lp: number; opponentLp?: number; decks: [number, number]; extras: [number, number]; opponent?: string; log: DuelEvent[] }
   | { type: "messages"; messages: DuelEvent[] }
   // `announce`: for ANNOUNCE_CARD, the pool cards the engine accepts.
@@ -91,13 +101,17 @@ export type ServerMessage =
   | { type: "report_sent" }
   // Owned cards as [passcode, quantity]. `rarities`: copies of known rarity as [passcode, rarity, quantity], the rest of
   // a card's quantity (copies obtained before rarities were kept) has an unknown rarity.
-  | { type: "collection"; cards: [number, number][]; rarities: [number, string, number][] }
+  // `points`: collection points to spend with `craft`.
+  | { type: "collection"; cards: [number, number][]; rarities: [number, string, number][]; points: number }
+  // Copies a conversion would turn into points, as [passcode, rarity ("" when unknown), quantity], and the points they give.
+  | { type: "conversion"; cards: [number, string, number][]; points: number }
   // `saved` is the deck a `save_deck` just stored.
   | { type: "decks"; decks: Deck[]; active: number | null; saved?: number }
   | { type: "duel_error"; error: string }
   // Wished passcodes, oldest first. Owned cards stay in the list until the player removes them.
   | { type: "wishlist"; cards: number[] }
-  | { type: "booster_state"; nextFreeAt: string; pending: number }
+  // `ultraIn`: the booster that many openings ahead holds an Ultra Rare or better for sure (1: the next one).
+  | { type: "booster_state"; nextFreeAt: string; pending: number; ultraIn: number }
   | { type: "booster_opened"; set: string; cards: Printing[] }
   | { type: "story"; arcs: StoryArcView[] }
   // A won story duel, recorded.
@@ -105,12 +119,14 @@ export type ServerMessage =
   | { type: "duel_results"; results: DeckResult[] };
 
 export type Rewards = { boosters?: number; cards?: number[] };
-// A booster for every REPLAY_WINS wins of story duels already won.
+// A booster for every REPLAY_WINS wins of story duels already won, REPLAY_BOOSTERS_MAX a day at most (Europe/Paris).
 export const REPLAY_WINS = 3;
+export const REPLAY_BOOSTERS_MAX = 2;
 // `rewards` of a first win, null for a duel already won. `stars` of this win (1: won, 2: at "normal", 3: at "normal" with at
 // least half the starting LP left), `best` kept for the duel; `starBooster`: the booster of the first 3 stars of the duel.
 // `replays`, for a duel already won: wins of the current series of REPLAY_WINS, the last one gives a booster.
-export type StoryResult = { rewards: Rewards | null; stars: number; best: number; starBooster: boolean; replays?: number };
+// `replayLimit`: REPLAY_BOOSTERS_MAX replay boosters already earned today, this win does not count.
+export type StoryResult = { rewards: Rewards | null; stars: number; best: number; starBooster: boolean; replays?: number; replayLimit?: true };
 // Locked until every duel of `requires` is won.
 export type StoryStatus = "locked" | "available" | "done";
 export type StoryDuelView = {

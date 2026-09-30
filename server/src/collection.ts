@@ -55,17 +55,23 @@ export async function deckReply(store: DeckStore, userId: string, msg: DeckMessa
 export const poolCard: CardLookup = (code) => (isAllowed(code) ? clientCard(code) : undefined);
 
 // Owned cards as [passcode, quantity].
-export async function readCollection(db: Db, userId: string): Promise<[number, number][]> {
+export async function readCollection(db: Sql, userId: string): Promise<[number, number][]> {
   const rows = await db<{ code: number; quantity: number }[]>`
     select card_code as code, quantity from yugioh.collection where user_id = ${userId} order by card_code`;
   return rows.map((row) => [row.code, row.quantity]);
 }
 
 // Copies obtained since rarities are kept, as [passcode, rarity, quantity].
-export async function readRarities(db: Db, userId: string): Promise<[number, string, number][]> {
+export async function readRarities(db: Sql, userId: string): Promise<[number, string, number][]> {
   const rows = await db<{ code: number; rarity: string; quantity: number }[]>`
     select card_code as code, rarity, quantity from yugioh.collection_rarities where user_id = ${userId} order by card_code, rarity`;
   return rows.map((row) => [row.code, row.rarity, row.quantity]);
+}
+
+// Collection points of the player (economy.ts).
+export async function readPoints(db: Sql, userId: string): Promise<number> {
+  const [row] = await db<{ points: number }[]>`select collection_points as points from yugioh.profiles where user_id = ${userId}`;
+  return row?.points ?? 0;
 }
 
 // Adds copies to the collection and to its breakdown by rarity, within the caller's transaction.
@@ -137,7 +143,7 @@ export async function activateDeck(db: Db, userId: string, id: number): Promise<
 
 export function dbDeckStore(db: Db): DeckStore {
   return {
-    collection: async (userId) => ({ cards: await readCollection(db, userId), rarities: await readRarities(db, userId) }),
+    collection: async (userId) => ({ cards: await readCollection(db, userId), rarities: await readRarities(db, userId), points: await readPoints(db, userId) }),
     decks: (userId) => listDecks(db, userId),
     saveDeck: (userId, deck) => saveDeck(db, userId, deck),
     deleteDeck: (userId, id) => deleteDeck(db, userId, id),
