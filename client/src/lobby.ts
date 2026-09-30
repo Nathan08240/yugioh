@@ -1,8 +1,9 @@
 import type { EmoteId } from "../../server/src/emotes.ts";
-import type { ClientMessage, DeckResult, DraftRun, Friend, PuzzleView, RankedView, SealedRun, Seat, ServerMessage, StoryArcView, TowerView, Wire } from "../../server/src/protocol.ts";
+import type { ClientMessage, DeckResult, DraftRun, Friend, PuzzleView, RankedView, ReplaySummary, SealedRun, Seat, ServerMessage, StoryArcView, TowerView, Wire } from "../../server/src/protocol.ts";
 import { newBoard, playAll, type Board, type EngineMessage, type Message } from "./board.ts";
 
 export type DeckList = Extract<Wire<ServerMessage>, { type: "decks" }>;
+export type ReplayView = Extract<Wire<ServerMessage>, { type: "replay" }>;
 
 export type Action =
   | Wire<ServerMessage>
@@ -10,7 +11,8 @@ export type Action =
   | { type: "closed" }
   | { type: "answered" }
   | { type: "left" }
-  | { type: "story_menu"; open: boolean };
+  | { type: "story_menu"; open: boolean }
+  | { type: "replay_closed" };
 export type StoryWon = Extract<ServerMessage, { type: "story_won" }>;
 export type Wonder = Extract<Wire<ServerMessage>, { type: "wonder" }>;
 export type PuzzleWon = Extract<ServerMessage, { type: "puzzle_won" }>;
@@ -113,6 +115,9 @@ export type LobbyState = {
   ranked?: RankedView;
   rankedSince?: number;
   rankedResult?: { delta: number; rating: number };
+  // The last finished duels of the player, loaded by the profile screen, and the one being watched again.
+  replays?: ReplaySummary[];
+  replay?: ReplayView;
 };
 
 export const initialLobby: LobbyState = { started: false, spectators: 0, asked: 0, emotes: {}, closed: false, needsStarter: false, openedCount: 0, storyOpen: false, reported: 0, challenges: [] };
@@ -154,6 +159,7 @@ export function reduce(state: LobbyState, action: Action): LobbyState {
         eventWon: action.log.length === 0 ? undefined : state.eventWon,
         rankedResult: action.log.length === 0 ? undefined : state.rankedResult,
         rankedSince: undefined,
+        replay: undefined,
       };
     case "messages":
       return {
@@ -240,6 +246,12 @@ export function reduce(state: LobbyState, action: Action): LobbyState {
       return { ...state, rankedSince: action.waiting ? Date.now() : undefined, error: undefined };
     case "ranked_result":
       return { ...state, rankedResult: { delta: action.delta, rating: action.rating } };
+    case "replays":
+      return { ...state, replays: action.replays };
+    case "replay":
+      return { ...state, replay: action, error: undefined };
+    case "replay_closed":
+      return { ...state, replay: undefined };
   }
 }
 

@@ -1,5 +1,5 @@
 import { OcgLocation, OcgMessageType, OcgPhase, type OcgResponse } from "@n1xx1/ocgcore-wasm";
-import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from "react";
+import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
 import { flushSync } from "react-dom";
 import type { EmoteId } from "../../server/src/emotes.ts";
 import type { Seat } from "../../server/src/protocol.ts";
@@ -64,6 +64,8 @@ type Props = {
   spectators?: number;
   // The guided duel of the tutorial: its instructions beside the question, leaving it quits the duel.
   tutoriel?: boolean;
+  // A finished duel watched again (Revoir.tsx), from a spectator's seat: its playback controls in place of the question.
+  rejeu?: ReactNode;
 };
 
 const { HAND, GRAVE, REMOVED } = OcgLocation;
@@ -119,7 +121,7 @@ function zoneCard(board: Board, id: string): Card | undefined {
 const codeAt = (board: Board, id: string) => zoneCard(board, id)?.code ?? 0;
 
 // The end of the duel (Fin.tsx) is drawn over the board by the lobby.
-export function Duel({ board, seat, asked, respond, leave, surrender, answerBy, away, feed, lp, opponentLp, pseudo, opponent, avatar, opponentAvatar, rules, easy, kingdom, emotes, sendEmote, report, spectateur, spectators = 0, tutoriel }: Readonly<Props>) {
+export function Duel({ board, seat, asked, respond, leave, surrender, answerBy, away, feed, lp, opponentLp, pseudo, opponent, avatar, opponentAvatar, rules, easy, kingdom, emotes, sendEmote, report, spectateur, spectators = 0, tutoriel, rejeu }: Readonly<Props>) {
   const cards = useCards();
   const [reglages] = useReglages();
   const strings = useSystemStrings();
@@ -202,7 +204,7 @@ export function Duel({ board, seat, asked, respond, leave, surrender, answerBy, 
   const enCours = board.winner === undefined;
   const delai = (player: number) => (enCours && answerBy?.seat === player ? answerBy.until : undefined);
   let panneau = idle || !asked ? ui.panel : <p className="muted">Action en cours…</p>;
-  if (spectateur) panneau = <p className="muted">Duel regardé en spectateur.</p>;
+  if (spectateur) panneau = rejeu ?? <p className="muted">Duel regardé en spectateur.</p>;
   const absent = enCours && !spectateur && away?.seat === 1 - seat ? away.until : undefined;
 
   return (

@@ -20,10 +20,11 @@ import { CRAFT_COSTS, dbEconomyStore, economyReply, isEconomyMessage, validEcono
 import { EMOTE_DELAY, EMOTE_IDS, type EmoteId } from "./emotes.ts";
 import { claimEvent, eventOf, eventRules, eventWon, type WeeklyEvent } from "./event.ts";
 import { dbFriendStore, friendHub, isFriendMessage, validFriendMessage, type FriendStore } from "./friends.ts";
+import { historyEntry, listReplays, readReplay, replayMessage, saveReplay, type HistoryEntry, type StoredReplay } from "./history.ts";
 import { GOAT } from "./limits.ts";
 import { isAllowed, POOL, SETS, type Printing } from "./pool.ts";
 import { dbProfileStore, isProfileMessage, profileReply, validProfileMessage, type ProfileMessage, type ProfileStore } from "./profile.ts";
-import { PUZZLE_FAILED, REPORT_MAX, SPECTATORS_MAX, type BotLevel, type CardInfo, type ClientMessage, type DeckResult, type DuelEvent, type Seat, type ServerMessage, type StoryLevel, type StoryResult, type TowerView } from "./protocol.ts";
+import { PUZZLE_FAILED, REPORT_MAX, SPECTATORS_MAX, type BotLevel, type CardInfo, type ClientMessage, type DeckResult, type DuelEvent, type ReplaySummary, type Seat, type ServerMessage, type StoryLevel, type StoryResult, type TowerView } from "./protocol.ts";
 import { PUZZLE_IDS, PUZZLE_TURNS, puzzleField, puzzleRules, puzzleView, solvedPuzzles, solvePuzzle } from "./puzzles.ts";
 import { dbRankedStore, pairUp, type RankedStore, type Waiting } from "./ranked.ts";
 import { REPORT_BYTES, RESPONSE_BYTES, saveReport, type Report } from "./report.ts";
@@ -123,6 +124,10 @@ export type Accounts = DeckStore & WishStore & EconomyStore & WonderStore & Prof
   finishTutorial: (userId: string) => Promise<boolean>;
   // Resolves to false when the player already sent too many reports this hour.
   saveReport: (userId: string, message: string, report: Report) => Promise<boolean>;
+  // Duels to watch again (history.ts): keeps one (the last HISTORY_MAX per player), lists them, reads one of the player's.
+  saveReplay: (entry: HistoryEntry) => Promise<void>;
+  replays: (userId: string) => Promise<ReplaySummary[]>;
+  readReplay: (userId: string, id: number) => Promise<StoredReplay | undefined>;
   // Event of the week (event.ts): whether its booster was taken, and taking it (resolves to false when it already was).
   eventWon: (userId: string, eventId: string) => Promise<boolean>;
   claimEvent: (userId: string, eventId: string) => Promise<boolean>;
@@ -154,6 +159,9 @@ export function dbAccounts(db: Db): Accounts {
     solvePuzzle: (userId, id) => solvePuzzle(db, userId, id),
     finishTutorial: (userId) => finishTutorial(db, userId),
     saveReport: (userId, message, report) => saveReport(db, userId, message, report),
+    saveReplay: (entry) => saveReplay(db, entry),
+    replays: (userId) => listReplays(db, userId),
+    readReplay: (userId, id) => readReplay(db, userId, id),
     eventWon: (userId, eventId) => eventWon(db, userId, eventId),
     claimEvent: (userId, eventId) => claimEvent(db, userId, eventId),
     towerView: (userId) => towerView(db, userId),
@@ -309,6 +317,8 @@ function parse(data: string): ClientMessage | undefined {
     ((msg.type === "join" || msg.type === "spectate") && typeof msg.room === "string") ||
     (msg.type === "respond" && typeof msg.response === "object" && msg.response !== null) ||
     msg.type === "surrender" ||
+    msg.type === "replays" ||
+    (msg.type === "replay" && Number.isSafeInteger(msg.id)) ||
     (msg.type === "report" && (msg.message === undefined || typeof msg.message === "string")) ||
     (msg.type === "rematch" && (msg.accept === undefined || typeof msg.accept === "boolean")) ||
     msg.type === "booster_state" ||
@@ -901,10 +911,33 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
       });
     }
 
+    // Keeps the duel for each human player to watch again, unless it is too long to store.
+    function recordReplays(room: Room, winner: Seat, reason: number) {
+      const report = reportOf(room);
+      if (!report || JSON.stringify(report).length > REPORT_BYTES) return;
+      room.players.forEach((player, index) => {
+        if (player.bot) return;
+        accounts.saveReplay(historyEntry(room, report, index as Seat, winner, reason)).catch((error: unknown) => console.error(error));
+      });
+    }
+
+    async function sendReplays(userId: string): Promise<undefined> {
+      send(socket, { type: "replays", replays: await accounts.replays(userId) });
+      return undefined;
+    }
+
+    async function showReplay(userId: string, id: number): Promise<string | undefined> {
+      const stored = await accounts.readReplay(userId, id);
+      if (!stored) return "duel introuvable";
+      send(socket, await replayMessage(stored, id));
+      return undefined;
+    }
+
     function enter(userId: string, room: Room, deck: ActiveDeck, bot?: { deck: ActiveDeck; name: string; level?: BotLevel }): string | undefined {
       if (seat) return "déjà dans une salle";
       room.onEnd = (winner, reason) => {
         recordResults(room, winner, reason);
+        recordReplays(room, winner, reason);
         if (room.ranked) rateRanked(room, winner, reason);
       };
       rooms.set(room.code, room);
@@ -1234,6 +1267,8 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
       if (msg.type === "puzzles") return showPuzzles(user.id);
       if (msg.type === "tower") return showTower(user.id);
       if (msg.type === "ranked") return showRanked(user.id);
+      if (msg.type === "replays") return sendReplays(user.id);
+      if (msg.type === "replay") return showReplay(user.id, msg.id);
       if (msg.type === "ranked_cancel") {
         leaveQueue(user.id);
         send(socket, { type: "ranked_queue", waiting: false });

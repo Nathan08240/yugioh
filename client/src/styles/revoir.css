@@ -1,0 +1,26 @@
+/* Rejeu d'un duel terminé (Revoir.tsx) : commandes de lecture à la place de la question */
+
+.rejeu {
+  display: grid;
+  gap: var(--e-2);
+}
+
+.rejeu__boutons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--e-2);
+}
+
+.rejeu__boutons .btn {
+  flex: 1;
+}
+
+.rejeu [aria-pressed="true"] {
+  background: var(--holo-fond);
+  box-shadow: inset 0 0 0 2px var(--holo), 0 0 16px rgb(67 240 255 / 0.3);
+}
+
+.rejeu__fin {
+  font: 700 var(--taille-l) / 1.15 var(--police-etroite);
+  color: var(--texte);
+}

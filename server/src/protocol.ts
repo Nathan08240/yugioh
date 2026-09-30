@@ -123,7 +123,16 @@ export type ClientMessage =
   // active deck, until the duel starts with `joined`; `ranked_cancel` stops waiting. Both are answered with `ranked_queue`.
   | { type: "ranked" }
   | { type: "ranked_queue" }
-  | { type: "ranked_cancel" };
+  | { type: "ranked_cancel" }
+  // Duels to watch again (history.ts), the last 20 finished of the player: `replays` is answered with `replays`, `replay` with
+  // `replay`, the duel replayed by the server as the player saw it.
+  | { type: "replays" }
+  | { type: "replay"; id: number };
+
+// Mode of a duel kept to watch again.
+export type HistoryMode = "online" | "ranked" | "event" | "bot" | "story" | "tower" | "sealed" | "draft" | "puzzle" | "tutorial";
+// `won` is null for a draw, `opponent` the name of the other seat.
+export type ReplaySummary = { id: number; date: string; mode: HistoryMode; opponent: string | null; won: boolean | null };
 
 export type DuelMode = "online" | "bot" | "story";
 // Wins and losses of a player with a deck in a mode (and at a level, against the bot or in Story mode); `deck` is null for a deck deleted since.
@@ -211,7 +220,10 @@ export type ServerMessage =
   | ({ type: "ranked" } & RankedView)
   | { type: "ranked_queue"; waiting: boolean }
   // End of a ranked duel: the change of the player's rating, and the new one.
-  | { type: "ranked_result"; delta: number; rating: number };
+  | { type: "ranked_result"; delta: number; rating: number }
+  // Newest first. `replay`: what `seat` was sent during duel `id`, one batch per `messages`, from the starting state (as `joined`).
+  | { type: "replays"; replays: ReplaySummary[] }
+  | { type: "replay"; id: number; seat: Seat; lp: number; opponentLp?: number; decks: [number, number]; extras: [number, number]; opponent?: string; batches: DuelEvent[][] };
 
 // Online is connected and not in a room, "duel" is in a room. Never stored.
 export type Presence = "online" | "duel" | "offline";
