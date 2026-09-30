@@ -158,3 +158,14 @@ it("écran de fin d'un spectateur : le nom du vainqueur, pas de revanche ni de r
   for (const text of ["Kaiba remporte le duel", "Yugi 0 LP", "salle ABCDE", "Retour à l&#x27;accueil"]) expect(html).toContain(text);
   for (const text of ["Revanche", "booster", "Victoire", "Défaite"]) expect(html).not.toContain(text);
 });
+
+it("affiche la variation du classement en fin de duel classé, sans revanche", () => {
+  const board = finished(0, 0);
+  const ranked = (result?: { delta: number; rating: number }) => render(<Fin board={board} seat={0} room="r" vsBot={false} ranked={{ result }} leave={() => {}} go={() => {}} onRematch={() => {}} />);
+  expect(ranked({ delta: 16, rating: 1016 })).toContain("+16, classement 1016");
+  expect(ranked({ delta: -14, rating: 986 })).toContain("-14, classement 986");
+  expect(ranked()).toContain("Calcul du classement…");
+  expect(ranked()).toContain("Duel classé");
+  expect(ranked()).not.toContain("Revanche");
+  expect(render(<Fin board={board} seat={0} room="r" vsBot={false} leave={() => {}} go={() => {}} onRematch={() => {}} />)).toContain("Revanche");
+});

@@ -24,6 +24,7 @@ import { isAllowed, POOL, SETS, type Printing } from "./pool.ts";
 import { dbProfileStore, isProfileMessage, profileReply, validProfileMessage, type ProfileMessage, type ProfileStore } from "./profile.ts";
 import { PUZZLE_FAILED, REPORT_MAX, SPECTATORS_MAX, type BotLevel, type CardInfo, type ClientMessage, type DeckResult, type DuelEvent, type Seat, type ServerMessage, type StoryLevel, type StoryResult, type TowerView } from "./protocol.ts";
 import { PUZZLE_IDS, PUZZLE_TURNS, puzzleField, puzzleRules, puzzleView, solvedPuzzles, solvePuzzle } from "./puzzles.ts";
+import { dbRankedStore, pairUp, type RankedStore, type Waiting } from "./ranked.ts";
 import { REPORT_BYTES, RESPONSE_BYTES, saveReport, type Report } from "./report.ts";
 import { engineForm, respond } from "./respond.ts";
 import { type DuelResult, readResults, recordResult } from "./results.ts";
@@ -70,6 +71,8 @@ export type Room = {
   onEnd?: (winner: Seat, reason: number) => void;
   // A duel still running when the room expires is lost by seat 0 (Sealed mode).
   forfeit?: boolean;
+  // A ranked duel: its end updates both ratings, and it has no rematch.
+  ranked?: true;
   // What a bug report needs to replay the current (or last) duel: its seed, decks, turn and every response the engine accepted.
   record?: { seed: Seed; decks: Report["decks"]; turn: number; responses: OcgResponse[] };
   // Tower mode: the floor of the duel, and the recording of its win once seat 0 won.
@@ -90,7 +93,7 @@ const deckSizes = (room: Room): [number, number] => [
 const extraSizes = (room: Room): [number, number] => [room.players[0]?.extra?.length ?? 0, room.players[1]?.extra?.length ?? 0];
 
 // Identity, profile, deck, booster and Story mode storage, faked in tests.
-export type Accounts = DeckStore & WishStore & EconomyStore & WonderStore & ProfileStore & SealedStore & FriendStore & {
+export type Accounts = DeckStore & WishStore & EconomyStore & WonderStore & ProfileStore & SealedStore & FriendStore & RankedStore & {
   verify: (token: string) => Promise<string | null>;
   findProfile: (userId: string) => Promise<Profile | undefined>;
   // Resolves to undefined when the pseudo is already taken.
@@ -156,6 +159,7 @@ export function dbAccounts(db: Db): Accounts {
     ...dbProfileStore(db),
     ...dbSealedStore(db),
     ...dbFriendStore(db),
+    ...dbRankedStore(db),
   };
 }
 
@@ -265,6 +269,7 @@ const dailyFlag = (daily: boolean) => (daily ? { daily: true as const } : {});
 
 const BOT_LEVELS = new Set<unknown>(["debutant", "normal", "expert"] satisfies BotLevel[]);
 const STORY_LEVELS = new Set<unknown>(["normal", "facile"] satisfies StoryLevel[]);
+const RANKED_TYPES = new Set<unknown>(["ranked", "ranked_queue", "ranked_cancel"] satisfies ClientMessage["type"][]);
 
 const isOptionalFlag = (value: unknown) => value === undefined || typeof value === "boolean";
 
@@ -289,6 +294,7 @@ function parse(data: string): ClientMessage | undefined {
     (msg.type === "puzzle" && typeof msg.id === "string") ||
     msg.type === "tower" ||
     msg.type === "tower_duel" ||
+    RANKED_TYPES.has(msg.type) ||
     (msg.type === "story_duel" && typeof msg.duel === "string" && (msg.level === undefined || STORY_LEVELS.has(msg.level))) ||
     (msg.type === "emote" && EMOTE_IDS.has(msg.id)) ||
     ((msg.type === "join" || msg.type === "spectate") && typeof msg.room === "string") ||
@@ -662,6 +668,35 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
   wss.on("close", () => http.close());
   http.listen(port);
 
+  // Players waiting for a ranked duel, by user id, and the last ranked opponent of each player.
+  const waiting = new Map<string, Waiting & { socket: WebSocket; join: (room: Room) => void }>();
+  const lastOpponent = new Map<string, { opponent: string; at: number }>();
+
+  // Each pair found sits in a new online room; the window of each player widens as they wait.
+  function matchQueue() {
+    const now = Date.now();
+    for (const pair of pairUp([...waiting.values()], now, lastOpponent)) {
+      const room: Room = { code: newCode(rooms), players: [], mode: { mode: "online" }, ranked: true };
+      room.onWin = (winner) => creditWinner(room, winner as Seat, accounts);
+      pair.forEach((player, index) => {
+        waiting.delete(player.id);
+        lastOpponent.set(player.id, { opponent: pair[1 - index].id, at: now });
+      });
+      for (const player of pair) player.join(room);
+    }
+  }
+  const matcher = setInterval(matchQueue, 1000).unref();
+  wss.on("close", () => clearInterval(matcher));
+
+  // Once per duel (the end of a duel is reported once): both ratings change, each player gets theirs.
+  function rateRanked(room: Room, winner: number, reason: number) {
+    const players: [string, string] = [room.players[0].id, room.players[1].id];
+    accounts.rateDuel({ players, winner: winner === 0 || winner === 1 ? winner : null, reason }).then(
+      (ratings) => ratings.forEach(({ before, after }, index) => send(room.players[index]?.socket, { type: "ranked_result", delta: after - before, rating: after })),
+      (error: unknown) => console.error(error),
+    );
+  }
+
   function sit(room: Room, id: string, socket: WebSocket, deck: ActiveDeck, name?: string, avatar?: number): Seat | undefined {
     const known = room.players.findIndex((player) => player.id === id);
     if (known === -1 && room.players.length === 2) return undefined;
@@ -852,7 +887,10 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
 
     function enter(userId: string, room: Room, deck: ActiveDeck, bot?: { deck: ActiveDeck; name: string; level?: BotLevel }): string | undefined {
       if (seat) return "déjà dans une salle";
-      room.onEnd = (winner, reason) => recordResults(room, winner, reason);
+      room.onEnd = (winner, reason) => {
+        recordResults(room, winner, reason);
+        if (room.ranked) rateRanked(room, winner, reason);
+      };
       rooms.set(room.code, room);
       const index = sit(room, userId, socket, deck, user?.pseudo, user?.avatar);
       if (index === undefined) return "salle complète";
@@ -1010,6 +1048,7 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
     async function rematch(room: Room, index: Seat, accept: boolean): Promise<string | undefined> {
       if (!room.over) return "aucun duel terminé";
       if (room.forfeit) return "le duel suivant se lance depuis l'écran Scellé";
+      if (room.ranked) return "pas de revanche en classé";
       const bot = room.players.some((player) => player.bot);
       if (room.rematch === "declined") return "revanche refusée";
       if (!accept) {
@@ -1104,6 +1143,27 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
       return undefined;
     }
 
+    async function showRanked(userId: string): Promise<undefined> {
+      send(socket, { type: "ranked", ...(await accounts.rating(userId)), leaderboard: await accounts.leaderboard() });
+      return undefined;
+    }
+
+    // Waits in the ranked queue with the active deck of the moment, until matched or disconnected.
+    async function queueRanked(userId: string): Promise<string | undefined> {
+      const deck = await duelDeck(userId);
+      if (typeof deck === "string") return deck;
+      const { rating } = await accounts.rating(userId);
+      if (socket.readyState !== socket.OPEN) return undefined;
+      waiting.set(userId, { id: userId, rating, since: Date.now(), socket, join: (room) => enter(userId, room, deck) });
+      send(socket, { type: "ranked_queue", waiting: true });
+      matchQueue();
+      return undefined;
+    }
+
+    function leaveQueue(userId: string) {
+      if (waiting.get(userId)?.socket === socket) waiting.delete(userId);
+    }
+
     // Returns an error for the sender, if any.
     function handle(msg: ClientMessage): string | undefined | Promise<string | undefined> {
       if (msg.type === "auth") return identify(msg.token);
@@ -1126,13 +1186,21 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
       if (msg.type === "event") return showEvent(user.id);
       if (msg.type === "puzzles") return showPuzzles(user.id);
       if (msg.type === "tower") return showTower(user.id);
+      if (msg.type === "ranked") return showRanked(user.id);
+      if (msg.type === "ranked_cancel") {
+        leaveQueue(user.id);
+        send(socket, { type: "ranked_queue", waiting: false });
+        return undefined;
+      }
       if (msg.type === "respond") return seat ? answer(seat.room, seat.index, msg.response) : "pas dans une salle";
       if (msg.type === "surrender") return seat ? surrender(seat.room, seat.index) : "pas dans une salle";
       if (msg.type === "emote") return seat ? emote(seat.room, seat.index, msg.id) : "pas dans une salle";
       if (msg.type === "report") return seat ? reportBug(seat.room, user.id, msg.message) : "pas dans une salle";
       if (msg.type === "rematch") return seat ? rematch(seat.room, seat.index, msg.accept !== false) : "pas dans une salle";
       if (seat || watching) return "déjà dans une salle";
+      if (waiting.has(user.id)) return "recherche d'un adversaire classé en cours";
       if (msg.type === "spectate") return spectate(msg.room);
+      if (msg.type === "ranked_queue") return queueRanked(user.id);
       if (msg.type === "story_duel") return playStory(user.id, msg.duel, msg.level);
       if (msg.type === "puzzle") return playPuzzle(user.id, msg.id);
       if (msg.type === "tower_duel") return playTower(user.id);
@@ -1142,6 +1210,7 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
 
     socket.on("close", () => {
       friends.leave(socket);
+      if (user) leaveQueue(user.id);
       if (seat) leave(seat.room, socket);
       if (watching) stopWatching(watching);
     });

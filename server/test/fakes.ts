@@ -58,6 +58,12 @@ export function fakeAccounts(overrides: Partial<Accounts> = {}): Accounts {
     requestFriend: async () => "joueur introuvable",
     acceptFriend: async () => undefined,
     removeFriend: async () => undefined,
+    rating: async () => ({ rating: 1000, games: 0 }),
+    leaderboard: async () => [],
+    rateDuel: async () => [
+      { before: 1000, after: 1016 },
+      { before: 1000, after: 984 },
+    ],
     ...overrides,
   };
 }

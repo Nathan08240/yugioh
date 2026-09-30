@@ -108,7 +108,12 @@ export type ClientMessage =
   | { type: "sealed_start" }
   | { type: "sealed_deck"; main: number[]; extra: number[] }
   | { type: "sealed_abandon" }
-  | { type: "sealed_duel" };
+  | { type: "sealed_duel" }
+  // Ranked mode (ranked.ts): `ranked` is answered with `ranked`. `ranked_queue` waits for an opponent of close rating, with the
+  // active deck, until the duel starts with `joined`; `ranked_cancel` stops waiting. Both are answered with `ranked_queue`.
+  | { type: "ranked" }
+  | { type: "ranked_queue" }
+  | { type: "ranked_cancel" };
 
 export type DuelMode = "online" | "bot" | "story";
 // Wins and losses of a player with a deck in a mode (and at a level, against the bot or in Story mode); `deck` is null for a deck deleted since.
@@ -191,13 +196,21 @@ export type ServerMessage =
   // A won tower duel, recorded: `boosters` earned by the first win of a reward floor, 0 otherwise.
   | { type: "tower_won"; floor: number; best: number; boosters: number }
   // null before the first session.
-  | { type: "sealed"; run: SealedRun | null };
+  | { type: "sealed"; run: SealedRun | null }
+  // Rating and ranked duels played of the player, and the best LEADERBOARD_SIZE players.
+  | { type: "ranked"; rating: number; games: number; leaderboard: RankedPlayer[] }
+  | { type: "ranked_queue"; waiting: boolean }
+  // End of a ranked duel: the change of the player's rating, and the new one.
+  | { type: "ranked_result"; delta: number; rating: number };
 
 // Online is connected and not in a room, "duel" is in a room. Never stored.
 export type Presence = "online" | "duel" | "offline";
 // `status`: the presence of an accepted friend, else the request "sent" by the player or "received" from that player.
 // `avatar`: passcode of the card chosen as avatar, null until chosen.
 export type Friend = { pseudo: string; avatar: number | null; status: Presence | "sent" | "received" };
+
+// A player of the ranked leaderboard; `avatar` is null until chosen.
+export type RankedPlayer = { pseudo: string; avatar: number | null; rating: number; games: number };
 
 // Wonder pick of the day. `cards` are shown face up in this order, then shuffled: face-down card `i` is `cards[shuffle[i]]`.
 // The server keeps `shuffle` to itself until the player picks `picked`, a face-down index.

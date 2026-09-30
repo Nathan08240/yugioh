@@ -26,7 +26,7 @@ function currentArc(arcs: StoryArcView[]) {
   return { title: arc.title, won: arc.duels.filter((duel) => duel.status === "done").length, total: arc.duels.length };
 }
 
-function useNow(): number {
+export function useNow(): number {
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 1000);
@@ -84,6 +84,9 @@ export function Accueil({ state, send, go }: Readonly<{ state: LobbyState; send:
           </div>
         </article>
         {state.event && <EventCard event={state.event} send={send} />}
+        <Mode icon="ui-trophee" title="Classé" onClick={() => go("classe")}>
+          {state.ranked ? `Classement ${state.ranked.rating} · ` : ""}Un adversaire de votre niveau, classement Elo.
+        </Mode>
         {choosingLevel ? (
           <article className="mode" data-entree>
             <Icon id="ui-bot" className="mode__ic" />

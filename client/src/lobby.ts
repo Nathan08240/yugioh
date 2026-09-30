@@ -1,5 +1,5 @@
 import type { EmoteId } from "../../server/src/emotes.ts";
-import type { ClientMessage, DeckResult, Friend, PuzzleView, SealedRun, Seat, ServerMessage, StoryArcView, TowerView, Wire } from "../../server/src/protocol.ts";
+import type { ClientMessage, DeckResult, Friend, PuzzleView, RankedPlayer, SealedRun, Seat, ServerMessage, StoryArcView, TowerView, Wire } from "../../server/src/protocol.ts";
 import { newBoard, playAll, type Board, type EngineMessage, type Message } from "./board.ts";
 
 export type DeckList = Extract<Wire<ServerMessage>, { type: "decks" }>;
@@ -106,6 +106,11 @@ export type LobbyState = {
   challenges: { from: string; until: number }[];
   // Last friend notice; `n` tells two successive ones apart.
   notice?: { text: string; n: number };
+  // Ranked mode: rating, games and leaderboard, loaded by its screen; when the search for an opponent started (ms since the
+  // epoch), and the rating change of the last ranked duel.
+  ranked?: { rating: number; games: number; leaderboard: RankedPlayer[] };
+  rankedSince?: number;
+  rankedResult?: { delta: number; rating: number };
 };
 
 export const initialLobby: LobbyState = { started: false, spectators: 0, asked: 0, emotes: {}, closed: false, needsStarter: false, openedCount: 0, storyOpen: false, reported: 0, challenges: [] };
@@ -113,11 +118,11 @@ export const initialLobby: LobbyState = { started: false, spectators: 0, asked: 
 export function reduce(state: LobbyState, action: Action): LobbyState {
   switch (action.type) {
     case "connecting":
-      return { ...state, pseudo: undefined, error: undefined, closed: false };
+      return { ...state, pseudo: undefined, error: undefined, closed: false, rankedSince: undefined };
     case "closed":
       return { ...state, closed: true };
     case "left":
-      return { ...state, room: undefined, seat: undefined, board: undefined, started: false, question: undefined, error: undefined, won: undefined, solved: undefined, floor: undefined, towerWon: undefined, rematch: undefined, answerBy: undefined, away: undefined, emotes: {}, spectating: undefined, spectators: 0, special: undefined, eventWon: undefined };
+      return { ...state, room: undefined, seat: undefined, board: undefined, started: false, question: undefined, error: undefined, won: undefined, rankedResult: undefined, solved: undefined, floor: undefined, towerWon: undefined, rematch: undefined, answerBy: undefined, away: undefined, emotes: {}, spectating: undefined, spectators: 0, special: undefined, eventWon: undefined };
     case "profile":
       return { ...state, pseudo: action.pseudo, needsStarter: action.needsStarter, admin: action.admin, daily: action.daily || state.daily, error: undefined };
     case "joined":
@@ -145,6 +150,8 @@ export function reduce(state: LobbyState, action: Action): LobbyState {
         towerWon: action.log.length === 0 ? undefined : state.towerWon,
         rematch: action.log.length === 0 ? undefined : state.rematch,
         eventWon: action.log.length === 0 ? undefined : state.eventWon,
+        rankedResult: action.log.length === 0 ? undefined : state.rankedResult,
+        rankedSince: undefined,
       };
     case "messages":
       return {
@@ -223,6 +230,12 @@ export function reduce(state: LobbyState, action: Action): LobbyState {
       return { ...state, challenges: [...state.challenges.filter((challenge) => challenge.from !== action.from), { from: action.from, until: Date.now() + action.ms }] };
     case "challenge_gone":
       return { ...state, challenges: state.challenges.filter((challenge) => challenge.from !== action.from) };
+    case "ranked":
+      return { ...state, ranked: { rating: action.rating, games: action.games, leaderboard: action.leaderboard } };
+    case "ranked_queue":
+      return { ...state, rankedSince: action.waiting ? Date.now() : undefined, error: undefined };
+    case "ranked_result":
+      return { ...state, rankedResult: { delta: action.delta, rating: action.rating } };
   }
 }
 

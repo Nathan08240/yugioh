@@ -4,6 +4,7 @@ import type { ClientMessage, PuzzleView } from "../../server/src/protocol.ts";
 import { Accueil, Salle } from "./Accueil.tsx";
 import { AlertesAmis, Amis } from "./Amis.tsx";
 import { Boosters } from "./Boosters.tsx";
+import { Classe } from "./Classe.tsx";
 import { DuelView, useCards } from "./cards.ts";
 import { Collection } from "./Collection.tsx";
 import { PseudoForm, StarterChoice } from "./Depart.tsx";
@@ -30,6 +31,9 @@ type Send = (msg: ClientMessage) => void;
 // Room of an invitation link (to play or to watch), kept until the player can join (after login, pseudo and starter).
 let invite = inviteFromUrl(location.href);
 
+// Messages that open a room outside the ranked queue.
+const NOT_RANKED: ReadonlySet<string> = new Set(["create", "join", "bot", "story_duel", "puzzle", "tower_duel", "sealed_duel", "challenge", "challenge_reply"]);
+
 export function Lobby() {
   const [state, dispatch] = useReducer(reduce, initialLobby);
   const [attempt, setAttempt] = useState(0);
@@ -42,6 +46,8 @@ export function Lobby() {
   const storyEasy = useRef(false);
   const puzzleId = useRef<string>(undefined);
   const sealedDuel = useRef(false);
+  // The next or current room comes from the ranked queue: no rematch, a rating change at the end.
+  const ranked = useRef(false);
   const cards = useCards();
   const view = useMemo(() => ({ cards, show: () => {}, seat: 0 }), [cards]);
 
@@ -90,10 +96,12 @@ export function Lobby() {
       storyDuel.current = msg.duel;
       storyEasy.current = msg.level === "facile";
     }
-    if (msg.type === "create" || msg.type === "join" || msg.type === "challenge" || msg.type === "challenge_reply") {
+    if (msg.type === "create" || msg.type === "join" || msg.type === "challenge" || msg.type === "challenge_reply" || msg.type === "ranked_queue") {
       vsBot.current = false;
       sealedDuel.current = false;
     }
+    if (msg.type === "ranked_queue") ranked.current = true;
+    else if (NOT_RANKED.has(msg.type)) ranked.current = false;
     // The races of an ANNOUNCE_RACE response are bigints: they travel as strings.
     socket.current?.send(JSON.stringify(msg, (_key, value: unknown) => (typeof value === "bigint" ? String(value) : value)));
   };
@@ -130,7 +138,7 @@ export function Lobby() {
         </p>
       )}
       <AlertesAmis state={state} send={send} />
-      <Screen state={state} page={shown} send={send} reconnect={reconnect} leave={leave} respond={respond} go={go} vsBot={vsBot.current} storyDuel={storyDuel.current} easy={storyEasy.current} puzzle={puzzle} sealedDuel={sealedDuel.current} />
+      <Screen state={state} page={shown} send={send} reconnect={reconnect} leave={leave} respond={respond} go={go} vsBot={vsBot.current} ranked={ranked.current} storyDuel={storyDuel.current} easy={storyEasy.current} puzzle={puzzle} sealedDuel={sealedDuel.current} />
     </DuelView>
   );
 }
@@ -144,6 +152,7 @@ type ScreenProps = {
   respond: (response: OcgResponse) => void;
   go: (page: Page) => void;
   vsBot: boolean;
+  ranked: boolean;
   storyDuel?: string;
   easy: boolean;
   puzzle?: PuzzleView;
@@ -154,7 +163,7 @@ const signOut = () => {
   supabase.auth.signOut();
 };
 
-function Screen({ state, page, send, reconnect, leave, respond, go, vsBot, storyDuel, easy, puzzle, sealedDuel }: Readonly<ScreenProps>) {
+function Screen({ state, page, send, reconnect, leave, respond, go, vsBot, ranked, storyDuel, easy, puzzle, sealedDuel }: Readonly<ScreenProps>) {
   if (state.closed) {
     return (
       <Shell id="perdu">
@@ -204,7 +213,7 @@ function Screen({ state, page, send, reconnect, leave, respond, go, vsBot, story
       <>
         <Duel board={state.board} seat={state.seat ?? 0} asked={state.question} respond={respond} leave={leave} surrender={() => send({ type: "surrender" })} emotes={state.emotes} sendEmote={watching ? undefined : (id) => send({ type: "emote", id })} report={watching ? undefined : report} answerBy={state.answerBy} away={state.away} feed={state.feed} lp={state.lp} opponentLp={state.opponentLp} pseudo={me.name} opponent={state.opponent} avatar={me.avatar} opponentAvatar={state.opponentAvatar} rules={puzzle ? puzzleRule(puzzle) : specialRules(special)} easy={state.storyOpen && easy} kingdom={special.includes("duelist-kingdom")} spectateur={watching !== undefined} spectators={state.spectators} />
         {watching && state.board.winner !== undefined && <FinSpectateur board={state.board} names={[watching.name ?? "Joueur 1", state.opponent ?? "Joueur 2"]} room={state.room} leave={leave} />}
-        {!watching && state.board.winner !== undefined && <Fin board={state.board} seat={state.seat ?? 0} room={state.room} vsBot={vsBot} opponent={state.opponent} story={story} eventBooster={state.eventWon} puzzle={puzzle && { title: puzzle.title, booster: state.solved?.booster }} tower={tower} rematch={state.rematch} onRematch={(accept) => send({ type: "rematch", accept })} sealed={sealedDuel ? (state.sealed ?? undefined) : undefined} report={report} leave={leave} go={leaveFor} />}
+        {!watching && state.board.winner !== undefined && <Fin board={state.board} seat={state.seat ?? 0} room={state.room} vsBot={vsBot} ranked={ranked ? { result: state.rankedResult } : undefined} opponent={state.opponent} story={story} eventBooster={state.eventWon} puzzle={puzzle && { title: puzzle.title, booster: state.solved?.booster }} tower={tower} rematch={state.rematch} onRematch={(accept) => send({ type: "rematch", accept })} sealed={sealedDuel ? (state.sealed ?? undefined) : undefined} report={report} leave={leave} go={leaveFor} />}
       </>
     );
   }
@@ -218,6 +227,7 @@ function Screen({ state, page, send, reconnect, leave, respond, go, vsBot, story
   return (
     <Shell id={page} background={page === "collection" ? "nuit" : "ville"} pseudo={state.pseudo} page={page} go={go} pending={state.boosters?.pending} requests={state.friends?.filter((friend) => friend.status === "received").length} signOut={signOut} notice={page === "accueil"}>
       {page === "accueil" && <Accueil state={state} send={send} go={go} />}
+      {page === "classe" && <Classe state={state} send={send} />}
       {page === "collection" && <Collection collection={state.collection} rarities={state.rarities} decks={state.decks} results={state.results} wishlist={state.wishlist} points={state.points} conversion={state.conversion} send={send} />}
       {page === "boosters" && <Boosters state={state} send={send} go={go} />}
       {page === "histoire" && <Story arcs={state.story} send={send} />}

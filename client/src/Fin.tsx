@@ -17,6 +17,8 @@ type Props = {
   room: string;
   // Only an online duel between two players earns a booster.
   vsBot: boolean;
+  // A ranked duel, with its rating change once the server has recorded it.
+  ranked?: { result?: LobbyState["rankedResult"] };
   opponent?: string;
   // A story duel ("Battle City · Duel 4 sur 5"), its special rules, its starting LP as written, and its conclusion once the
   // server has recorded the win.
@@ -87,7 +89,7 @@ const defeat =
   };
 
 // Victory or defeat screen over the board, once the engine has named the winner.
-export function Fin({ board, seat, room, vsBot, opponent, story, eventBooster, puzzle, tower, rematch, onRematch, report, leave, go, sealed }: Readonly<Props>) {
+export function Fin({ board, seat, room, vsBot, ranked, opponent, story, eventBooster, puzzle, tower, rematch, onRematch, report, leave, go, sealed }: Readonly<Props>) {
   const root = useRef<HTMLDivElement>(null);
   const won = board.winner === seat;
   const lost = board.winner === 1 - seat;
@@ -105,8 +107,10 @@ export function Fin({ board, seat, room, vsBot, opponent, story, eventBooster, p
   else if (tower) context = `La Tour · Étage ${tower.floor} sur ${TOWER_FLOORS}`;
   else if (sealed) context = `Mode Scellé · ${sealed.wins}/${SEALED_WINS} victoires · ${sealed.losses}/${SEALED_LOSSES} défaites`;
   else if (vsBot) context = "Duel contre le bot";
+  else if (ranked) context = "Duel classé";
   let back = backLabel(Boolean(story), Boolean(tower));
   if (puzzle) back = "Retour aux puzzles";
+  if (ranked) back = "Retour au mode classé";
   if (sealed) back = sealed.status === "playing" ? "Retour au Scellé" : "Voir le bilan";
   const onBack = sealed ? () => go("scelle") : leave;
   const eventGain = won && eventBooster ? 1 : 0;
@@ -122,6 +126,7 @@ export function Fin({ board, seat, room, vsBot, opponent, story, eventBooster, p
           {puzzle ? puzzleTitle(won) : title(won, lost)}
         </h1>
         <Score board={board} seat={seat} won={won} lost={lost} opponent={opponent} />
+        {ranked && <p className="fin__score">{ranked.result ? ratingChange(ranked.result) : "Calcul du classement…"}</p>}
         {won && (tower ? <TowerGains won={tower.won} /> : <Gains story={story} boosters={boosters} />)}
         {won && eventBooster && <p className="texte-2">Première victoire de l'événement de la semaine : 1 booster gagné.</p>}
         {won && puzzle?.booster === false && <p className="texte-2 fin__recit">Puzzle déjà réussi : la récompense a été obtenue.</p>}
@@ -143,7 +148,7 @@ export function Fin({ board, seat, room, vsBot, opponent, story, eventBooster, p
               {back}
             </button>
           )}
-          {!sealed && <Rematch online={!vsBot} seat={seat} rematch={rematch} opponent={opponent} onRematch={onRematch} label={rematchLabel(Boolean(puzzle), tower, won)} />}
+          {!sealed && !ranked && <Rematch online={!vsBot} seat={seat} rematch={rematch} opponent={opponent} onRematch={onRematch} label={rematchLabel(Boolean(puzzle), tower, won)} />}
           {lost && !puzzle && !sealed && (
             <button type="button" className="btn btn--fantome" onClick={() => go("collection")}>
               Modifier mon deck
@@ -253,6 +258,11 @@ function TowerGains({ won }: Readonly<{ won?: TowerWon }>) {
 function rematchLabel(puzzle: boolean, tower: { floor: number } | undefined, won: boolean): string {
   if (puzzle) return "Réessayer";
   return tower ? towerNext(tower.floor, won) : "Revanche";
+}
+
+// "+16, classement 1016".
+function ratingChange({ delta, rating }: { delta: number; rating: number }): string {
+  return `${delta > 0 ? "+" : ""}${delta}, classement ${rating}`;
 }
 
 function title(won: boolean, lost: boolean): string {

@@ -4,7 +4,7 @@ import "./styles/shell.css";
 import { Icon } from "./ui.tsx";
 
 // "scelle" opens from the home screen only.
-export type Page = "accueil" | "collection" | "boosters" | "histoire" | "puzzles" | "tour" | "regles" | "profil" | "amis" | "parametres" | "scelle";
+export type Page = "accueil" | "classe" | "collection" | "boosters" | "histoire" | "puzzles" | "tour" | "regles" | "profil" | "amis" | "parametres" | "scelle";
 
 const NAV: [Page, string][] = [
   ["accueil", "Accueil"],
