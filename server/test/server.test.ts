@@ -403,7 +403,8 @@ describe("serveur de partie", () => {
     await vi.waitFor(() => expect(admin.received.filter((msg) => msg.type === "booster_state" || msg.type === "error")).toHaveLength(2));
     await vi.waitFor(() => expect(joueur.received).toContainEqual({ type: "error", error: "commande réservée" }));
     expect(admin.received).toContainEqual({ type: "error", error: "message invalide" });
-    expect(credit.mock.calls).toEqual([["admin", 10]]);
+    // Other tests credit their own players meanwhile: only this test's accounts count.
+    expect(credit.mock.calls.filter(([id]) => id === "admin" || id === "dave")).toEqual([["admin", 10]]);
     credit.mockRestore();
   });
 
