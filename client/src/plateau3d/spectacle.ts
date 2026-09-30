@@ -5,7 +5,8 @@ import type { Effet, Etape } from "./effets.ts";
 // A step of the motion queue, with the decorative holds (hologram, banner) cut short once a question waits.
 export type Jeu = Step & { tenir: (ms: number) => Promise<void> };
 // The 3D scene and the HUD each play the part of an effect they know; the 2D fallback has no scene.
-export type Regie = { scene?: (effet: Effet, jeu: Jeu) => Promise<void>; hud?: (effet: Effet, jeu: Jeu) => Promise<void> };
+// `son` plays the sound of an effect as it starts.
+export type Regie = { scene?: (effet: Effet, jeu: Jeu) => Promise<void>; hud?: (effet: Effet, jeu: Jeu) => Promise<void>; son?: (effet: Effet) => void };
 
 // Queues the steps: the board shown takes each message when its animation reaches it, `fin` runs after the last one.
 export function jouer(steps: readonly Etape[], appliquer: (messages: Message[]) => void, regie: Regie, attend: () => boolean, fin: () => void, queue: Queue = sequences): Promise<void> {
@@ -15,7 +16,10 @@ export function jouer(steps: readonly Etape[], appliquer: (messages: Message[]) 
     last = queue.play(async (motion) => {
       const jeu: Jeu = { ...motion, tenir: (ms) => (attend() ? Promise.resolve() : motion.pause(ms)) };
       const play = async (effets: Effet[]) => {
-        for (const effet of effets) await Promise.all([regie.scene?.(effet, jeu), regie.hud?.(effet, jeu)]);
+        for (const effet of effets) {
+          regie.son?.(effet);
+          await Promise.all([regie.scene?.(effet, jeu), regie.hud?.(effet, jeu)]);
+        }
       };
       try {
         if (step.prelude.length > 0) appliquer(step.prelude);

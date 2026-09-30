@@ -11,6 +11,7 @@ import { Fin } from "./Fin.tsx";
 import { initialLobby, reduce, roomFromUrl, type Action, type LobbyState } from "./lobby.ts";
 import { Parametres } from "./Parametres.tsx";
 import { autoAnswer } from "./question.ts";
+import { reglages } from "./reglages.ts";
 import { Regles, specialRules } from "./regles.tsx";
 import { Shell, type Page } from "./Shell.tsx";
 import { duelLabel, duelSpecial, Story } from "./Story.tsx";
@@ -48,7 +49,7 @@ export function Lobby() {
     };
     ws.onmessage = (event) => {
       const msg: Action = JSON.parse(event.data);
-      const auto = msg.type === "question" ? autoAnswer(msg.question) : undefined;
+      const auto = msg.type === "question" ? autoAnswer(msg.question, reglages().chaines) : undefined;
       if (auto) ws.send(JSON.stringify({ type: "respond", response: auto } satisfies ClientMessage));
       else dispatch(msg);
     };

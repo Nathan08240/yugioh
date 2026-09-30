@@ -72,3 +72,11 @@
 .reglage__choix input:focus-visible + span {
   box-shadow: var(--focus);
 }
+
+.reglage__curseur {
+  inline-size: min(100%, 360px);
+  min-block-size: 44px;
+  margin-inline-end: var(--e-3);
+  accent-color: var(--holo-2);
+  vertical-align: middle;
+}

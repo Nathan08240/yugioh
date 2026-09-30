@@ -13,6 +13,7 @@ import { jouer, type Jeu, type Regie } from "./plateau3d/spectacle.ts";
 import { Confirm, interaction, type Choice, type Ui } from "./Question.tsx";
 import { apercuCombat, attaquantChoisi, placeKey, pointDe, reponseVisee, type Appui, type Point } from "./question.ts";
 import { RulesBadge, type Rule } from "./regles.tsx";
+import { jouer as jouerSon, sonDe } from "./son.ts";
 import "./styles/duel.css";
 import { Apercu, Icon } from "./ui.tsx";
 
@@ -497,8 +498,13 @@ function useHud(regie: Regie, seat: number, cards: Cards) {
           return Promise.resolve();
       }
     };
+    regie.son = (effet) => {
+      const son = sonDe(effet, latest.current.seat);
+      if (son) jouerSon(son);
+    };
     return () => {
       regie.hud = undefined;
+      regie.son = undefined;
     };
   }, [regie]);
   return { refs };

@@ -1,6 +1,7 @@
 import { OcgLocation, OcgMessageType, OcgPosition, OcgResponseType, SelectBattleCMDAction, type OcgResponse } from "@n1xx1/ocgcore-wasm";
 import type { Card, EngineMessage, Message, Place } from "./board.ts";
 import type { Cards } from "./cards.ts";
+import type { Chaines } from "./reglages.ts";
 
 // Cards outside the duel (location 0, such as the Deck Masters to declare) all have sequence 0: their code tells them apart.
 export const placeKey = (place: Place & { code?: number }) => `${place.controller}:${place.location}:${place.location ? place.sequence : place.code}`;
@@ -21,9 +22,9 @@ export function freePlaces(player: number, fieldMask: number): Place[] {
   );
 }
 
-// Nothing can be chained: pass without asking, as EDOPro does.
-export function autoAnswer(question: Message): OcgResponse | undefined {
-  if (question.type === OcgMessageType.SELECT_CHAIN && question.selects.length === 0 && !question.forced) {
+// Nothing can be chained (or the player chose never to be asked): pass without asking, as EDOPro does.
+export function autoAnswer(question: Message, chaines: Chaines = "auto"): OcgResponse | undefined {
+  if (question.type === OcgMessageType.SELECT_CHAIN && !question.forced && (question.selects.length === 0 || chaines === "jamais")) {
     return { type: OcgResponseType.SELECT_CHAIN, index: null };
   }
   return undefined;

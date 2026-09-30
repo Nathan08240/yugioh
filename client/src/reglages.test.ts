@@ -27,8 +27,8 @@ it("donne les valeurs par défaut quand localStorage lève", async () => {
 
 it("ignore le contenu illisible ou inconnu, réglage par réglage", async () => {
   vi.stubGlobal("localStorage", store({ "yugioh.reglages": '{"vitesse":"rapide","mouvement":"x","qualite":3}' }));
-  const { reglages } = await charger();
-  expect(reglages()).toEqual({ vitesse: "rapide", mouvement: "auto", qualite: "haute" });
+  const { reglages, DEFAUTS } = await charger();
+  expect(reglages()).toEqual({ ...DEFAUTS, vitesse: "rapide" });
   vi.resetModules();
   vi.stubGlobal("localStorage", store({ "yugioh.reglages": "pas du json" }));
   expect((await charger()).reglages().vitesse).toBe("normale");
@@ -41,7 +41,19 @@ it("écrit les réglages et les relit", async () => {
   regler({ qualite: "basse" });
   regler({ mouvement: "toujours" });
   vi.resetModules();
-  expect((await charger()).reglages()).toEqual({ vitesse: "normale", mouvement: "toujours", qualite: "basse" });
+  const relu = await charger();
+  expect(relu.reglages()).toEqual({ ...relu.DEFAUTS, mouvement: "toujours", qualite: "basse" });
+});
+
+it("garde le son, les chaînes et le volume, et borne un volume hors de 0-100", async () => {
+  vi.stubGlobal("localStorage", store({ "yugioh.reglages": '{"son":"coupe","chaines":"jamais","volume":35}' }));
+  expect(await charger().then(({ reglages }) => reglages())).toMatchObject({ son: "coupe", chaines: "jamais", volume: 35 });
+  for (const volume of [150, -1, "fort"]) {
+    vi.resetModules();
+    vi.stubGlobal("localStorage", store({ "yugioh.reglages": JSON.stringify({ volume }) }));
+    const { reglages, DEFAUTS } = await charger();
+    expect(reglages()).toMatchObject({ son: "actif", chaines: "auto", volume: DEFAUTS.volume });
+  }
 });
 
 it("le réglage Toujours ou Jamais l'emporte sur le système", async () => {

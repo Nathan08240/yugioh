@@ -5,6 +5,7 @@ import { cardName, useDuelView } from "./cards.ts";
 import type { StoryWon } from "./lobby.ts";
 import { D1, D2, D3, D4, RESSORT, sequences, type AnimOptions, type Sequence, type Step } from "./motion.ts";
 import type { Page } from "./Shell.tsx";
+import { jouer as jouerSon } from "./son.ts";
 import "./styles/fin.css";
 import { Rewards } from "./ui.tsx";
 
@@ -78,6 +79,7 @@ export function Fin({ board, seat, room, vsBot, opponent, story, leave, go }: Re
     if (!root.current) return;
     root.current.querySelector("button")?.focus({ preventScroll: true });
     sequences.play((won ? victory : defeat)(root.current));
+    if (won || lost) jouerSon(won ? "victoire" : "defaite");
   }, [won]);
 
   let context = `Duel en ligne · salle ${room}`;
