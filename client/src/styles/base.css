@@ -714,3 +714,16 @@ a {
   animation: none !important;
   transition: none !important;
 }
+
+/* Téléphone : cibles tactiles d'au moins 44 px */
+@media (max-width: 700px) {
+  .btn-icone {
+    inline-size: 44px;
+    block-size: 44px;
+  }
+
+  /* Un libellé long passe à la ligne plutôt que de sortir de l'écran */
+  .btn {
+    white-space: normal;
+  }
+}

@@ -490,3 +490,43 @@
   text-align: center;
   color: var(--texte-2);
 }
+
+/* Fiche d'une carte (classeur, deck) : sur téléphone, elle s'ouvre en plein écran au toucher, avec un bouton Fermer */
+.fiche__fermer {
+  display: none;
+}
+
+@media (max-width: 820px) {
+  .fiche {
+    display: none;
+  }
+
+  .fiche.est-ouverte {
+    position: fixed;
+    inset: 0;
+    z-index: var(--z-modale);
+    place-self: stretch;
+    display: flex;
+    flex-direction: column;
+    gap: var(--e-3);
+    max-block-size: none;
+    padding: max(var(--e-3), env(safe-area-inset-top)) var(--marge-ecran) max(var(--e-5), env(safe-area-inset-bottom));
+    overflow: auto;
+    border-radius: 0;
+    background: rgb(6 8 23 / 0.97);
+  }
+
+  .fiche .fiche__fermer {
+    position: sticky;
+    inset-block-start: 0;
+    z-index: 1;
+    display: inline-grid;
+    flex: none;
+    align-self: flex-end;
+    background: var(--nuit-1);
+  }
+
+  .fiche .detail > .carte {
+    --carte-l: min(70vw, 260px);
+  }
+}

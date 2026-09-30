@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { REPORT_MAX } from "../../server/src/protocol.ts";
+import { Icon } from "./ui.tsx";
 
 // How to report a problem: `send` the optional text, `sent` counts the reports the server has stored.
 export type Report = { send: (message: string) => void; sent: number };
@@ -34,6 +35,7 @@ export function Signaler({ report }: Readonly<{ report: Report }>) {
   if (!ouvert) {
     return (
       <button type="button" className="btn btn--fantome signaler__bouton" onClick={() => setOuvert(true)}>
+        <Icon id="ui-signal" />
         Signaler un problème
       </button>
     );

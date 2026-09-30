@@ -13,6 +13,7 @@
 
 .classe__tete {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--e-3);
   justify-items: start;
 }
@@ -35,6 +36,7 @@
 }
 
 .classe__table caption {
+  display: table-caption;
   padding-block-end: var(--e-3);
   text-align: start;
 }

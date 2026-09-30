@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, type ReactNode } from "react";
+import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createQueue, entrance, exit } from "./motion.ts";
 import "./styles/shell.css";
 import { Icon } from "./ui.tsx";
@@ -41,6 +41,8 @@ type Props = {
 export function Shell({ id, background = "ville", pseudo, page, go, pending = 0, requests = 0, signOut, notice = false, children }: Readonly<Props>) {
   const body = useRef<HTMLDivElement>(null);
   const sweep = useRef<HTMLDivElement>(null);
+  // On a phone the menu folds behind a button (shell.css).
+  const [menu, setMenu] = useState(false);
 
   useLayoutEffect(() => {
     if (body.current) screens.play(entrance(body.current, sweep.current));
@@ -48,6 +50,7 @@ export function Shell({ id, background = "ville", pseudo, page, go, pending = 0,
 
   // The current screen leaves before the next one enters.
   const navigate = (next: Page) => {
+    setMenu(false);
     if (!go || next === page || !body.current) return;
     screens.skip();
     screens.play(exit(body.current)).then(() => go(next));
@@ -70,7 +73,12 @@ export function Shell({ id, background = "ville", pseudo, page, go, pending = 0,
             </span>
           )}
           {go && (
-            <nav className="barre__nav" aria-label="Menu principal">
+            <button type="button" className="btn-icone barre__menu" aria-label="Menu" aria-expanded={menu} aria-controls="menu-principal" onClick={() => setMenu(!menu)}>
+              <Icon id={menu ? "ui-fermer" : "ui-menu"} />
+            </button>
+          )}
+          {go && (
+            <nav id="menu-principal" className={menu ? "barre__nav est-ouvert" : "barre__nav"} aria-label="Menu principal">
               {NAV.map(([target, label]) => (
                 <button key={target} type="button" aria-current={target === page ? "page" : undefined} onClick={() => navigate(target)}>
                   {label} {target === "boosters" && pending > 0 && <span className="pastille">{pending}</span>}

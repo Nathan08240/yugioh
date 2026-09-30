@@ -131,6 +131,9 @@ export function Duel({ board, seat, asked, respond, leave, surrender, answerBy, 
   const { shown, idle } = useSpectacle(board, feed, cards, regie, asked !== undefined);
   const [mode, setMode] = useState<"3d" | "2d" | "perdu">(() => (webgl2() ? "3d" : "2d"));
   const [pile, setPile] = useState<string>();
+  // On a phone the card detail and the log fold over the board, one at a time (duel.css).
+  const [volet, setVolet] = useState<"carte" | "journal">();
+  const basculer = (next: "carte" | "journal") => setVolet(volet === next ? undefined : next);
   // A new question starts with nothing picked.
   const [picks, setPicks] = useState<Picks>(AUCUN);
   const courant = picks.id === asked?.id ? picks : AUCUN;
@@ -224,15 +227,15 @@ export function Duel({ board, seat, asked, respond, leave, surrender, answerBy, 
             />
           </Suspense>
         )}
-        <div ref={cadre} className="cadre-3d">
-          {mode !== "3d" && (
-            <div className="repli ancien">
-              <p className="repli__message">{mode === "perdu" ? PERDU : SANS_3D}</p>
-              <Table board={shown} seat={seat} ui={targets} />
-            </div>
-          )}
-        </div>
-        <div className="hud">
+        <div className="hud" data-volet={volet}>
+          <div ref={cadre} className="cadre-3d">
+            {mode !== "3d" && (
+              <div className="repli ancien">
+                <p className="repli__message">{mode === "perdu" ? PERDU : SANS_3D}</p>
+                <Table board={shown} seat={seat} ui={targets} />
+              </div>
+            )}
+          </div>
           <Plaque board={shown} player={1 - seat} start={opponentStart} name={opponent ?? "Adversaire"} avatar={opponentAvatar} refs={hud.refs} visee={enDepot?.includes(String(1 - seat))} until={delai(1 - seat)} emote={reglages.emotes === "oui" ? emotes?.[(1 - seat) as Seat] : undefined} />
           <section className="main-adverse" ref={hud.refs.mains[1 - seat]} aria-label={`Main de l'adversaire : ${cartes(shown.players[1 - seat].hand.length)}`}>
             {[...shown.players[1 - seat].hand.keys()].map((i) => (
@@ -240,7 +243,7 @@ export function Duel({ board, seat, asked, respond, leave, surrender, answerBy, 
             ))}
           </section>
           <aside className="colonne colonne--gauche">
-            <div className="panneau colonne__detail">
+            <div id="volet-carte" className="panneau colonne__detail">
               <CardDetail code={detail?.code} atk={stats?.atk} def={stats?.def} />
             </div>
             <div className="plaque-moi">
@@ -248,6 +251,15 @@ export function Duel({ board, seat, asked, respond, leave, surrender, answerBy, 
               {sendEmote && <MenuEmotes send={sendEmote} />}
             </div>
           </aside>
+          <div className="volets" role="group" aria-label="Panneaux">
+            <button type="button" className="btn-icone" aria-label="Carte en détail" aria-controls="volet-carte" aria-expanded={volet === "carte"} onClick={() => basculer("carte")}>
+              <Icon id="ui-oeil" />
+            </button>
+            <button type="button" className="btn-icone" aria-label={shown.chain.length > 0 ? "Journal et chaîne" : "Journal"} aria-controls="volet-journal" aria-expanded={volet === "journal"} onClick={() => basculer("journal")}>
+              <Icon id={shown.chain.length > 0 ? "ui-chaine" : "ui-journal"} />
+              {shown.chain.length > 0 && <span className="pastille">{shown.chain.length}</span>}
+            </button>
+          </div>
           <Hand hand={shown.players[seat].hand} seat={seat} ui={targets} main={hud.refs.mains[seat]} appui={appui} conseil={conseil} />
           <aside className="colonne colonne--droite">
           <Turn board={shown} seat={seat} leave={leave} surrender={surrender} report={report} names={spectateur ? [moi ?? "", nom] : undefined} spectators={spectators} />
@@ -774,7 +786,7 @@ function Chain({ chain, seat, opponent }: Readonly<{ chain: Board["chain"]; seat
 
 function Log({ log, opponent }: Readonly<{ log: LogEntry[]; opponent?: string }>) {
   return (
-    <section className="panneau journal" aria-label="Journal du duel">
+    <section id="volet-journal" className="panneau journal" aria-label="Journal du duel">
       <h2 className="titre-bloc">
         <Icon id="ui-journal" />
         Journal

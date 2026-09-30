@@ -11,7 +11,7 @@ import { bestRarity, copiesByRarity, filterCollection, kindCounts, noFilters, ty
 import type { DeckList } from "./lobby.ts";
 import { D2, D3, duree, ELAN, FONDU, prefersReduced, RESSORT, SORTIE, type AnimOptions } from "./motion.ts";
 import "./styles/collection.css";
-import { BestRarity, Icon } from "./ui.tsx";
+import { BestRarity, FermerFiche, Icon } from "./ui.tsx";
 
 type Send = (msg: ClientMessage) => void;
 type SetDraft = Dispatch<SetStateAction<DeckDraft | undefined>>;
@@ -35,7 +35,15 @@ const plural = (count: number, word: string) => `${count} ${word}${count > 1 ? "
 export function DeckBuilder({ collection, rarities, decks, results, send }: Readonly<Props>) {
   const cards = useCards();
   const [shown, setShown] = useState<number>();
-  const view = useMemo(() => ({ cards, show: setShown, seat: 0 }), [cards]);
+  // On a phone the detail opens full screen (cartes.css .fiche).
+  const [fiche, setFiche] = useState(false);
+  const view = useMemo(() => {
+    const ouvrir = (code: number) => {
+      setShown(code);
+      setFiche(true);
+    };
+    return { cards, show: setShown, seat: 0, ouvrir };
+  }, [cards]);
   const [draft, setDraft] = useState<DeckDraft>();
   const copies = useMemo(() => copiesByRarity(collection ?? [], rarities ?? []), [collection, rarities]);
 
@@ -61,7 +69,8 @@ export function DeckBuilder({ collection, rarities, decks, results, send }: Read
     <DuelView value={view}>
       <div className="atelier">
         <CollectionPanel collection={collection} copies={copies} draft={draft} onAdd={(code) => draft && setDraft(add(draft, code, cards.get(code)))} onCreate={setDraft} />
-        <aside className="panneau atelier__detail" aria-label="Détail de la carte" data-entree>
+        <aside className={fiche ? "panneau fiche atelier__detail est-ouverte" : "panneau fiche atelier__detail"} aria-label="Détail de la carte" data-entree>
+          <FermerFiche fermer={() => setFiche(false)} />
           <CardDetail code={shown} copies={shown === undefined ? undefined : copies.get(shown)} />
         </aside>
         <DeckPanel decks={decks} results={results} draft={draft} owned={collection} setDraft={setDraft} send={send} />
@@ -107,7 +116,7 @@ const LEAVE: Keyframe[] = [
 type CollectionProps = { collection: [number, number][]; copies: ReadonlyMap<number, Copies>; draft?: DeckDraft; onAdd: (code: number) => void; onCreate: (draft: DeckDraft) => void; suggest?: boolean };
 
 export function CollectionPanel({ collection, copies, draft, onAdd, onCreate, suggest = true }: Readonly<CollectionProps>) {
-  const { cards, show } = useDuelView();
+  const { cards, show, ouvrir } = useDuelView();
   const [filters, setFilters] = useState<Filters>(noFilters);
   const shownCards = useMemo(() => filterCollection(collection, cards, filters), [collection, cards, filters]);
   const used = countBy(draft ? [...draft.main, ...draft.extra] : []);
@@ -148,6 +157,11 @@ export function CollectionPanel({ collection, copies, draft, onAdd, onCreate, su
               >
                 <CardView code={code} rarity={bestRarity(copies.get(code))} />
               </button>
+              {ouvrir && (
+                <button type="button" className="voir-carte" aria-label={`Voir ${cardName(cards, code)}`} onClick={() => ouvrir(code)}>
+                  <Icon id="ui-oeil" />
+                </button>
+              )}
               <BestRarity copies={copies.get(code)} />
               <span className="qte" aria-hidden="true">
                 ×{quantity}
@@ -506,7 +520,7 @@ type Line = [code: number, copies: number, extra: boolean];
 
 // Main deck then Extra deck, one line per card with its copies. A new line slides in, a changed count pops, a last copy slides out.
 export function DeckLines({ draft, setDraft }: Readonly<{ draft: DeckDraft; setDraft: SetDraft }>) {
-  const { cards, show } = useDuelView();
+  const { cards, show, ouvrir } = useDuelView();
   const list = useRef<HTMLUListElement>(null);
   const previous = useRef<Map<number, number>>(undefined);
   const sorted = (codes: number[], extra: boolean): Line[] =>
@@ -549,7 +563,7 @@ export function DeckLines({ draft, setDraft }: Readonly<{ draft: DeckDraft; setD
         return (
           <li key={code} data-code={code} className={`t-${frame(info?.type ?? 0)}`}>
             {info?.image ? <img src={`/api/art/${code}.jpg`} alt="" loading="lazy" /> : <span className="liste-deck__repli" />}
-            <button type="button" className="liste-deck__nom" title="Voir la carte" onMouseEnter={() => show(code)} onFocus={() => show(code)} onClick={() => show(code)}>
+            <button type="button" className="liste-deck__nom" title="Voir la carte" onMouseEnter={() => show(code)} onFocus={() => show(code)} onClick={() => (ouvrir ?? show)(code)}>
               {name}
             </button>
             <b>×{copies}</b>
