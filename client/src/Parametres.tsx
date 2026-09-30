@@ -1,10 +1,10 @@
-import { useReglages, type Reglages } from "./reglages.ts";
+import { useReglages, type Choisi, type Reglages } from "./reglages.ts";
 import "./styles/parametres.css";
 
-type GroupeProps<K extends keyof Reglages> = { cle: K; titre: string; aide: string; choix: readonly (readonly [Reglages[K], string])[] };
+type GroupeProps<K extends Choisi> = { cle: K; titre: string; aide: string; choix: readonly (readonly [Reglages[K], string])[] };
 
 // One setting as a group of radio buttons; the choice is kept at once.
-function Groupe<K extends keyof Reglages>({ cle, titre, aide, choix }: Readonly<GroupeProps<K>>) {
+function Groupe<K extends Choisi>({ cle, titre, aide, choix }: Readonly<GroupeProps<K>>) {
   const [valeurs, regler] = useReglages();
   return (
     <fieldset className="reglage panneau" aria-describedby={`aide-${cle}`} data-entree>
@@ -21,6 +21,23 @@ function Groupe<K extends keyof Reglages>({ cle, titre, aide, choix }: Readonly<
         ))}
       </div>
     </fieldset>
+  );
+}
+
+// The volume of the sound effects, 0 to 100.
+function Volume() {
+  const [{ volume }, regler] = useReglages();
+  return (
+    <div className="reglage panneau" data-entree>
+      <label className="titre-bloc" htmlFor="volume">
+        Volume des sons
+      </label>
+      <p className="texte-2">Les effets sonores sont synthétisés par votre navigateur, sans fichier audio.</p>
+      <input id="volume" className="reglage__curseur" type="range" min={0} max={100} step={5} value={volume} onChange={(event) => regler({ volume: Number(event.target.value) })} />
+      <output htmlFor="volume" className="chiffres">
+        {volume}
+      </output>
+    </div>
   );
 }
 
@@ -59,6 +76,25 @@ export function Parametres() {
         choix={[
           ["haute", "Haute"],
           ["basse", "Basse"],
+        ]}
+      />
+      <Groupe
+        cle="son"
+        titre="Effets sonores"
+        aide="Sons courts pour la pioche, les invocations, les attaques et la fin du duel. Ils ne démarrent qu'après votre premier clic."
+        choix={[
+          ["actif", "Activés"],
+          ["coupe", "Coupés"],
+        ]}
+      />
+      <Volume />
+      <Groupe
+        cle="chaines"
+        titre="Proposer d'enchaîner"
+        aide="Auto ne vous demande que lorsqu'une de vos cartes peut répondre. Jamais passe toute proposition d'enchaîner facultative, sans vous interrompre."
+        choix={[
+          ["auto", "Auto"],
+          ["jamais", "Jamais"],
         ]}
       />
     </div>

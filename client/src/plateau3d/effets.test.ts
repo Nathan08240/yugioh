@@ -151,13 +151,13 @@ it("applique chaque message quand son animation l'atteint, dans l'ordre de la fi
     await jeu.tenir(500);
   };
   let waiting = false;
-  const done = jouer(steps, (messages) => log.push(`applique ${messages.map((msg) => msg.type).join(",")}`), { scene: hold("3d"), hud: hold("hud") }, () => waiting, () => log.push("fin"), queue);
+  const done = jouer(steps, (messages) => log.push(`applique ${messages.map((msg) => msg.type).join(",")}`), { scene: hold("3d"), hud: hold("hud"), son: (effet) => log.push(`son ${effet.type}`) }, () => waiting, () => log.push("fin"), queue);
   await vi.advanceTimersByTimeAsync(0);
-  expect(log).toEqual([`applique ${OcgMessageType.NEW_PHASE}`, "3d phase", "hud phase"]);
+  expect(log).toEqual([`applique ${OcgMessageType.NEW_PHASE}`, "son phase", "3d phase", "hud phase"]);
   // A question waiting cuts the decorative holds.
   waiting = true;
   await vi.advanceTimersByTimeAsync(500);
   await done;
-  expect(log.slice(3)).toEqual(["3d attaque", "hud attaque", `applique ${OcgMessageType.ATTACK}`, `applique ${OcgMessageType.DAMAGE}`, "3d lp", "hud lp", "fin"]);
+  expect(log.slice(4)).toEqual(["son attaque", "3d attaque", "hud attaque", `applique ${OcgMessageType.ATTACK}`, `applique ${OcgMessageType.DAMAGE}`, "son lp", "3d lp", "hud lp", "fin"]);
   vi.useRealTimers();
 });

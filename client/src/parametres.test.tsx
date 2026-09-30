@@ -4,7 +4,8 @@ import { Parametres } from "./Parametres.tsx";
 
 it("affiche chaque réglage en boutons radio nommés, le choix courant coché", () => {
   const html = renderToStaticMarkup(<Parametres />);
-  expect(html.match(/type="radio"/g)).toHaveLength(8);
+  expect(html.match(/type="radio"/g)).toHaveLength(12);
   expect(html).toContain("Vitesse des animations");
+  expect(html).toMatch(/type="range"[^>]*value="60"/);
   expect(html).toMatch(/name="vitesse" checked="" value="normale"/);
 });

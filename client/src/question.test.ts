@@ -23,6 +23,14 @@ it("passe tout seul une chaîne sans carte à activer", () => {
   expect(autoAnswer({ type: OcgMessageType.SELECT_YESNO, player: 0, description: "0" })).toBeUndefined();
 });
 
+it("Jamais passe toute chaîne facultative, même avec une carte à activer", () => {
+  const card = { controller: 0, location: MZONE, sequence: 0, code: 1, position: OcgPosition.FACEUP_ATTACK, description: "0" } as never;
+  const chain: Message = { type: OcgMessageType.SELECT_CHAIN, player: 0, spe_count: 0, forced: false, hint_timing: OcgHintTiming.DRAW_PHASE, hint_timing_other: OcgHintTiming.DRAW_PHASE, selects: [card] };
+  expect(autoAnswer(chain)).toBeUndefined();
+  expect(autoAnswer(chain, "jamais")).toEqual({ type: OcgResponseType.SELECT_CHAIN, index: null });
+  expect(autoAnswer({ ...chain, forced: true }, "jamais")).toBeUndefined();
+});
+
 it("distingue par leur code les cartes hors du duel, toutes en séquence 0", () => {
   const outside = [153000001, 153000004].map((code) => placeKey({ controller: 0, location: 0 as OcgLocation, sequence: 0, code }));
   expect(new Set(outside).size).toBe(2);
