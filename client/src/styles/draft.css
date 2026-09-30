@@ -1,0 +1,63 @@
+/* Mode Draft (Draft.tsx) : le booster en cours face visible, une carte à garder d'un clic ou d'un tap. */
+
+.draft__table {
+  display: flex;
+  gap: var(--e-5);
+  align-items: start;
+  justify-content: center;
+  inline-size: 100%;
+}
+
+.draft__booster {
+  --carte-l: clamp(96px, 12vw, 150px);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, var(--carte-l));
+  gap: var(--e-3);
+  justify-content: center;
+  flex: 1;
+  min-inline-size: 0;
+  max-inline-size: calc(5 * var(--carte-l) + 4 * var(--e-3));
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.draft__carte {
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  transition: translate 0.15s var(--courbe-sortie);
+}
+
+.draft__carte:hover:not(:disabled),
+.draft__carte:focus-visible {
+  translate: 0 -6px;
+}
+
+.draft__carte:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.draft__detail {
+  inline-size: clamp(240px, 20vw, 300px);
+  padding: var(--e-4);
+  text-align: start;
+}
+
+.draft__detail .detail > .carte {
+  --carte-l: min(100%, 220px);
+}
+
+@media (max-width: 900px) {
+  .draft__detail {
+    display: none;
+  }
+}
+
+@media (max-width: 700px) {
+  .draft__booster {
+    --carte-l: calc((100vw - 2 * var(--marge-ecran) - 2 * var(--e-3)) / 3);
+  }
+}

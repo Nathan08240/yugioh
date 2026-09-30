@@ -1,5 +1,5 @@
 import type { EmoteId } from "../../server/src/emotes.ts";
-import type { ClientMessage, DeckResult, Friend, PuzzleView, RankedPlayer, SealedRun, Seat, ServerMessage, StoryArcView, TowerView, Wire } from "../../server/src/protocol.ts";
+import type { ClientMessage, DeckResult, DraftRun, Friend, PuzzleView, RankedPlayer, SealedRun, Seat, ServerMessage, StoryArcView, TowerView, Wire } from "../../server/src/protocol.ts";
 import { newBoard, playAll, type Board, type EngineMessage, type Message } from "./board.ts";
 
 export type DeckList = Extract<Wire<ServerMessage>, { type: "decks" }>;
@@ -100,6 +100,8 @@ export type LobbyState = {
   eventWon?: boolean;
   // Latest Sealed session, null before the first one, loaded by the Sealed screen.
   sealed?: SealedRun | null;
+  // Latest Draft session, likewise.
+  draft?: DraftRun | null;
   // Friends and requests, loaded by the friends screen and kept up to date by the server.
   friends?: Friend[];
   // Challenges received, shown on every screen until answered or `until` (ms since the epoch).
@@ -220,6 +222,8 @@ export function reduce(state: LobbyState, action: Action): LobbyState {
       return { ...state, reported: state.reported + 1 };
     case "sealed":
       return { ...state, sealed: action.run, error: undefined };
+    case "draft":
+      return { ...state, draft: action.run, error: undefined };
     case "friends":
       return { ...state, friends: action.friends, error: undefined };
     case "friend_status":

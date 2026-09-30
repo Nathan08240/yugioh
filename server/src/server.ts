@@ -28,6 +28,7 @@ import { dbRankedStore, pairUp, type RankedStore, type Waiting } from "./ranked.
 import { REPORT_BYTES, RESPONSE_BYTES, saveReport, type Report } from "./report.ts";
 import { engineForm, respond } from "./respond.ts";
 import { type DuelResult, readResults, recordResult } from "./results.ts";
+import { dbDraftStore, draftReply, isDraftMessage, validDraftMessage, type DraftMessage, type DraftStore } from "./draft.ts";
 import { botDeck, dbSealedStore, isSealedMessage, sealedReply, validSealedMessage, type SealedMessage, type SealedStore } from "./sealed.ts";
 import { serveClient } from "./site.ts";
 import { chooseStarter, starterCards, type Starter } from "./starter.ts";
@@ -71,8 +72,8 @@ export type Room = {
   turns?: number;
   onEnd?: (winner: Seat, reason: number) => void;
   onWatch?: () => void;
-  // A duel still running when the room expires is lost by seat 0 (Sealed mode).
-  forfeit?: boolean;
+  // Sealed or Draft mode, whose screen starts the next duel: a duel still running when the room expires is lost by seat 0.
+  forfeit?: "Scellé" | "Draft";
   // A ranked duel: its end updates both ratings, and it has no rematch.
   ranked?: true;
   // What a bug report needs to replay the current (or last) duel: its seed, decks, turn and every response the engine accepted.
@@ -95,7 +96,7 @@ const deckSizes = (room: Room): [number, number] => [
 const extraSizes = (room: Room): [number, number] => [room.players[0]?.extra?.length ?? 0, room.players[1]?.extra?.length ?? 0];
 
 // Identity, profile, deck, booster and Story mode storage, faked in tests.
-export type Accounts = DeckStore & WishStore & EconomyStore & WonderStore & ProfileStore & SealedStore & FriendStore & RankedStore & {
+export type Accounts = DeckStore & WishStore & EconomyStore & WonderStore & ProfileStore & SealedStore & DraftStore & FriendStore & RankedStore & {
   verify: (token: string) => Promise<string | null>;
   findProfile: (userId: string) => Promise<Profile | undefined>;
   // Resolves to undefined when the pseudo is already taken.
@@ -163,6 +164,7 @@ export function dbAccounts(db: Db): Accounts {
     ...dbWonderStore(db),
     ...dbProfileStore(db),
     ...dbSealedStore(db),
+    ...dbDraftStore(db),
     ...dbFriendStore(db),
     ...dbRankedStore(db),
   };
@@ -317,6 +319,7 @@ function parse(data: string): ClientMessage | undefined {
     validEconomyMessage(msg) ||
     validProfileMessage(msg) ||
     validSealedMessage(msg) ||
+    validDraftMessage(msg) ||
     validFriendMessage(msg);
   return valid ? (msg as ClientMessage) : undefined;
 }
@@ -956,31 +959,52 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
       return enter(userId, room, deck);
     }
 
-    async function manageSealed(player: { id: string }, msg: SealedMessage): Promise<string | undefined> {
-      const reply = await sealedReply(accounts, player.id, msg);
+    async function manageLimited(player: { id: string }, msg: SealedMessage | DraftMessage): Promise<string | undefined> {
+      const reply = isDraftMessage(msg) ? await draftReply(accounts, player.id, msg) : await sealedReply(accounts, player.id, msg);
       if (typeof reply === "string") return reply;
       send(socket, reply);
       return undefined;
     }
 
-    // The next duel of the Sealed session, against the bot at "normal" with a deck from its own boosters of the same set.
+    // The next duel of a Sealed or Draft session, against the bot at "normal" with the `opponent` deck. `record` counts it and tells the player.
     // A duel left unfinished resumes; left until its room expires, it is lost. A draw does not count.
-    async function playSealed(userId: string): Promise<string | undefined> {
-      const running = [...rooms.values()].find((room) => room.forfeit && room.duel && room.players[0]?.id === userId);
+    async function playLimited<R extends { id: number; status: string; main: number[] | null; extra: number[] | null }>(
+      userId: string,
+      forfeit: NonNullable<Room["forfeit"]>,
+      run: R | undefined,
+      opponent: (run: R) => ActiveDeck | Promise<ActiveDeck>,
+      record: (run: R, won: boolean) => Promise<ServerMessage | undefined>,
+    ): Promise<string | undefined> {
+      const running = [...rooms.values()].find((room) => room.forfeit === forfeit && room.duel && room.players[0]?.id === userId);
       if (running) return enter(userId, running, { main: [], extra: [] });
-      const run = await accounts.sealedRun(userId);
-      if (run?.status !== "playing" || !run.main) return "aucun duel Scellé à jouer";
-      const room: Room = { code: newCode(rooms), players: [], mode: { mode: "bot", level: "normal" }, forfeit: true };
+      if (run?.status !== "playing" || !run.main) return `aucun duel ${forfeit} à jouer`;
+      const room: Room = { code: newCode(rooms), players: [], mode: { mode: "bot", level: "normal" }, forfeit };
       room.onWin = (winner) => {
         if (winner > 1) return;
-        accounts.sealedResult(userId, run.id, winner === 0).then(
+        record(run, winner === 0).then(
           (updated) => {
-            if (updated) send(room.players[0]?.socket, { type: "sealed", run: updated });
+            if (updated) send(room.players[0]?.socket, updated);
           },
           (error: unknown) => console.error(error),
         );
       };
-      return enter(userId, room, { main: run.main, extra: run.extra ?? [] }, { deck: botDeck(run.set), name: "Bot", level: "normal" });
+      return enter(userId, room, { main: run.main, extra: run.extra ?? [] }, { deck: await opponent(run), name: "Bot", level: "normal" });
+    }
+
+    // Against a bot deck drawn from 6 boosters of the session's set.
+    async function playSealed(userId: string): Promise<string | undefined> {
+      return playLimited(userId, "Scellé", await accounts.sealedRun(userId), (run) => botDeck(run.set), async (run, won) => {
+        const updated = await accounts.sealedResult(userId, run.id, won);
+        return updated && { type: "sealed", run: updated };
+      });
+    }
+
+    // Against the deck of a bot of the draft.
+    async function playDraft(userId: string): Promise<string | undefined> {
+      return playLimited(userId, "Draft", await accounts.draftRun(userId), (run) => accounts.draftBotDeck(run.id), async (run, won) => {
+        const updated = await accounts.draftResult(userId, run.id, won);
+        return updated && { type: "draft", run: updated };
+      });
     }
 
     // Only a room with two players and no bot has a public log to watch.
@@ -1055,7 +1079,7 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
     // Against the bot, a rematch starts at once (the next floor of the tower). Online, it starts once both seats asked, with their active decks of the moment.
     async function rematch(room: Room, index: Seat, accept: boolean): Promise<string | undefined> {
       if (!room.over) return "aucun duel terminé";
-      if (room.forfeit) return "le duel suivant se lance depuis l'écran Scellé";
+      if (room.forfeit) return `le duel suivant se lance depuis l'écran ${room.forfeit}`;
       if (room.ranked) return "pas de revanche en classé";
       const bot = room.players.some((player) => player.bot);
       if (room.rematch === "declined") return "revanche refusée";
@@ -1195,7 +1219,7 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
       if (isEconomyMessage(msg)) return manageEconomy(user, msg);
       if (isWonderMessage(msg)) return manageWonder(user, msg);
       if (isProfileMessage(msg)) return manageProfile(user, msg);
-      if (isSealedMessage(msg)) return manageSealed(user, msg);
+      if (isSealedMessage(msg) || isDraftMessage(msg)) return manageLimited(user, msg);
       if (isFriendMessage(msg)) return friends.handle(socket, msg);
       if (msg.type === "booster_state") return sendBoosterState(user);
       if (msg.type === "open_booster") return openBoosterFor(user, msg.set);
@@ -1225,6 +1249,7 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
       if (msg.type === "tutorial") return playTutorial(user.id);
       if (msg.type === "tower_duel") return playTower(user.id);
       if (msg.type === "sealed_duel") return playSealed(user.id);
+      if (msg.type === "draft_duel") return playDraft(user.id);
       return enterRoom(user.id, msg);
     }
 
