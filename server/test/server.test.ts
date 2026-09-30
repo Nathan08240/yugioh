@@ -222,7 +222,8 @@ describe("serveur de partie", () => {
     expect(c.send).toHaveBeenCalledWith(expect.stringContaining('"question"'));
   });
 
-  it("sert les données des cartes du pool en français et leurs illustrations, pas celles hors pool ou absentes", async () => {
+  // Reads the whole pool cold: over the default 5 s when the machine is busy.
+  it("sert les données des cartes du pool en français et leurs illustrations, pas celles hors pool ou absentes", { timeout: 20_000 }, async () => {
     const http = url.replace("ws:", "http:");
     const cards: Record<string, CardInfo> = await (await fetch(`${http}/api/cards`)).json();
     // The pool, plus the anime cards of the story and its rule cards.
