@@ -2,7 +2,7 @@ import { useLayoutEffect, useRef } from "react";
 import { NO_MONSTER, type Board } from "./board.ts";
 import { CardView } from "./Card.tsx";
 import { cardName, useDuelView } from "./cards.ts";
-import type { StoryWon } from "./lobby.ts";
+import type { LobbyState, StoryWon } from "./lobby.ts";
 import { D1, D2, D3, D4, RESSORT, sequences, type AnimOptions, type Sequence, type Step } from "./motion.ts";
 import type { Page } from "./Shell.tsx";
 import "./styles/fin.css";
@@ -17,6 +17,9 @@ type Props = {
   opponent?: string;
   // A story duel ("Battle City · Duel 4 sur 5"), its special rules, and its conclusion once the server has recorded the win.
   story?: { title?: string; won?: StoryWon; special?: readonly string[] };
+  // Online rematch state; against the bot, asking starts a new duel at once.
+  rematch?: LobbyState["rematch"];
+  onRematch: (accept: boolean) => void;
   leave: () => void;
   go: (page: Page) => void;
 };
@@ -69,7 +72,7 @@ const defeat =
   };
 
 // Victory or defeat screen over the board, once the engine has named the winner.
-export function Fin({ board, seat, room, vsBot, opponent, story, leave, go }: Readonly<Props>) {
+export function Fin({ board, seat, room, vsBot, opponent, story, rematch, onRematch, leave, go }: Readonly<Props>) {
   const root = useRef<HTMLDivElement>(null);
   const won = board.winner === seat;
   const lost = board.winner === 1 - seat;
@@ -113,6 +116,7 @@ export function Fin({ board, seat, room, vsBot, opponent, story, leave, go }: Re
               {back}
             </button>
           )}
+          <Rematch online={!vsBot} seat={seat} rematch={rematch} opponent={opponent} onRematch={onRematch} />
           {lost && (
             <button type="button" className="btn btn--fantome" onClick={() => go("collection")}>
               Modifier mon deck
@@ -121,6 +125,43 @@ export function Fin({ board, seat, room, vsBot, opponent, story, leave, go }: Re
         </div>
       </div>
     </section>
+  );
+}
+
+type RematchProps = Readonly<{ online: boolean; seat: number; rematch?: LobbyState["rematch"]; opponent?: string; onRematch: (accept: boolean) => void }>;
+
+function Rematch({ online, seat, rematch, opponent, onRematch }: RematchProps) {
+  if (rematch === "declined") {
+    return (
+      <button type="button" className="btn btn--fantome" disabled>
+        Revanche refusée
+      </button>
+    );
+  }
+  if (online && rematch?.from === seat) {
+    return (
+      <button type="button" className="btn btn--fantome" disabled>
+        Revanche demandée…
+      </button>
+    );
+  }
+  if (online && rematch) {
+    return (
+      <>
+        <p className="texte-2">{opponent ?? "L'adversaire"} propose une revanche</p>
+        <button type="button" className="btn" onClick={() => onRematch(true)}>
+          Accepter
+        </button>
+        <button type="button" className="btn btn--fantome" onClick={() => onRematch(false)}>
+          Refuser
+        </button>
+      </>
+    );
+  }
+  return (
+    <button type="button" className="btn btn--fantome" onClick={() => onRematch(true)}>
+      Revanche
+    </button>
   );
 }
 

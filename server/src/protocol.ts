@@ -21,6 +21,9 @@ export type ClientMessage =
   | { type: "respond"; response: OcgResponse }
   // Gives up the duel in progress: the other seat wins.
   | { type: "surrender" }
+  // After a duel: against the bot, starts an identical one at once. Online, asks for a rematch (or accepts the one asked,
+  // or refuses it with `accept: false`): it starts, with each player's active deck, once both seats asked.
+  | { type: "rematch"; accept?: boolean }
   // Collection and decks: each deck message is answered with `decks`. `save_deck` creates a deck without `id`.
   | { type: "collection" }
   | { type: "decks" }
@@ -56,6 +59,9 @@ export type ServerMessage =
   // null: that clock stopped. Sent to both players, and again to a player who comes back.
   | { type: "timer"; kind: "answer" | "reconnect"; seat: Seat; ms: number | null }
   | { type: "error"; error: string }
+  // Online: `from` asked for a rematch. `rematch_declined`: refused or left, no rematch in this room. A new duel starts with `joined`.
+  | { type: "rematch"; from: Seat }
+  | { type: "rematch_declined" }
   // Owned cards as [passcode, quantity].
   | { type: "collection"; cards: [number, number][] }
   // `saved` is the deck a `save_deck` just stored.
