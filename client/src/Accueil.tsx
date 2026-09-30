@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
-import type { BotLevel, ClientMessage, PuzzleView, StoryArcView } from "../../server/src/protocol.ts";
+import type { BotLevel, ClientMessage, Deck, PuzzleView, StoryArcView } from "../../server/src/protocol.ts";
 import { CardView } from "./Card.tsx";
 import { cardName, stat, strongest, useDuelView } from "./cards.ts";
+import { GoatReminder } from "./goat.tsx";
 import { countdown, inviteLink, type DeckList, type LobbyState } from "./lobby.ts";
 import { RuleBlock, specialRules } from "./regles.tsx";
 import type { Page } from "./Shell.tsx";
@@ -17,7 +18,7 @@ const BOT_LEVELS: [BotLevel, string][] = [
   ["expert", "Expert"],
 ];
 
-const activeDeck = (decks?: DeckList) => decks?.decks.find((deck) => deck.id === decks.active);
+export const activeDeck = (decks?: DeckList) => decks?.decks.find((deck) => deck.id === decks.active);
 
 // The arc being played: the first one with a duel left to win, else the last one.
 function currentArc(arcs: StoryArcView[]) {
@@ -83,7 +84,7 @@ export function Accueil({ state, send, go }: Readonly<{ state: LobbyState; send:
             <CodeForm id="code-regarder" action="Regarder un duel" className="btn btn--fantome" send={(room) => send({ type: "spectate", room })} />
           </div>
         </article>
-        {state.event && <EventCard event={state.event} send={send} />}
+        {state.event && <EventCard event={state.event} deck={deck} send={send} go={go} />}
         <Mode icon="ui-trophee" title="Classé" onClick={() => go("classe")}>
           {state.ranked ? `Classement ${state.ranked.rating} · ` : ""}Un adversaire de votre niveau, classement Elo.
         </Mode>
@@ -180,7 +181,8 @@ function Mode({ icon, title, badge = 0, onClick, children }: Readonly<ModeProps>
 }
 
 // The special rule of the week: its rules, and a duel under it against the bot or in an online room.
-function EventCard({ event, send }: Readonly<{ event: NonNullable<LobbyState["event"]>; send: Send }>) {
+function EventCard({ event, deck, send, go }: Readonly<{ event: NonNullable<LobbyState["event"]>; deck?: Deck; send: Send; go: (page: Page) => void }>) {
+  const { cards } = useDuelView();
   const [choosingLevel, setChoosingLevel] = useState(false);
   const [rule] = specialRules([event.rule]);
   if (!rule) return null;
@@ -197,6 +199,7 @@ function EventCard({ event, send }: Readonly<{ event: NonNullable<LobbyState["ev
         </div>
       </div>
       <RuleBlock rule={rule} />
+      <GoatReminder deck={deck} cards={cards} where="en événement" go={() => go("collection")} />
       <div className="mode__actions">
         {choosingLevel ? (
           <>

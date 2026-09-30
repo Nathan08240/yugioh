@@ -13,7 +13,7 @@ import { respond } from "../src/respond.ts";
 import { WISH_MAX } from "../src/wishlist.ts";
 import { drawWonder } from "../src/wonder.ts";
 import { advance, creditWinner, DECISION_TIME, RECONNECT_TIME, startServer, towerFloor, type Accounts, type Room } from "../src/server.ts";
-import { noSealed } from "./fakes.ts";
+import { GOAT_YUGI, noSealed } from "./fakes.ts";
 
 const FLAME_SWORDSMAN = 45231177;
 
@@ -827,13 +827,24 @@ describe("mode classé", () => {
   const joins = (client: Awaited<ReturnType<typeof connect>>) => client.received.filter((msg) => msg.type === "joined");
   // Players of each test get a rating far from the others, so a player left in the queue never pairs with them.
   async function queued(user: string, rating: number, answer?: Answer) {
-    decks.set(user, YUGI);
+    decks.set(user, GOAT_YUGI);
     ratings.set(user, rating);
     const client = await connect(user, answer);
     client.send({ type: "ranked_queue" });
     await vi.waitFor(() => expect(client.received).toContainEqual({ type: "ranked_queue", waiting: true }));
     return client;
   }
+
+  it("refuse la file classée à un deck hors de la liste Goat, sans l'y mettre en attente, mais l'accepte contre le bot", async () => {
+    decks.set("classe-hors-liste", [...GOAT_YUGI.slice(2), 55144522, 55144522]);
+    const client = await connect("classe-hors-liste");
+    client.send({ type: "ranked_queue" });
+    await vi.waitFor(() => expect(client.received).toContainEqual({ type: "error", error: "Pot de Cupidité : 1 exemplaire au plus en classé" }));
+    expect(client.received).not.toContainEqual({ type: "ranked_queue", waiting: true });
+    client.send({ type: "bot" });
+    await vi.waitFor(() => expect(joined(client.received)).toBeDefined());
+    client.socket.close();
+  });
 
   it("envoie le classement du joueur et les meilleurs joueurs", async () => {
     ratings.set("classe-vue", 1100);

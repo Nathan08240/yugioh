@@ -63,6 +63,15 @@ const BASICS: Rule[] = [
     ],
   },
   {
+    title: "La liste des cartes limitées",
+    details: [
+      "La liste TCG d'avril 2005 interdit certaines cartes, en limite d'autres à 1 exemplaire (limitées) ou à 2 (semi-limitées).",
+      "Elle s'applique seulement en mode Classé et dans les duels de l'événement de la semaine, contre le bot comme en salle en ligne.",
+      "Dans tous les autres modes, chaque carte reste permise en 3 exemplaires.",
+      "Un deck qui dépasse la liste ne peut pas entrer en Classé ni en événement : le constructeur de deck indique combien de cartes sont en trop.",
+    ],
+  },
+  {
     title: "Le tour",
     details: [
       "Draw Phase : on pioche 1 carte.",

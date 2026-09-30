@@ -7,6 +7,7 @@ import type { ClientMessage, ServerMessage } from "../src/protocol.ts";
 import { rateDuel, readLeaderboard, readRating } from "../src/ranked.ts";
 import { dbAccounts, startServer } from "../src/server.ts";
 import { chooseStarter } from "../src/starter.ts";
+import { GOAT_YUGI } from "./fakes.ts";
 import { type Pg, startPostgres } from "./pg.ts";
 
 describe("mode classé sur Postgres jetable", () => {
@@ -85,6 +86,8 @@ describe("mode classé sur Postgres jetable", () => {
     const clients = await Promise.all(
       players.map(async (id) => {
         await chooseStarter(server, id, "yugi");
+        // The starter deck plays cards the Goat list forbids, which the ranked queue refuses.
+        await admin`update yugioh.decks set main_deck = ${GOAT_YUGI} where user_id = ${id}`;
         const socket = new WebSocket(url);
         const received: ServerMessage[] = [];
         socket.on("message", (data) => received.push(JSON.parse(String(data))));

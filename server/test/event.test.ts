@@ -10,7 +10,7 @@ import { EVENTS, eventOf, eventRules } from "../src/event.ts";
 import type { ClientMessage, ServerMessage, Wire } from "../src/protocol.ts";
 import { startServer } from "../src/server.ts";
 import { EXTRA_RULES, STORY_DUELS } from "../src/story.ts";
-import { fakeAccounts } from "./fakes.ts";
+import { fakeAccounts, GOAT_YUGI } from "./fakes.ts";
 
 const at = (iso: string) => eventOf(new Date(iso));
 const WEEK = 7 * 86_400_000;
@@ -64,7 +64,9 @@ describe("salles d'événement sur le serveur", () => {
   const event = eventOf();
   const taken = new Set<string>();
   const claims: string[] = [];
+  // Yugi's deck as it comes, outside the Goat list, for the users named "hors-liste-...".
   const accounts = fakeAccounts({
+    activeDeck: async (userId) => ({ main: userId.startsWith("hors-liste") ? YUGI : GOAT_YUGI, extra: [] }),
     eventWon: async (userId, eventId) => taken.has(`${userId}:${eventId}`),
     claimEvent: async (userId, eventId) => {
       const key = `${userId}:${eventId}`;
@@ -143,6 +145,23 @@ describe("salles d'événement sur le serveur", () => {
     normal.send({ type: "bot" });
     await vi.waitFor(() => expect(normal.joined()).toMatchObject({ lp: 4000 }));
     expect(normal.joined()?.special).toBeUndefined();
+  });
+
+  it("refuse en événement un deck hors de la liste Goat, en création, en jonction et contre le bot, mais pas hors événement", async () => {
+    const url = await server();
+    const host = await client(url, "hote-liste");
+    host.send({ type: "create", event: true });
+    await vi.waitFor(() => expect(host.joined()).toBeDefined());
+    const error = (received: Received[]) => received.find((msg) => msg.type === "error");
+    for (const [name, message] of [["hors-liste-create", { type: "create", event: true }], ["hors-liste-bot", { type: "bot", event: true }], ["hors-liste-join", { type: "join", room: host.joined()?.room ?? "" }]] as const) {
+      const outside = await client(url, name);
+      outside.send(message);
+      await vi.waitFor(() => expect(error(outside.received)).toMatchObject({ error: expect.stringContaining(" : interdite en événement") }));
+      expect(outside.joined()).toBeUndefined();
+    }
+    const outside = await client(url, "hors-liste-normal");
+    outside.send({ type: "bot" });
+    await vi.waitFor(() => expect(outside.joined()).toBeDefined());
   });
 
   it("refuse un champ event qui n'est pas un booléen", async () => {
