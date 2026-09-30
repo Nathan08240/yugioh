@@ -1,5 +1,6 @@
 import { YUGI } from "../src/decks.ts";
 import { GOAT } from "../src/limits.ts";
+import type { DraftStore } from "../src/draft.ts";
 import type { SealedStore } from "../src/sealed.ts";
 import type { Accounts } from "../src/server.ts";
 
@@ -15,6 +16,19 @@ export const noSealed: SealedStore = {
   saveSealedDeck: async () => "non simulé",
   sealedResult: async () => undefined,
   abandonSealed: async () => undefined,
+};
+
+// A player without any Draft session.
+export const noDraft: DraftStore = {
+  draftRun: async () => undefined,
+  startDraft: async () => {
+    throw new Error("non simulé");
+  },
+  pickDraft: async () => "non simulé",
+  saveDraftDeck: async () => "non simulé",
+  draftResult: async () => undefined,
+  abandonDraft: async () => undefined,
+  draftBotDeck: async () => ({ main: [], extra: [] }),
 };
 
 // Accounts where every token is the user id, every user has a pseudo and plays Yugi's deck; `overrides` replaces any part.
@@ -59,6 +73,7 @@ export function fakeAccounts(overrides: Partial<Accounts> = {}): Accounts {
     startTower: async () => 1,
     winTower: async (_userId, floor) => ({ floor, best: floor, boosters: 0 }),
     ...noSealed,
+    ...noDraft,
     friendList: async () => [],
     requestFriend: async () => "joueur introuvable",
     acceptFriend: async () => undefined,

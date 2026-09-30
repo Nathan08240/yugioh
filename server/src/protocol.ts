@@ -111,6 +111,14 @@ export type ClientMessage =
   | { type: "sealed_deck"; main: number[]; extra: number[] }
   | { type: "sealed_abandon" }
   | { type: "sealed_duel" }
+  // Draft mode (draft.ts), each answered with `draft`: as the Sealed messages, and `draft_pick` keeps card `index` of the
+  // booster in front of the player while the bots keep theirs. `draft_duel` starts the next duel against the bot.
+  | { type: "draft" }
+  | { type: "draft_start" }
+  | { type: "draft_pick"; index: number }
+  | { type: "draft_deck"; main: number[]; extra: number[] }
+  | { type: "draft_abandon" }
+  | { type: "draft_duel" }
   // Ranked mode (ranked.ts): `ranked` is answered with `ranked`. `ranked_queue` waits for an opponent of close rating, with the
   // active deck, until the duel starts with `joined`; `ranked_cancel` stops waiting. Both are answered with `ranked_queue`.
   | { type: "ranked" }
@@ -199,6 +207,7 @@ export type ServerMessage =
   | { type: "tower_won"; floor: number; best: number; boosters: number }
   // null before the first session.
   | { type: "sealed"; run: SealedRun | null }
+  | { type: "draft"; run: DraftRun | null }
   | ({ type: "ranked" } & RankedView)
   | { type: "ranked_queue"; waiting: boolean }
   // End of a ranked duel: the change of the player's rating, and the new one.
@@ -272,6 +281,8 @@ export type SealedStatus = "building" | "playing" | "done" | "abandoned";
 // `pool`: the reserve of the 6 boosters of `set` (`setName`), one printing per copy. `main` and `extra`: the deck, null until validated.
 // `boosters`: earned once done.
 export type SealedRun = { id: number; set: string; setName: string; pool: Printing[]; main: number[] | null; extra: number[] | null; wins: number; losses: number; status: SealedStatus; boosters: number };
+// A Draft session: a Sealed session whose reserve (`pool`) is drafted first, booster `round` of 6, from `pack`.
+export type DraftRun = Omit<SealedRun, "status"> & { status: "drafting" | SealedStatus; round: number; pack: Printing[] };
 
 // Locked until every duel of `requires` is won.
 export type StoryStatus = "locked" | "available" | "done";

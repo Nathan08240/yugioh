@@ -151,6 +151,10 @@ it("renvoie un duel Scellé à son écran, sans revanche, avec le bilan de la se
   expect(sealed("done")).toContain("Voir le bilan");
   expect(sealed("playing")).not.toContain("Revanche");
   expect(sealed("playing")).not.toContain("Modifier mon deck");
+  const draft = render(<Fin board={finished(1)} seat={0} room="r" vsBot leave={() => {}} go={() => {}} onRematch={() => {}} draft={{ ...run, status: "playing", round: 6, pack: [] }} />);
+  expect(draft).toContain("Mode Draft · 1/3 victoires · 1/2 défaites");
+  expect(draft).toContain("Retour au Draft");
+  expect(draft).not.toContain("Revanche");
 });
 
 it("écran de fin d'un spectateur : le nom du vainqueur, pas de revanche ni de récompense", () => {
