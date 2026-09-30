@@ -1,7 +1,7 @@
 import { OcgAttribute, OcgType } from "@n1xx1/ocgcore-wasm";
 import { expect, it } from "vitest";
 import type { CardInfo } from "../../server/src/protocol.ts";
-import { filterCollection, kindCounts, noFilters, type Filters } from "./collection.ts";
+import { filterCollection, kindCounts, noFilters, ownedCodes, setProgress, type Filters } from "./collection.ts";
 
 const card = (name: string, type: number, stats: Partial<CardInfo> = {}): CardInfo => ({
   name, alias: 0, desc: "", type, level: 0, attribute: 0, race: 0, atk: 0, def: 0, strings: [], attributeName: "", typeLine: "", image: false, ...stats,
@@ -41,4 +41,13 @@ it("cherche aussi dans le texte, sans tenir compte de la casse ni des accents", 
 
 it("compte les monstres, magies et pièges d'un deck", () => {
   expect(kindCounts([1, 1, 2, 4, 5, 5, 7], cards)).toEqual({ monster: 4, spell: 1, trap: 2 });
+});
+
+it("calcule la complétion d'un set, une carte comptant dans chaque set qui la contient", () => {
+  const have = ownedCodes([[1, 2], [2, 0], [3, 1], [99, 1]]);
+  expect([...have]).toEqual([1, 3, 99]);
+  expect(setProgress([1, 2, 3], have)).toEqual({ owned: 2, total: 3, percent: 66 });
+  expect(setProgress([3, 4], have)).toEqual({ owned: 1, total: 2, percent: 50 });
+  expect(setProgress([1, 3], have)).toEqual({ owned: 2, total: 2, percent: 100 });
+  expect(setProgress([], have)).toEqual({ owned: 0, total: 0, percent: 0 });
 });

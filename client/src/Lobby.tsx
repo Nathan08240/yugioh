@@ -4,7 +4,7 @@ import type { ClientMessage } from "../../server/src/protocol.ts";
 import { Accueil, Salle } from "./Accueil.tsx";
 import { Boosters } from "./Boosters.tsx";
 import { DuelView, useCards } from "./cards.ts";
-import { DeckBuilder } from "./DeckBuilder.tsx";
+import { Collection } from "./Collection.tsx";
 import { PseudoForm, StarterChoice } from "./Depart.tsx";
 import { Duel } from "./Duel.tsx";
 import { Fin } from "./Fin.tsx";
@@ -170,7 +170,7 @@ function Screen({ state, page, send, reconnect, leave, respond, go, vsBot, story
   return (
     <Shell id={page} background={page === "collection" ? "nuit" : "ville"} pseudo={state.pseudo} page={page} go={go} pending={state.boosters?.pending} signOut={signOut} notice={page === "accueil"}>
       {page === "accueil" && <Accueil state={state} send={send} go={go} />}
-      {page === "collection" && <DeckBuilder collection={state.collection} decks={state.decks} send={send} />}
+      {page === "collection" && <Collection collection={state.collection} decks={state.decks} send={send} />}
       {page === "boosters" && <Boosters state={state} send={send} go={go} />}
       {page === "histoire" && <Story arcs={state.story} send={send} />}
       {page === "regles" && <Regles />}
