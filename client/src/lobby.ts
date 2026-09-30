@@ -1,5 +1,5 @@
 import type { EmoteId } from "../../server/src/emotes.ts";
-import type { DeckResult, Seat, ServerMessage, StoryArcView, Wire } from "../../server/src/protocol.ts";
+import type { ClientMessage, DeckResult, Seat, ServerMessage, StoryArcView, Wire } from "../../server/src/protocol.ts";
 import { newBoard, playAll, type Board, type EngineMessage, type Message } from "./board.ts";
 
 export type DeckList = Extract<Wire<ServerMessage>, { type: "decks" }>;
@@ -37,6 +37,9 @@ export type LobbyState = {
   // Name of the other seat, once known, and the avatar of a human opponent.
   opponent?: string;
   opponentAvatar?: number;
+  // The player watches the duel from outside: name and avatar of seat 0, the point of view. `spectators`: how many watch the room.
+  spectating?: { name?: string; avatar?: number };
+  spectators: number;
   board?: Board;
   // Starting LP of the player and of the opponent, and the last batch of engine messages: the duel screen animates them (id tells batches apart).
   lp?: number;
@@ -84,7 +87,7 @@ export type LobbyState = {
   reported: number;
 };
 
-export const initialLobby: LobbyState = { started: false, asked: 0, emotes: {}, closed: false, needsStarter: false, openedCount: 0, storyOpen: false, reported: 0 };
+export const initialLobby: LobbyState = { started: false, spectators: 0, asked: 0, emotes: {}, closed: false, needsStarter: false, openedCount: 0, storyOpen: false, reported: 0 };
 
 export function reduce(state: LobbyState, action: Action): LobbyState {
   switch (action.type) {
@@ -93,7 +96,7 @@ export function reduce(state: LobbyState, action: Action): LobbyState {
     case "closed":
       return { ...state, closed: true };
     case "left":
-      return { ...state, room: undefined, seat: undefined, board: undefined, started: false, question: undefined, error: undefined, won: undefined, rematch: undefined, answerBy: undefined, away: undefined, emotes: {} };
+      return { ...state, room: undefined, seat: undefined, board: undefined, started: false, question: undefined, error: undefined, won: undefined, rematch: undefined, answerBy: undefined, away: undefined, emotes: {}, spectating: undefined, spectators: 0 };
     case "profile":
       return { ...state, pseudo: action.pseudo, needsStarter: action.needsStarter, admin: action.admin, daily: action.daily || state.daily, error: undefined };
     case "joined":
@@ -103,10 +106,11 @@ export function reduce(state: LobbyState, action: Action): LobbyState {
         seat: action.seat,
         opponent: action.opponent,
         opponentAvatar: action.opponentAvatar,
+        spectating: action.spectating,
         lp: action.lp,
         opponentLp: action.opponentLp,
         board: playAll(newBoard(action.seat === 0 ? [action.lp, action.opponentLp ?? action.lp] : [action.opponentLp ?? action.lp, action.lp], action.decks, action.extras), action.log),
-        started: action.log.length > 0,
+        started: action.log.length > 0 || action.spectating !== undefined,
         question: undefined,
         error: undefined,
         answerBy: undefined,
@@ -131,6 +135,8 @@ export function reduce(state: LobbyState, action: Action): LobbyState {
     }
     case "emote":
       return { ...state, emotes: { ...state.emotes, [action.seat]: { id: action.id, n: (state.emotes[action.seat]?.n ?? 0) + 1 } } };
+    case "spectators":
+      return { ...state, spectators: action.count };
     case "answered":
       return { ...state, question: undefined };
     case "collection":
@@ -189,10 +195,20 @@ export function countdown(nextFreeAt: string, now: number): string {
 // Same alphabet as the server's room codes.
 const ROOM_CODE = /^[A-HJ-NP-Z2-9]{5}$/;
 
-// The room code carried by an invitation link (?salle=ABCDE), if valid.
-export function roomFromUrl(href: string): string | undefined {
-  const code = new URL(href).searchParams.get("salle")?.trim().toUpperCase() ?? "";
+function codeFromUrl(href: string, param: string): string | undefined {
+  const code = new URL(href).searchParams.get(param)?.trim().toUpperCase() ?? "";
   return ROOM_CODE.test(code) ? code : undefined;
+}
+
+// The room code carried by an invitation link (?salle=ABCDE), if valid.
+export const roomFromUrl = (href: string) => codeFromUrl(href, "salle");
+
+// What a link opens: the room to play in (?salle=ABCDE) or the duel to watch (?regarder=ABCDE).
+export function inviteFromUrl(href: string): Extract<ClientMessage, { type: "join" | "spectate" }> | undefined {
+  const room = roomFromUrl(href);
+  if (room) return { type: "join", room };
+  const watched = codeFromUrl(href, "regarder");
+  return watched ? { type: "spectate", room: watched } : undefined;
 }
 
 export const inviteLink = (origin: string, room: string) => `${origin}/?salle=${room}`;

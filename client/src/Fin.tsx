@@ -137,6 +137,32 @@ export function Fin({ board, seat, room, vsBot, opponent, story, rematch, onRema
   );
 }
 
+type SpectateurProps = { board: Board; names: [string, string]; room: string; leave: () => void };
+
+// End of a duel watched from outside: who won, and no rematch.
+export function FinSpectateur({ board, names, room, leave }: Readonly<SpectateurProps>) {
+  const { winner } = board;
+  const heading = winner === 0 || winner === 1 ? `${names[winner]} remporte le duel` : "Égalité";
+  return (
+    <section className="ecran ecran--scene fin-duel" aria-labelledby="fin-titre">
+      <div className="fin">
+        <p className="surtitre">Duel en ligne · salle {room}</p>
+        <h1 id="fin-titre" className="fin__titre">
+          {heading}
+        </h1>
+        <p className="texte-2">
+          Tour {board.turn} · {names[0]} {Math.max(board.players[0].lp, 0)} LP · {names[1]} {Math.max(board.players[1].lp, 0)} LP
+        </p>
+        <div className="fin__actions">
+          <button type="button" className="btn btn--grand btn--holo" onClick={leave}>
+            Retour à l'accueil
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 type RematchProps = Readonly<{ online: boolean; seat: number; rematch?: LobbyState["rematch"]; opponent?: string; onRematch: (accept: boolean) => void }>;
 
 function Rematch({ online, seat, rematch, opponent, onRematch }: RematchProps) {

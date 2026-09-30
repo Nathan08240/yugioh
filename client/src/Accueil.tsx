@@ -74,22 +74,8 @@ export function Accueil({ state, send, go }: Readonly<{ state: LobbyState; send:
             <button type="button" className="btn" onClick={() => send({ type: "create" })}>
               Créer une salle
             </button>
-            <form
-              className="rejoindre"
-              onSubmit={(event) => {
-                event.preventDefault();
-                const room = new FormData(event.currentTarget).get("room") as string;
-                send({ type: "join", room: room.trim().toUpperCase() });
-              }}
-            >
-              <label className="sr" htmlFor="code-salle">
-                Code de la salle
-              </label>
-              <input id="code-salle" name="room" className="saisie-code" required maxLength={5} placeholder="Code" autoComplete="off" />
-              <button type="submit" className="btn btn--holo">
-                Rejoindre
-              </button>
-            </form>
+            <CodeForm id="code-salle" action="Rejoindre" className="btn btn--holo" send={(room) => send({ type: "join", room })} />
+            <CodeForm id="code-regarder" action="Regarder un duel" className="btn btn--fantome" send={(room) => send({ type: "spectate", room })} />
           </div>
         </article>
         {choosingLevel ? (
@@ -128,6 +114,29 @@ export function Accueil({ state, send, go }: Readonly<{ state: LobbyState; send:
       </div>
       {star !== undefined && <Projector code={star} />}
     </div>
+  );
+}
+
+type CodeFormProps = { id: string; action: string; className: string; send: (room: string) => void };
+
+// A room code and the button that uses it.
+function CodeForm({ id, action, className, send }: Readonly<CodeFormProps>) {
+  return (
+    <form
+      className="rejoindre"
+      onSubmit={(event) => {
+        event.preventDefault();
+        send((new FormData(event.currentTarget).get("room") as string).trim().toUpperCase());
+      }}
+    >
+      <label className="sr" htmlFor={id}>
+        Code de la salle
+      </label>
+      <input id={id} name="room" className="saisie-code" required maxLength={5} placeholder="Code" autoComplete="off" />
+      <button type="submit" className={className}>
+        {action}
+      </button>
+    </form>
   );
 }
 

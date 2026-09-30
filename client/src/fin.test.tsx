@@ -6,7 +6,7 @@ import type { CardInfo } from "../../server/src/protocol.ts";
 import { newBoard, playAll, type Message } from "./board.ts";
 import { DuelView } from "./cards.ts";
 import { Duel } from "./Duel.tsx";
-import { Fin } from "./Fin.tsx";
+import { Fin, FinSpectateur } from "./Fin.tsx";
 import type { StoryWon } from "./lobby.ts";
 import { specialRules } from "./regles.tsx";
 
@@ -121,4 +121,10 @@ it("propose la revanche selon son état : à demander, en attente, à accepter o
   expect(online("declined")).toContain("Revanche refusée");
   // Against the bot the button restarts at once, whatever the online state.
   expect(fin(board)).toContain("Revanche</button>");
+});
+
+it("écran de fin d'un spectateur : le nom du vainqueur, pas de revanche ni de récompense", () => {
+  const html = render(<FinSpectateur board={finished(1, 1)} names={["Yugi", "Kaiba"]} room="ABCDE" leave={() => {}} />);
+  for (const text of ["Kaiba remporte le duel", "Yugi 0 LP", "salle ABCDE", "Retour à l&#x27;accueil"]) expect(html).toContain(text);
+  for (const text of ["Revanche", "booster", "Victoire", "Défaite"]) expect(html).not.toContain(text);
 });

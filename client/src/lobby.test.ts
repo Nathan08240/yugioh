@@ -1,6 +1,6 @@
 import { OcgMessageType } from "@n1xx1/ocgcore-wasm";
 import { expect, it, vi } from "vitest";
-import { initialLobby, inviteLink, minutes, reduce, roomFromUrl, type Action } from "./lobby.ts";
+import { initialLobby, inviteFromUrl, inviteLink, minutes, reduce, roomFromUrl, type Action } from "./lobby.ts";
 
 it("passe du pseudo à l'attente puis au plateau quand le duel démarre", () => {
   let state = reduce(initialLobby, { type: "profile", pseudo: null, needsStarter: false });
@@ -92,4 +92,23 @@ it("suit la revanche en ligne jusqu'au nouveau duel, qui l'efface avec la conclu
   const replay = reduce(state, { ...joined, log: [{ type: OcgMessageType.DRAW, player: 0, drawn: [{ code: 1, position: 10 }] }] });
   expect(replay).toMatchObject({ rematch: { from: 1 }, won: { duel: "d" } });
   expect(reduce(state, joined)).toMatchObject({ rematch: undefined, won: undefined });
+});
+
+it("ouvre le duel d'un spectateur sans attendre de message, compte les spectateurs et les oublie en partant", () => {
+  const joined = { type: "joined" as const, room: "ABCDE", seat: 0 as const, lp: 4000, decks: [40, 40] as [number, number], extras: [0, 0] as [number, number], opponent: "Kaiba", log: [] };
+  expect(reduce(initialLobby, joined)).toMatchObject({ started: false, spectating: undefined });
+  let state = reduce(initialLobby, { ...joined, spectating: { name: "Yugi" } });
+  expect(state).toMatchObject({ started: true, spectating: { name: "Yugi" }, opponent: "Kaiba" });
+  state = reduce(state, { type: "spectators", count: 3 });
+  expect(state.spectators).toBe(3);
+  // A rematch restarts the duel for the spectators too: the count stays.
+  expect(reduce(state, { ...joined, spectating: { name: "Yugi" } }).spectators).toBe(3);
+  expect(reduce(state, { type: "left" })).toMatchObject({ spectating: undefined, spectators: 0, room: undefined });
+});
+
+it("distingue le lien pour jouer (?salle=) du lien pour regarder (?regarder=)", () => {
+  expect(inviteFromUrl("https://site.fr/?salle=abcd2")).toEqual({ type: "join", room: "ABCD2" });
+  expect(inviteFromUrl("https://site.fr/?regarder=k7m2p")).toEqual({ type: "spectate", room: "K7M2P" });
+  expect(inviteFromUrl("https://site.fr/?regarder=K7M2")).toBeUndefined();
+  expect(inviteFromUrl("https://site.fr/")).toBeUndefined();
 });

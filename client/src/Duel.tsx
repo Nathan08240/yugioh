@@ -58,6 +58,9 @@ type Props = {
   sendEmote?: (id: EmoteId) => void;
   // Bug report button, hidden without it.
   report?: Report;
+  // A spectator watching from seat 0's side (`pseudo` and `opponent` name the seats), and how many spectators the room has.
+  spectateur?: boolean;
+  spectators?: number;
 };
 
 const { HAND, GRAVE, REMOVED } = OcgLocation;
@@ -113,12 +116,13 @@ function zoneCard(board: Board, id: string): Card | undefined {
 const codeAt = (board: Board, id: string) => zoneCard(board, id)?.code ?? 0;
 
 // The end of the duel (Fin.tsx) is drawn over the board by the lobby.
-export function Duel({ board, seat, asked, respond, leave, surrender, answerBy, away, feed, lp, opponentLp, pseudo, opponent, avatar, opponentAvatar, rules, easy, kingdom, emotes, sendEmote, report }: Readonly<Props>) {
+export function Duel({ board, seat, asked, respond, leave, surrender, answerBy, away, feed, lp, opponentLp, pseudo, opponent, avatar, opponentAvatar, rules, easy, kingdom, emotes, sendEmote, report, spectateur, spectators = 0 }: Readonly<Props>) {
   const cards = useCards();
   const [reglages] = useReglages();
   const strings = useSystemStrings();
   const [detail, setDetail] = useState<{ code: number; place?: string }>();
-  const view = useMemo(() => ({ cards, show: (code: number, place?: string) => setDetail({ code, place }), seat }), [cards, seat]);
+  const moi = spectateur ? (pseudo ?? "Joueur 1") : undefined;
+  const view = useMemo(() => ({ cards, show: (code: number, place?: string) => setDetail({ code, place }), seat, moi }), [cards, seat, moi]);
   const regie = useRef<Regie>({}).current;
   const hud = useHud(regie, seat, cards);
   const { shown, idle } = useSpectacle(board, feed, cards, regie, asked !== undefined);
@@ -189,7 +193,9 @@ export function Duel({ board, seat, asked, respond, leave, surrender, answerBy, 
   const targets: Targets = { ...ui, picked };
   const enCours = board.winner === undefined;
   const delai = (player: number) => (enCours && answerBy?.seat === player ? answerBy.until : undefined);
-  const absent = enCours && away?.seat === 1 - seat ? away.until : undefined;
+  let panneau = idle || !asked ? ui.panel : <p className="muted">Action en cours…</p>;
+  if (spectateur) panneau = <p className="muted">Duel regardé en spectateur.</p>;
+  const absent = enCours && !spectateur && away?.seat === 1 - seat ? away.until : undefined;
 
   return (
     <DuelView value={view}>
@@ -228,7 +234,7 @@ export function Duel({ board, seat, asked, respond, leave, surrender, answerBy, 
               <CardView key={i} code={0} />
             ))}
           </section>
-          <Turn board={shown} seat={seat} leave={leave} surrender={surrender} report={report} />
+          <Turn board={shown} seat={seat} leave={leave} surrender={surrender} report={report} names={spectateur ? [moi ?? "", nom] : undefined} spectators={spectators} />
           <aside className="colonne colonne--gauche">
             <div className="panneau colonne__detail">
               <CardDetail code={detail?.code} atk={stats?.atk} def={stats?.def} />
@@ -252,7 +258,7 @@ export function Duel({ board, seat, asked, respond, leave, surrender, answerBy, 
                 </p>
               )}
               {asked?.retry && idle && <p className="error">Choix refusé par le moteur : essayez autre chose.</p>}
-              {idle || !asked ? ui.panel : <p className="muted">Action en cours…</p>}
+              {panneau}
               {apercuCible && <Apercu texte={apercuCible} />}
             </section>
           </aside>
@@ -544,7 +550,7 @@ function Compte({ until }: Readonly<{ until: number }>) {
 
 // `visee`: a monster being dragged can attack this player directly. `until`: when the player loses unless they answer. `emote`: the phrase shown in a bubble.
 function Plaque({ board, player, start, name, avatar, refs, visee, until, emote }: Readonly<{ board: Board; player: number; start: number; name: string; avatar?: number; refs: Refs; visee?: boolean; until?: number; emote?: ShownEmote }>) {
-  const { seat } = useDuelView();
+  const { seat, moi } = useDuelView();
   const side = board.players[player];
   const lp = Math.max(side.lp, 0);
   const mine = player === seat;
@@ -557,7 +563,9 @@ function Plaque({ board, player, start, name, avatar, refs, visee, until, emote 
     el.dataset.lp = String(side.lp);
     el.textContent = String(lp);
   }, [lp, side.lp, valeur]);
-  const label = mine ? `Vos points de vie : ${lp} sur ${start}` : `Points de vie de l'adversaire : ${lp} sur ${start}`;
+  let label = `Points de vie de l'adversaire : ${lp} sur ${start}`;
+  if (moi !== undefined) label = `Points de vie de ${name} : ${lp} sur ${start}`;
+  else if (mine) label = `Vos points de vie : ${lp} sur ${start}`;
   return (
     <div ref={refs.plaques[player]} className={`plaque plaque--${mine ? "moi" : "adverse"}${visee ? " est-visee" : ""}`} data-cible={mine ? undefined : String(player)}>
       <Avatar name={name} code={avatar} />
@@ -610,7 +618,10 @@ const PHASES: [ReadonlySet<number>, string, string][] = [
   [new Set([OcgPhase.END]), "EP", "End Phase"],
 ];
 
-function Turn({ board, seat, leave, surrender, report }: Readonly<{ board: Board; seat: number; leave: () => void; surrender: () => void; report?: Report }>) {
+type TurnProps = { board: Board; seat: number; leave: () => void; surrender: () => void; report?: Report; names?: [string, string]; spectators: number };
+
+// `names`: the two seats, for a spectator, who cannot surrender.
+function Turn({ board, seat, leave, surrender, report, names, spectators }: Readonly<TurnProps>) {
   const mine = board.turnPlayer === seat;
   const [confirming, setConfirming] = useState(false);
   return (
@@ -618,11 +629,13 @@ function Turn({ board, seat, leave, surrender, report }: Readonly<{ board: Board
       <div className="tour__ligne">
         <p>
           <span className="surtitre">Tour {board.turn}</span>
-          <b className={mine ? "moi" : "adverse"}>{mine ? "Votre tour" : "Tour de l'adversaire"}</b>
+          <b className={mine ? "moi" : "adverse"}>{turnLabel(mine, names)}</b>
         </p>
-        <button className="btn btn--fantome tour__abandon" type="button" onClick={() => setConfirming(true)}>
-          Abandonner
-        </button>
+        {!names && (
+          <button className="btn btn--fantome tour__abandon" type="button" onClick={() => setConfirming(true)}>
+            Abandonner
+          </button>
+        )}
         <button className="btn-icone" type="button" aria-label="Quitter le duel" title="Quitter le duel" onClick={leave}>
           <Icon id="ui-sortie" />
         </button>
@@ -649,16 +662,22 @@ function Turn({ board, seat, leave, surrender, report }: Readonly<{ board: Board
         })}
       </ol>
       {report && <Signaler report={report} />}
+      {spectators > 0 && <p className="texte-2">{spectators > 1 ? `${spectators} spectateurs` : "1 spectateur"}</p>}
     </div>
   );
 }
 
+function turnLabel(mine: boolean, names?: [string, string]) {
+  if (names) return `Tour de ${names[mine ? 0 : 1]}`;
+  return mine ? "Votre tour" : "Tour de l'adversaire";
+}
+
 // Your hand as a fan: a card the question lets you play is highlighted, clickable, and can be dragged to the board.
 function Hand({ hand, seat, ui, main, appui }: Readonly<{ hand: Card[]; seat: number; ui: Targets; main: RefObject<HTMLElement | null>; appui: (key: string, code: number, event: Appui) => void }>) {
-  const { cards, show } = useDuelView();
+  const { cards, show, moi } = useDuelView();
   const middle = (hand.length - 1) / 2;
   return (
-    <section className="main" ref={main} aria-label="Votre main">
+    <section className="main" ref={main} aria-label={moi ? `Main de ${moi}` : "Votre main"}>
       {/* Hand cards have no identity of their own: the engine refers to them by position. */}
       {[...hand.keys()].map((i) => {
         const { code } = hand[i];
@@ -688,7 +707,7 @@ function Hand({ hand, seat, ui, main, appui }: Readonly<{ hand: Card[]; seat: nu
 }
 
 function Chain({ chain, seat, opponent }: Readonly<{ chain: Board["chain"]; seat: number; opponent?: string }>) {
-  const { cards } = useDuelView();
+  const { cards, moi } = useDuelView();
   return (
     <section className="panneau chaine" aria-label="Chaîne en cours">
       <h2 className="titre-bloc">
@@ -705,7 +724,7 @@ function Chain({ chain, seat, opponent }: Readonly<{ chain: Board["chain"]; seat
               <CardView code={link.code} />
               <p>
                 <b>{cardName(cards, link.code)}</b>
-                <span>{mine ? "Vous" : (opponent ?? "Adversaire")}</span>
+                <span>{mine ? (moi ?? "Vous") : (opponent ?? "Adversaire")}</span>
               </p>
             </li>
           );
@@ -737,11 +756,11 @@ function Log({ log, opponent }: Readonly<{ log: LogEntry[]; opponent?: string }>
 }
 
 function Entry({ entry, opponent }: Readonly<{ entry: LogEntry; opponent?: string }>) {
-  const { seat } = useDuelView();
+  const { seat, moi } = useDuelView();
   const first = entry.parts[0];
   const turn = entry.parts.length === 1 && typeof first === "string" && first.startsWith("Tour ");
   let who: string | undefined;
-  if (entry.player === seat) who = "Vous";
+  if (entry.player === seat) who = moi ?? "Vous";
   else if (entry.player !== undefined) who = opponent ?? "Adversaire";
   if (turn) {
     return (

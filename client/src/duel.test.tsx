@@ -30,3 +30,11 @@ it("affiche le temps de réponse sur la plaque du joueur interrogé et la décon
   expect(html).toContain("Rafael s&#x27;est déconnecté, victoire dans <span class=\"chiffres\">2:00</span>");
   expect(html).toContain("Abandonner");
 });
+
+it("vu par un spectateur : ni abandon, ni emotes, ni signalement ; les deux joueurs nommés et le nombre de spectateurs", () => {
+  const board = playAll(newBoard(4000, [40, 40]), [{ type: OcgMessageType.DRAW, player: 0, drawn: [{ code: 0, position: OcgPosition.FACEDOWN }] }]);
+  const html = renderToStaticMarkup(<Duel board={board} seat={0} respond={() => {}} leave={() => {}} surrender={() => {}} lp={4000} pseudo="Yugi" opponent="Rafael" spectateur spectators={2} />);
+  for (const text of ["Points de vie de Yugi : 4000 sur 4000", "Points de vie de Rafael : 4000 sur 4000", "Tour de Yugi", "à Yugi", "Main de Yugi", "2 spectateurs"]) expect(html).toContain(text);
+  for (const text of ["Abandonner", "Votre main", "Votre tour", "Vous", "Signaler", "réfléchit"]) expect(html).not.toContain(text);
+  expect(renderToStaticMarkup(<Duel board={board} seat={0} respond={() => {}} leave={() => {}} surrender={() => {}} spectators={1} />)).toContain("1 spectateur<");
+});
