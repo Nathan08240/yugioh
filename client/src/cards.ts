@@ -7,7 +7,8 @@ export type Cards = ReadonlyMap<number, CardInfo>;
 export type Strings = ReadonlyMap<number, string>;
 
 // Card data of the pool, the card to show in the detail panel (with its board place, for its current stats) and the player's seat.
-export const DuelView = createContext<{ cards: Cards; show: (code: number, place?: string) => void; seat: number }>({ cards: new Map(), show: () => {}, seat: 0 });
+// `moi`: for a spectator, the name of the seat shown as "me", who is not "Vous".
+export const DuelView = createContext<{ cards: Cards; show: (code: number, place?: string) => void; seat: number; moi?: string }>({ cards: new Map(), show: () => {}, seat: 0 });
 export const useDuelView = () => useContext(DuelView);
 
 // A JSON object of the server keyed by number, empty until loaded.

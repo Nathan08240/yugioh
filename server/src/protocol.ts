@@ -14,6 +14,9 @@ export const REPORT_MAX = 500;
 // Copies of a card a duplicate conversion keeps, and the most a card can be obtained up to with collection points.
 export const KEEP_COPIES = 3;
 
+// Most spectators of a room at once.
+export const SPECTATORS_MAX = 20;
+
 export type BotLevel = "debutant" | "normal" | "expert";
 // Story duel difficulty: "facile" doubles the starting LP of the player.
 export type StoryLevel = "normal" | "facile";
@@ -28,6 +31,9 @@ export type ClientMessage =
   // A room against the bot, which takes seat 1. Without `level`, the bot plays at "normal". `event`: as for `create`.
   | { type: "bot"; level?: BotLevel; event?: boolean }
   | { type: "join"; room: string }
+  // Watches the online duel of a room between two players, without taking a seat: answered with `joined` (`spectating`) then
+  // `messages` without any hand or face-down card. The room refuses its responses, surrender, emotes, reports and rematches.
+  | { type: "spectate"; room: string }
   | { type: "respond"; response: OcgResponse }
   // Gives up the duel in progress: the other seat wins.
   | { type: "surrender" }
@@ -111,10 +117,14 @@ export type DuelEvent = OcgMessage | StatsEvent;
 // `floor`: the floor of a tower duel.
 // `profile` answers `auth`, `pseudo` and `starter`: a null pseudo means the player has to choose one before playing,
 // `needsStarter` means the player has a pseudo but no active deck yet and must pick a starter deck.
+// `spectating`: the recipient watches from outside, with `seat` 0 as the point of view: it holds the name and avatar of seat 0 and
+// `opponent` those of seat 1; no hand and no face-down card of either seat is in the log.
 // `daily`: this connection is the first of the day (Europe/Paris), which earned a booster.
 export type ServerMessage =
   | { type: "profile"; pseudo: string | null; needsStarter: boolean; admin?: true; daily?: true }
-  | { type: "joined"; room: string; seat: Seat; lp: number; opponentLp?: number; decks: [number, number]; extras: [number, number]; opponent?: string; opponentAvatar?: number; special?: string[]; log: DuelEvent[]; floor?: number }
+  | { type: "joined"; room: string; seat: Seat; lp: number; opponentLp?: number; decks: [number, number]; extras: [number, number]; opponent?: string; opponentAvatar?: number; spectating?: { name?: string; avatar?: number }; special?: string[]; log: DuelEvent[]; floor?: number }
+  // Spectators of the room, sent to everyone in it when it changes (and to a player who comes back while there are some).
+  | { type: "spectators"; count: number }
   | { type: "messages"; messages: DuelEvent[] }
   // `announce`: for ANNOUNCE_CARD, the pool cards the engine accepts.
   | { type: "question"; question: OcgMessage; retry: boolean; announce?: number[] }

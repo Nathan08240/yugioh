@@ -21,7 +21,7 @@ import { EMOTE_DELAY, EMOTE_IDS, type EmoteId } from "./emotes.ts";
 import { claimEvent, eventOf, eventRules, eventWon, type WeeklyEvent } from "./event.ts";
 import { isAllowed, POOL, SETS, type Printing } from "./pool.ts";
 import { dbProfileStore, isProfileMessage, profileReply, validProfileMessage, type ProfileMessage, type ProfileStore } from "./profile.ts";
-import { PUZZLE_FAILED, REPORT_MAX, type BotLevel, type CardInfo, type ClientMessage, type DeckResult, type DuelEvent, type Seat, type ServerMessage, type StoryLevel, type StoryResult, type TowerView } from "./protocol.ts";
+import { PUZZLE_FAILED, REPORT_MAX, SPECTATORS_MAX, type BotLevel, type CardInfo, type ClientMessage, type DeckResult, type DuelEvent, type Seat, type ServerMessage, type StoryLevel, type StoryResult, type TowerView } from "./protocol.ts";
 import { PUZZLE_IDS, PUZZLE_TURNS, puzzleField, puzzleRules, puzzleView, solvedPuzzles, solvePuzzle } from "./puzzles.ts";
 import { REPORT_BYTES, RESPONSE_BYTES, saveReport, type Report } from "./report.ts";
 import { engineForm, respond } from "./respond.ts";
@@ -73,7 +73,12 @@ export type Room = {
   record?: { seed: Seed; decks: Report["decks"]; turn: number; responses: OcgResponse[] };
   // Tower mode: the floor of the duel, and the recording of its win once seat 0 won.
   tower?: { floor: number; saved?: Promise<void> };
+  // Online duel between two players only: what the spectators get (the public log, rebuilt for each duel) and their sockets.
+  watch?: { log: DuelEvent[]; stats?: string; sockets: WebSocket[] };
 };
+
+// Point of view of a spectator, who sits at no seat: hideCards and visibleTo then hide the cards of both players.
+const SPECTATOR = -1;
 
 const rulesOf = (room: Room) => room.rules ?? STANDARD_RULES;
 // Main deck sizes the engine never sends: the Extra Rules cards sit in player 0's deck until they remove themselves.
@@ -284,7 +289,7 @@ function parse(data: string): ClientMessage | undefined {
     msg.type === "tower_duel" ||
     (msg.type === "story_duel" && typeof msg.duel === "string" && (msg.level === undefined || STORY_LEVELS.has(msg.level))) ||
     (msg.type === "emote" && EMOTE_IDS.has(msg.id)) ||
-    (msg.type === "join" && typeof msg.room === "string") ||
+    ((msg.type === "join" || msg.type === "spectate") && typeof msg.room === "string") ||
     (msg.type === "respond" && typeof msg.response === "object" && msg.response !== null) ||
     msg.type === "surrender" ||
     (msg.type === "report" && (msg.message === undefined || typeof msg.message === "string")) ||
@@ -333,18 +338,31 @@ function play(room: Room, player: Player, question: OcgMessage, retry: boolean) 
   }, bot.delay).unref();
 }
 
-// The messages each player may see, followed by the monster stats as the engine left them.
+// What `viewer` may see of these messages, followed by the monster stats as the engine left them; undefined when nothing changed for them.
+function visibleEvents(duel: NonNullable<Room["duel"]>, messages: OcgMessage[], viewer: number, lastStats?: string) {
+  const events: DuelEvent[] = messages.flatMap((msg) => visibleTo(msg, viewer) ?? []);
+  const stats = fieldStats(duel, viewer);
+  const key = JSON.stringify(stats);
+  if (events.length === 0 && key === lastStats) return undefined;
+  events.push(stats);
+  return { events, key };
+}
+
+// The messages each player and the spectators may see.
 function broadcast(room: Room, duel: NonNullable<Room["duel"]>, messages: OcgMessage[]) {
   room.players.forEach((player, seat) => {
-    const visible: DuelEvent[] = messages.flatMap((msg) => visibleTo(msg, seat) ?? []);
-    const stats = fieldStats(duel, seat);
-    const key = JSON.stringify(stats);
-    if (visible.length === 0 && key === player.stats) return;
-    player.stats = key;
-    visible.push(stats);
-    player.log.push(...visible);
-    send(player.socket, { type: "messages", messages: visible });
+    const shown = visibleEvents(duel, messages, seat, player.stats);
+    if (!shown) return;
+    player.stats = shown.key;
+    player.log.push(...shown.events);
+    send(player.socket, { type: "messages", messages: shown.events });
   });
+  const { watch } = room;
+  const shown = watch && visibleEvents(duel, messages, SPECTATOR, watch.stats);
+  if (!watch || !shown) return;
+  watch.stats = shown.key;
+  watch.log.push(...shown.events);
+  watch.sockets.forEach((socket) => send(socket, { type: "messages", messages: shown.events }));
 }
 
 function endDuel(room: Room) {
@@ -376,7 +394,10 @@ function surrender(room: Room, seat: Seat): string | undefined {
 }
 
 const online = (room: Room) => room.players.length === 2 && !room.players.some((player) => player.bot);
-const sendAll = (room: Room, data: ServerMessage) => room.players.forEach((player) => send(player.socket, data));
+const sendAll = (room: Room, data: ServerMessage) => {
+  room.players.forEach((player) => send(player.socket, data));
+  room.watch?.sockets.forEach((socket) => send(socket, data));
+};
 
 // The report of the current or last duel of the room, undefined before it started.
 function reportOf(room: Room): Report | undefined {
@@ -448,7 +469,7 @@ function back(room: Room, seat: Seat) {
 
 function fail(room: Room, error: string) {
   console.error(`[salle ${room.code}] ${error}`);
-  room.players.forEach((player) => send(player.socket, { type: "duel_error", error: "le moteur a rencontré une erreur, salle fermée" }));
+  sendAll(room, { type: "duel_error", error: "le moteur a rencontré une erreur, salle fermée" });
   endDuel(room);
 }
 
@@ -500,11 +521,14 @@ function declineRematch(room: Room) {
   sendAll(room, { type: "rematch_declined" });
 }
 
+function joinedMessage(room: Room, seat: Seat, log: DuelEvent[]): Extract<ServerMessage, { type: "joined" }> {
+  const [lp, opponentLp] = [lpOf(rulesOf(room), seat), lpOf(rulesOf(room), 1 - seat)];
+  return { type: "joined", room: room.code, seat, lp, opponentLp: opponentLp === lp ? undefined : opponentLp, decks: deckSizes(room), extras: extraSizes(room), opponent: room.players[1 - seat]?.name, opponentAvatar: room.players[1 - seat]?.avatar, special: room.event && [room.event.rule], log, floor: room.tower?.floor };
+}
+
 function sendJoined(room: Room, seat: Seat) {
   const player = room.players[seat];
-  if (!player) return;
-  const [lp, opponentLp] = [lpOf(rulesOf(room), seat), lpOf(rulesOf(room), 1 - seat)];
-  send(player.socket, { type: "joined", room: room.code, seat, lp, opponentLp: opponentLp === lp ? undefined : opponentLp, decks: deckSizes(room), extras: extraSizes(room), opponent: room.players[1 - seat]?.name, opponentAvatar: room.players[1 - seat]?.avatar, special: room.event && [room.event.rule], log: player.log, floor: room.tower?.floor });
+  if (player) send(player.socket, joinedMessage(room, seat, player.log));
 }
 
 // The events up to the start of the turn after room.turnLimit, replaced by a win of seat 1: the puzzle is failed.
@@ -518,6 +542,14 @@ function limitTurns(room: Room, events: OcgMessage[]): OcgMessage[] {
   }
   return events;
 }
+
+// A spectator sees the duel from seat 0, through the public log.
+function sendWatching(room: Room, socket: WebSocket) {
+  const [first] = room.players;
+  send(socket, { ...joinedMessage(room, 0, room.watch?.log ?? []), spectating: { name: first?.name, avatar: first?.avatar } });
+}
+
+const sendSpectators = (room: Room) => sendAll(room, { type: "spectators", count: room.watch?.sockets.length ?? 0 });
 
 // Runs the engine until it asks a question or the duel ends. A crash inside the engine closes only this room.
 export function advance(room: Room) {
@@ -588,6 +620,10 @@ async function start(room: Room, seed: Seed) {
   const decks = room.players.map((player) => player.deck);
   const extras = room.players.map((player) => player.extra ?? []);
   room.turns = 0;
+  if (online(room)) {
+    room.watch = { log: [], sockets: room.watch?.sockets ?? [] };
+    room.watch.sockets.forEach((socket) => sendWatching(room, socket));
+  }
   room.record = { seed, decks: decks.map((main, seat) => ({ main: [...main], extra: [...extras[seat]] })), turn: 0, responses: [] };
   room.duel = await openDuel(seed, decks, (text) => console.error(`[salle ${room.code}] ${text}`), undefined, rulesOf(room), extras, room.field);
   if (room.field) broadcast(room, room.duel, fieldMoves(room.field));
@@ -637,6 +673,7 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
     if (room.question?.player === seat) ask(room, false);
     const pending = rematchMessage(room);
     if (pending) send(player.socket, pending);
+    if (room.watch?.sockets.length) send(player.socket, { type: "spectators", count: room.watch.sockets.length });
     if (isNew && seat === 1) start(room, newSeed()).catch((error: unknown) => console.error(error));
     return seat;
   }
@@ -689,6 +726,7 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
   wss.on("connection", (socket) => {
     let user: { id: string; pseudo?: string; avatar?: number } | undefined;
     let seat: { room: Room; index: Seat } | undefined;
+    let watching: Room | undefined;
     // Messages are handled one at a time, so an action sent right after `auth` waits for its verification.
     let queue = Promise.resolve();
 
@@ -880,6 +918,27 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
       return enter(userId, room, { main: run.main, extra: run.extra ?? [] }, { deck: botDeck(run.set), name: "Bot", level: "normal" });
     }
 
+    // Only a room with two players and no bot has a public log to watch.
+    function spectate(code: string): string | undefined {
+      const room = rooms.get(code.toUpperCase());
+      if (!room) return "salle introuvable";
+      if (!room.watch) return "aucun duel en ligne à regarder dans cette salle";
+      if (room.watch.sockets.length >= SPECTATORS_MAX) return "trop de spectateurs dans cette salle";
+      room.watch.sockets.push(socket);
+      watching = room;
+      sendWatching(room, socket);
+      sendSpectators(room);
+      return undefined;
+    }
+
+    function stopWatching(room: Room) {
+      const sockets = room.watch?.sockets;
+      const index = sockets?.indexOf(socket) ?? -1;
+      if (index === -1) return;
+      sockets?.splice(index, 1);
+      sendSpectators(room);
+    }
+
     async function reportBug(room: Room, userId: string, text = ""): Promise<string | undefined> {
       const message = text.trim();
       if (message.length > REPORT_MAX) return `texte trop long : ${REPORT_MAX} caractères au maximum`;
@@ -1044,7 +1103,8 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
       if (msg.type === "emote") return seat ? emote(seat.room, seat.index, msg.id) : "pas dans une salle";
       if (msg.type === "report") return seat ? reportBug(seat.room, user.id, msg.message) : "pas dans une salle";
       if (msg.type === "rematch") return seat ? rematch(seat.room, seat.index, msg.accept !== false) : "pas dans une salle";
-      if (seat) return "déjà dans une salle";
+      if (seat || watching) return "déjà dans une salle";
+      if (msg.type === "spectate") return spectate(msg.room);
       if (msg.type === "story_duel") return playStory(user.id, msg.duel, msg.level);
       if (msg.type === "puzzle") return playPuzzle(user.id, msg.id);
       if (msg.type === "tower_duel") return playTower(user.id);
@@ -1054,6 +1114,7 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
 
     socket.on("close", () => {
       if (seat) leave(seat.room, socket);
+      if (watching) stopWatching(watching);
     });
     socket.on("message", (data) => {
       queue = queue.then(async () => {

@@ -111,11 +111,13 @@ function Pile({ label, cards, count }: Readonly<{ label: string; cards?: Card[];
 }
 
 function Middle({ board, seat }: Readonly<{ board: Board; seat: number }>) {
-  const { cards } = useDuelView();
+  const { cards, moi } = useDuelView();
+  let who = "à l'adversaire";
+  if (board.turnPlayer === seat) who = moi ? `à ${moi}` : "à vous";
   return (
     <div className="middle">
       <span>
-        Tour {board.turn} · {board.turnPlayer === seat ? "à vous" : "à l'adversaire"} · {phaseName(board.phase)}
+        Tour {board.turn} · {who} · {phaseName(board.phase)}
       </span>
       {board.chain.length > 0 && (
         <span className="chain">

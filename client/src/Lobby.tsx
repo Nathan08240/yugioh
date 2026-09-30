@@ -7,8 +7,8 @@ import { DuelView, useCards } from "./cards.ts";
 import { Collection } from "./Collection.tsx";
 import { PseudoForm, StarterChoice } from "./Depart.tsx";
 import { Duel } from "./Duel.tsx";
-import { Fin } from "./Fin.tsx";
-import { initialLobby, reduce, roomFromUrl, type Action, type LobbyState } from "./lobby.ts";
+import { Fin, FinSpectateur } from "./Fin.tsx";
+import { initialLobby, inviteFromUrl, reduce, type Action, type LobbyState } from "./lobby.ts";
 import { Parametres } from "./Parametres.tsx";
 import { Profil } from "./Profil.tsx";
 import { puzzleRule, Puzzles } from "./Puzzles.tsx";
@@ -26,8 +26,8 @@ const SERVER_URL = `${location.protocol === "https:" ? "wss" : "ws"}://${locatio
 
 type Send = (msg: ClientMessage) => void;
 
-// Room of an invitation link, kept until the player can join (after login, pseudo and starter).
-let invite = roomFromUrl(location.href);
+// Room of an invitation link (to play or to watch), kept until the player can join (after login, pseudo and starter).
+let invite = inviteFromUrl(location.href);
 
 export function Lobby() {
   const [state, dispatch] = useReducer(reduce, initialLobby);
@@ -70,7 +70,7 @@ export function Lobby() {
   const ready = state.pseudo != null && !state.needsStarter;
   useEffect(() => {
     if (!ready || !invite || state.room) return;
-    socket.current?.send(JSON.stringify({ type: "join", room: invite } satisfies ClientMessage));
+    socket.current?.send(JSON.stringify(invite));
     invite = undefined;
     history.replaceState(null, "", location.pathname);
   }, [ready]);
@@ -195,10 +195,14 @@ function Screen({ state, page, send, reconnect, leave, respond, go, vsBot, story
     };
     const tower = state.floor === undefined ? undefined : { floor: state.floor, won: state.towerWon };
     const report = { send: (message: string) => send({ type: "report", message: message || undefined }), sent: state.reported };
+    // A spectator sees seat 0's side, and can neither answer, surrender, send an emote nor report.
+    const watching = state.spectating;
+    const me = watching ?? { name: state.pseudo, avatar: state.profile?.avatar ?? undefined };
     return (
       <>
-        <Duel board={state.board} seat={state.seat ?? 0} asked={state.question} respond={respond} leave={leave} surrender={() => send({ type: "surrender" })} emotes={state.emotes} sendEmote={(id) => send({ type: "emote", id })} report={report} answerBy={state.answerBy} away={state.away} feed={state.feed} lp={state.lp} opponentLp={state.opponentLp} pseudo={state.pseudo} opponent={state.opponent} avatar={state.profile?.avatar ?? undefined} opponentAvatar={state.opponentAvatar} rules={puzzle ? puzzleRule(puzzle) : specialRules(special)} easy={state.storyOpen && easy} kingdom={special.includes("duelist-kingdom")} />
-        {state.board.winner !== undefined && <Fin board={state.board} seat={state.seat ?? 0} room={state.room} vsBot={vsBot} opponent={state.opponent} story={story} eventBooster={state.eventWon} puzzle={puzzle && { title: puzzle.title, booster: state.solved?.booster }} tower={tower} rematch={state.rematch} onRematch={(accept) => send({ type: "rematch", accept })} sealed={sealedDuel ? (state.sealed ?? undefined) : undefined} report={report} leave={leave} go={leaveFor} />}
+        <Duel board={state.board} seat={state.seat ?? 0} asked={state.question} respond={respond} leave={leave} surrender={() => send({ type: "surrender" })} emotes={state.emotes} sendEmote={watching ? undefined : (id) => send({ type: "emote", id })} report={watching ? undefined : report} answerBy={state.answerBy} away={state.away} feed={state.feed} lp={state.lp} opponentLp={state.opponentLp} pseudo={me.name} opponent={state.opponent} avatar={me.avatar} opponentAvatar={state.opponentAvatar} rules={puzzle ? puzzleRule(puzzle) : specialRules(special)} easy={state.storyOpen && easy} kingdom={special.includes("duelist-kingdom")} spectateur={watching !== undefined} spectators={state.spectators} />
+        {watching && state.board.winner !== undefined && <FinSpectateur board={state.board} names={[watching.name ?? "Joueur 1", state.opponent ?? "Joueur 2"]} room={state.room} leave={leave} />}
+        {!watching && state.board.winner !== undefined && <Fin board={state.board} seat={state.seat ?? 0} room={state.room} vsBot={vsBot} opponent={state.opponent} story={story} eventBooster={state.eventWon} puzzle={puzzle && { title: puzzle.title, booster: state.solved?.booster }} tower={tower} rematch={state.rematch} onRematch={(accept) => send({ type: "rematch", accept })} sealed={sealedDuel ? (state.sealed ?? undefined) : undefined} report={report} leave={leave} go={leaveFor} />}
       </>
     );
   }
