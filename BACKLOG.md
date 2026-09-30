@@ -97,9 +97,9 @@ Migrations appliquées en production avant chaque fusion (schéma `yugioh`, ajou
 - [x] Aide : page des règles et mots-clés (feat/F-aide-regles)
 - [x] Téléphones et petits écrans (feat/F-mobile, fix du bloc du tour)
 - [x] Outillage : tests navigateur Playwright, test de charge du serveur (chore/F-tests-navigateur, chore/F-test-charge)
-- [ ] Saisons du mode classé
-- [ ] Liste des cartes limitées du format Goat (aujourd'hui : 3 exemplaires pour toutes)
-- [ ] Draft (choix carte par carte), en plus du Scellé
+- [x] Saisons mensuelles du mode classé (feat/F-saisons-classe)
+- [x] Liste des cartes limitées du format Goat, en classé et en événement seulement, avec « Rendre conforme » (feat/F-liste-limitee)
+- [x] Draft carte par carte contre 3 bots (feat/F-mode-draft)
 - [ ] Musique
 
 ## Mise en ligne
