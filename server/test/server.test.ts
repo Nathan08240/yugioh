@@ -67,6 +67,8 @@ const accounts: Accounts = {
   recordResult: async () => {},
   duelResults: async () => [],
   saveReport: async () => true,
+  eventWon: async () => false,
+  claimEvent: async () => true,
 };
 // "admin" peut s'ajouter des boosters.
 process.env.ADMIN_USER_IDS = "admin, autreadmin";

@@ -3,6 +3,7 @@ import type { BotLevel, ClientMessage, StoryArcView } from "../../server/src/pro
 import { CardView } from "./Card.tsx";
 import { cardName, stat, strongest, useDuelView } from "./cards.ts";
 import { countdown, inviteLink, type DeckList, type LobbyState } from "./lobby.ts";
+import { RuleBlock, specialRules } from "./regles.tsx";
 import type { Page } from "./Shell.tsx";
 import "./styles/accueil.css";
 import { Icon } from "./ui.tsx";
@@ -42,6 +43,7 @@ export function Accueil({ state, send, go }: Readonly<{ state: LobbyState; send:
     send({ type: "story" });
     send({ type: "collection" });
     send({ type: "decks" });
+    send({ type: "event" });
   }, []);
 
   const [choosingLevel, setChoosingLevel] = useState(false);
@@ -87,6 +89,7 @@ export function Accueil({ state, send, go }: Readonly<{ state: LobbyState; send:
             </form>
           </div>
         </article>
+        {state.event && <EventCard event={state.event} send={send} />}
         {choosingLevel ? (
           <article className="mode" data-entree>
             <Icon id="ui-bot" className="mode__ic" />
@@ -141,6 +144,51 @@ function Mode({ icon, title, badge = 0, onClick, children }: Readonly<ModeProps>
       </span>
       <Icon id="ui-suivant" className="mode__fleche" />
     </button>
+  );
+}
+
+// The special rule of the week: its rules, and a duel under it against the bot or in an online room.
+function EventCard({ event, send }: Readonly<{ event: NonNullable<LobbyState["event"]>; send: Send }>) {
+  const [choosingLevel, setChoosingLevel] = useState(false);
+  const [rule] = specialRules([event.rule]);
+  if (!rule) return null;
+  const reward = event.won ? "Booster de la semaine déjà gagné." : "Première victoire de la semaine : 1 booster.";
+  return (
+    <article className="mode mode--principal mode--evenement" data-entree>
+      <div className="mode__tete">
+        <Icon id="ui-histoire" className="mode__ic" />
+        <div>
+          <h2>Événement : {rule.name}</h2>
+          <p>
+            {event.lp} LP, {event.hand} cartes en main. {reward}
+          </p>
+        </div>
+      </div>
+      <RuleBlock rule={rule} />
+      <div className="mode__actions">
+        {choosingLevel ? (
+          <>
+            {BOT_LEVELS.map(([level, label]) => (
+              <button key={level} type="button" className="btn" onClick={() => send({ type: "bot", level, event: true })}>
+                {label}
+              </button>
+            ))}
+            <button type="button" className="btn btn--fantome" onClick={() => setChoosingLevel(false)}>
+              Retour
+            </button>
+          </>
+        ) : (
+          <>
+            <button type="button" className="btn" onClick={() => setChoosingLevel(true)}>
+              Contre le bot
+            </button>
+            <button type="button" className="btn btn--holo" onClick={() => send({ type: "create", event: true })}>
+              Créer une salle
+            </button>
+          </>
+        )}
+      </div>
+    </article>
   );
 }
 

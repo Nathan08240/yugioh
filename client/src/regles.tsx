@@ -1,7 +1,8 @@
 import { useEffect, useRef } from "react";
 import "./styles/histoire.css";
 
-export type Rule = { title: string; details: string[] };
+// `name`: the short name of a special rule, for titles.
+export type Rule = { title: string; details: string[]; name?: string };
 
 // Special rules of the story data (server/src/story.ts EXTRA_RULES), as the player reads them.
 const RULES = new Map<string, Rule>([
@@ -9,6 +10,7 @@ const RULES = new Map<string, Rule>([
     "duelist-kingdom",
     {
       title: "Règles du Royaume des Duellistes",
+      name: "Royaume des Duellistes",
       details: [
         "Pas d'attaque directe.",
         "Invocation Normale possible en Position de Défense face recto.",
@@ -23,6 +25,7 @@ const RULES = new Map<string, Rule>([
     "battle-city",
     {
       title: "Règles de Battle City",
+      name: "Battle City",
       details: [
         "Invocation Normale possible en Position de Défense face recto.",
         "Les monstres de niveau 10 ou plus demandent 3 Sacrifices.",
@@ -36,6 +39,7 @@ const RULES = new Map<string, Rule>([
     "virtual-world",
     {
       title: "Règles du Monde virtuel",
+      name: "Monde virtuel",
       details: [
         "Chaque duelliste choisit un Deck Master en début de duel, gardé hors du deck.",
         "Pendant sa Main Phase, on peut l'Invoquer Spécialement depuis l'extérieur du duel.",

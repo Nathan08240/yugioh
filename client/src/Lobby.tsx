@@ -164,7 +164,7 @@ function Screen({ state, page, send, reconnect, leave, respond, go, vsBot, story
     );
   }
   if (state.room && state.started && state.board) {
-    const special = state.storyOpen ? duelSpecial(state.story, storyDuel) : [];
+    const special = state.storyOpen ? duelSpecial(state.story, storyDuel) : (state.special ?? []);
     const story = state.storyOpen ? { title: duelLabel(state.story, storyDuel), won: state.won, special, easy, lp: duelLp(state.story, storyDuel) } : undefined;
     const leaveFor = (next: Page) => {
       leave();
@@ -174,7 +174,7 @@ function Screen({ state, page, send, reconnect, leave, respond, go, vsBot, story
     return (
       <>
         <Duel board={state.board} seat={state.seat ?? 0} asked={state.question} respond={respond} leave={leave} surrender={() => send({ type: "surrender" })} emotes={state.emotes} sendEmote={(id) => send({ type: "emote", id })} report={report} answerBy={state.answerBy} away={state.away} feed={state.feed} lp={state.lp} opponentLp={state.opponentLp} pseudo={state.pseudo} opponent={state.opponent} rules={specialRules(special)} easy={state.storyOpen && easy} kingdom={special.includes("duelist-kingdom")} />
-        {state.board.winner !== undefined && <Fin board={state.board} seat={state.seat ?? 0} room={state.room} vsBot={vsBot} opponent={state.opponent} story={story} rematch={state.rematch} onRematch={(accept) => send({ type: "rematch", accept })} report={report} leave={leave} go={leaveFor} />}
+        {state.board.winner !== undefined && <Fin board={state.board} seat={state.seat ?? 0} room={state.room} vsBot={vsBot} opponent={state.opponent} story={story} eventBooster={state.eventWon} rematch={state.rematch} onRematch={(accept) => send({ type: "rematch", accept })} report={report} leave={leave} go={leaveFor} />}
       </>
     );
   }

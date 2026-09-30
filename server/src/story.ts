@@ -204,7 +204,7 @@ export async function completedDuels(db: Db, userId: string): Promise<Map<string
 }
 
 // True the first time only: an unlock is recorded once per player.
-async function unlock(sql: Sql, userId: string, id: string): Promise<boolean> {
+export async function unlock(sql: Sql, userId: string, id: string): Promise<boolean> {
   const [row] = await sql`
     insert into yugioh.story_unlocks (user_id, unlock_id) values (${userId}, ${id}) on conflict do nothing returning unlock_id`;
   return row !== undefined;

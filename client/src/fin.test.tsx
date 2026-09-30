@@ -121,3 +121,12 @@ it("propose la revanche selon son état : à demander, en attente, à accepter o
   // Against the bot the button restarts at once, whatever the online state.
   expect(fin(board)).toContain("Revanche</button>");
 });
+
+it("annonce le booster de la première victoire de l'événement de la semaine, contre le bot ou en ligne", () => {
+  const won = finished(1, 0);
+  const end = (vsBot: boolean, eventBooster?: boolean) => render(<Fin board={won} seat={0} room="r" vsBot={vsBot} eventBooster={eventBooster} leave={() => {}} go={() => {}} onRematch={() => {}} />);
+  const bot = end(true, true);
+  for (const text of ["Première victoire de l&#x27;événement de la semaine", "<b>1 booster</b>", "Ouvrir mes boosters"]) expect(bot).toContain(text);
+  expect(end(true)).not.toContain("booster");
+  expect(end(false, true)).toContain("<b>2 boosters</b>");
+});

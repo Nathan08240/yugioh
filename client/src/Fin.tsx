@@ -21,6 +21,8 @@ type Props = {
   // A story duel ("Battle City · Duel 4 sur 5"), its special rules, its starting LP as written, and its conclusion once the
   // server has recorded the win.
   story?: { title?: string; won?: StoryWon; special?: readonly string[]; easy?: boolean; lp?: number };
+  // The first event win of the week was recorded: 1 more booster.
+  eventBooster?: boolean;
   // Online rematch state; against the bot, asking starts a new duel at once.
   rematch?: LobbyState["rematch"];
   onRematch: (accept: boolean) => void;
@@ -79,7 +81,7 @@ const defeat =
   };
 
 // Victory or defeat screen over the board, once the engine has named the winner.
-export function Fin({ board, seat, room, vsBot, opponent, story, rematch, onRematch, report, leave, go }: Readonly<Props>) {
+export function Fin({ board, seat, room, vsBot, opponent, story, eventBooster, rematch, onRematch, report, leave, go }: Readonly<Props>) {
   const root = useRef<HTMLDivElement>(null);
   const won = board.winner === seat;
   const lost = board.winner === 1 - seat;
@@ -95,7 +97,8 @@ export function Fin({ board, seat, room, vsBot, opponent, story, rematch, onRema
   if (story) context = `${story.title ?? "Mode Histoire"}${story.easy ? " · Facile" : ""}`;
   else if (vsBot) context = "Duel contre le bot";
   const back = story ? "Retour à l'histoire" : "Retour à l'accueil";
-  const boosters = won && !vsBot && !story ? 1 : storyBoosters(story?.won);
+  const eventGain = won && eventBooster ? 1 : 0;
+  const boosters = (won && !vsBot && !story ? 1 : storyBoosters(story?.won)) + eventGain;
 
   return (
     <section className={won ? "ecran ecran--scene fin-duel" : "ecran ecran--scene fin-duel ecran--defaite"} aria-labelledby="fin-titre">
@@ -107,6 +110,7 @@ export function Fin({ board, seat, room, vsBot, opponent, story, rematch, onRema
         </h1>
         <Score board={board} seat={seat} won={won} lost={lost} opponent={opponent} />
         {won && <Gains story={story} boosters={boosters} />}
+        {won && eventBooster && <p className="texte-2">Première victoire de l'événement de la semaine : 1 booster gagné.</p>}
         {(won || lost) && <Cause board={board} seat={seat} won={won} kingdom={story?.special?.includes("duelist-kingdom") ?? false} opponent={opponent} />}
         {lost && !story && !vsBot && <p className="texte-2 fin__note">Le vainqueur d'un duel en ligne reçoit un booster. Retentez votre chance avec un deck ajusté.</p>}
         <div className="fin__actions">
