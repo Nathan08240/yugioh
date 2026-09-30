@@ -2,14 +2,17 @@ import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import type { ClientMessage } from "../../server/src/protocol.ts";
 import { CardDetail, CardView } from "./Card.tsx";
 import { cardName, DuelView, useCards } from "./cards.ts";
-import { ownedCodes, setProgress } from "./collection.ts";
+import { bestRarity, copiesByRarity, ownedCodes, setProgress } from "./collection.ts";
 import "./styles/classeur.css";
 import "./styles/collection.css";
+import { BestRarity } from "./ui.tsx";
 
 type SetCards = { code: string; name: string; date: string; cards: number[] };
 
 // Binder: one page per booster or starter deck, the cards not owned yet greyed out.
-export function Classeur({ collection, send }: Readonly<{ collection?: [number, number][]; send: (msg: ClientMessage) => void }>) {
+type Props = { collection?: [number, number][]; rarities?: [number, string, number][]; send: (msg: ClientMessage) => void };
+
+export function Classeur({ collection, rarities, send }: Readonly<Props>) {
   const cards = useCards();
   const [sets, setSets] = useState<SetCards[]>();
   const [selected, setSelected] = useState(0);
@@ -17,6 +20,7 @@ export function Classeur({ collection, send }: Readonly<{ collection?: [number, 
   const view = useMemo(() => ({ cards, show: setShown, seat: 0 }), [cards]);
   const owned = useMemo(() => ownedCodes(collection ?? []), [collection]);
   const quantities = useMemo(() => new Map(collection), [collection]);
+  const copies = useMemo(() => copiesByRarity(collection ?? [], rarities ?? []), [collection, rarities]);
   const set = sets?.[selected];
   const setCards = useMemo(() => set?.cards.toSorted((a, b) => (cards.get(a)?.name ?? "").localeCompare(cards.get(b)?.name ?? "")) ?? [], [set, cards]);
 
@@ -70,8 +74,9 @@ export function Classeur({ collection, send }: Readonly<{ collection?: [number, 
                     onFocus={() => setShown(code)}
                     onClick={() => setShown(code)}
                   >
-                    <CardView code={code} className={quantity > 0 ? undefined : "est-manquante"} />
+                    <CardView code={code} rarity={bestRarity(copies.get(code))} className={quantity > 0 ? undefined : "est-manquante"} />
                   </button>
+                  <BestRarity copies={copies.get(code)} />
                   {quantity > 0 && (
                     <span className="qte" aria-hidden="true">
                       ×{quantity}
@@ -83,7 +88,7 @@ export function Classeur({ collection, send }: Readonly<{ collection?: [number, 
           </ul>
         </section>
         <aside className="panneau classeur__detail" aria-label="Détail de la carte" data-entree>
-          <CardDetail code={shown} />
+          <CardDetail code={shown} copies={shown === undefined ? undefined : copies.get(shown)} />
         </aside>
       </div>
     </DuelView>

@@ -50,6 +50,8 @@ export type LobbyState = {
   closed: boolean;
   // Owned cards as [passcode, quantity] and the player's decks, loaded by the collection screen.
   collection?: [number, number][];
+  // Copies of known rarity as [passcode, rarity, quantity].
+  rarities?: [number, string, number][];
   decks?: DeckList;
   // Booster timer and pending count, loaded by the boosters screen.
   boosters?: { nextFreeAt: string; pending: number };
@@ -113,7 +115,7 @@ export function reduce(state: LobbyState, action: Action): LobbyState {
     case "answered":
       return { ...state, question: undefined };
     case "collection":
-      return { ...state, collection: action.cards };
+      return { ...state, collection: action.cards, rarities: action.rarities };
     case "decks":
       return { ...state, decks: action, error: undefined };
     case "error":

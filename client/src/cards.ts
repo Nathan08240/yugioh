@@ -74,6 +74,8 @@ const RARITIES = new Map<string, [string, string]>([
   ["ultra", ["ultra", "Ultra Rare"]],
   ["ultimate", ["ultimate", "Ultimate Rare"]],
   ["secret", ["secret", "Secret Rare"]],
+  // Copies obtained before the server kept rarities.
+  ["", ["commune", "Rareté inconnue"]],
 ]);
 export const rarityKey = (rarity: string) => RARITIES.get(rarity)?.[0] ?? "commune";
 export const rarityLabel = (rarity: string) => RARITIES.get(rarity)?.[1] ?? rarity;

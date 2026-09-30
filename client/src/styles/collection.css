@@ -195,6 +195,7 @@
 }
 
 .grille-collection li {
+  position: relative;
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 4px;
@@ -252,7 +253,42 @@
   color: var(--holo-2);
 }
 
+/* Rareté la plus haute possédée, à cheval sur le haut de la carte (BestRarity dans ui.tsx). */
+.meilleure-rarete {
+  position: absolute;
+  inset: -4px auto auto 50%;
+  z-index: 1;
+  translate: -50% 0;
+  pointer-events: none;
+}
+
+.meilleure-rarete .rarete {
+  padding: 2px 5px;
+  background: rgb(6 8 23 / 0.85);
+  font-size: 9px;
+  white-space: nowrap;
+}
+
 /* Détail de la carte -------------------------------------------------------- */
+
+/* Exemplaires possédés par rareté (CardDetail). */
+.exemplaires {
+  display: grid;
+  gap: 6px;
+  margin-block-start: var(--e-3);
+}
+
+.atelier__detail .exemplaires {
+  margin: 0;
+  padding: 0 var(--e-4) var(--e-4);
+}
+
+.exemplaires li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--e-2);
+}
 
 .atelier__detail {
   align-self: start;

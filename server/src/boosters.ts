@@ -1,4 +1,5 @@
 import { randomInt } from "node:crypto";
+import { addCards } from "./collection.ts";
 import type { Db, Sql } from "./db.ts";
 import { type CardSet, type Printing, SETS, type Slot } from "./pool.ts";
 
@@ -75,10 +76,7 @@ export async function openBooster(db: Db, userId: string, setCode: string): Prom
     const codes = cards.map((card) => card.code);
     await sql`
       insert into yugioh.booster_openings (user_id, set_code, source, cards) values (${userId}, ${set.code}, ${source}, ${codes})`;
-    await sql`
-      insert into yugioh.collection (user_id, card_code, quantity)
-      select ${userId}::uuid, code, count(*) from unnest(${codes}::integer[]) code group by code
-      on conflict (user_id, card_code) do update set quantity = collection.quantity + excluded.quantity`;
+    await addCards(sql, userId, cards);
     if (state.free) {
       await sql`
         update yugioh.booster_state set next_free_at = now() + make_interval(hours => ${FREE_BOOSTER_HOURS}) where user_id = ${userId}`;

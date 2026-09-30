@@ -35,6 +35,9 @@ describe("ouverture des boosters sur Postgres jetable", () => {
       select card_code, quantity from yugioh.collection where user_id = ${id}`;
     expect(opening).toEqual({ set_code: "LOB", source: "free", cards: cards.map((card) => card.code) });
     expect(collection.reduce((sum, row) => sum + row.quantity, 0)).toBe(9);
+    const rarities = await admin<{ code: number; rarity: string }[]>`
+      select card_code as code, rarity from yugioh.collection_rarities where user_id = ${id} and quantity = 1 order by card_code, rarity`;
+    expect(rarities).toEqual(cards.toSorted((a, b) => a.code - b.code || a.rarity.localeCompare(b.rarity)));
     expect(await state(id)).toEqual({ hours: FREE_BOOSTER_HOURS, pending: 0 });
     await expect(openBooster(server, id, "LOB")).rejects.toThrow("aucun booster disponible");
 

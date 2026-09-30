@@ -1,7 +1,7 @@
 import { OcgAttribute, OcgType } from "@n1xx1/ocgcore-wasm";
 import { expect, it } from "vitest";
 import type { CardInfo } from "../../server/src/protocol.ts";
-import { filterCollection, kindCounts, noFilters, ownedCodes, setProgress, type Filters } from "./collection.ts";
+import { bestRarity, copiesByRarity, filterCollection, kindCounts, noFilters, ownedCodes, setProgress, type Filters } from "./collection.ts";
 
 const card = (name: string, type: number, stats: Partial<CardInfo> = {}): CardInfo => ({
   name, alias: 0, desc: "", type, level: 0, attribute: 0, race: 0, atk: 0, def: 0, strings: [], attributeName: "", typeLine: "", image: false, ...stats,
@@ -50,4 +50,14 @@ it("calcule la complétion d'un set, une carte comptant dans chaque set qui la c
   expect(setProgress([3, 4], have)).toEqual({ owned: 1, total: 2, percent: 50 });
   expect(setProgress([1, 3], have)).toEqual({ owned: 2, total: 2, percent: 100 });
   expect(setProgress([], have)).toEqual({ owned: 0, total: 0, percent: 0 });
+});
+
+it("répartit les exemplaires par rareté, la plus rare d'abord, le reste en rareté inconnue", () => {
+  const copies = copiesByRarity([[1, 4], [2, 1], [3, 2]], [[1, "common", 1], [1, "secret", 1], [1, "ultimate", 1], [3, "rare", 2]]);
+  expect(copies.get(1)).toEqual([["secret", 1], ["ultimate", 1], ["common", 1], ["", 1]]);
+  expect(copies.get(2)).toEqual([["", 1]]);
+  expect(copies.get(3)).toEqual([["rare", 2]]);
+  expect(bestRarity(copies.get(1))).toBe("secret");
+  expect(bestRarity(copies.get(2))).toBeUndefined();
+  expect(bestRarity(undefined)).toBeUndefined();
 });

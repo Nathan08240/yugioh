@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { OcgType } from "@n1xx1/ocgcore-wasm";
 import { creditBoosters } from "./boosters.ts";
 import { readCard } from "./cards.ts";
+import { addCards } from "./collection.ts";
 import type { Db } from "./db.ts";
 import { EXTRA_MAX } from "./deckcheck.ts";
 import type { Rules } from "./duel.ts";
@@ -204,9 +205,7 @@ export async function completeDuel(db: Db, userId: string, duel: StoryDuel): Pro
       const [unlocked] = await sql`
         insert into yugioh.story_unlocks (user_id, unlock_id) values (${userId}, ${`card:${code}`}) on conflict do nothing returning unlock_id`;
       if (!unlocked) continue;
-      await sql`
-        insert into yugioh.collection (user_id, card_code, quantity) values (${userId}, ${code}, 1)
-        on conflict (user_id, card_code) do update set quantity = collection.quantity + 1`;
+      await addCards(sql, userId, [{ code, rarity: "common" }]);
       granted.push(code);
     }
     return { boosters, cards: granted };

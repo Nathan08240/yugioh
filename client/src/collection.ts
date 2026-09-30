@@ -1,5 +1,6 @@
 import { OcgType } from "@n1xx1/ocgcore-wasm";
 import type { CardInfo } from "../../server/src/protocol.ts";
+import { rarityRank } from "./boosterReveal.ts";
 import { has, type Cards } from "./cards.ts";
 
 export type Kind = "" | "monster" | "spell" | "trap" | "fusion";
@@ -76,3 +77,22 @@ export function setProgress(setCards: readonly number[], owned: ReadonlySet<numb
   const count = setCards.filter((code) => owned.has(code)).length;
   return { owned: count, total: setCards.length, percent: setCards.length === 0 ? 0 : Math.floor((count * 100) / setCards.length) };
 }
+
+// A card's copies as [rarity, count], the rarest first; "" is the rarity of copies obtained before the server kept it.
+export type Copies = [rarity: string, count: number][];
+
+// Copies of each owned card by rarity: the rest of its quantity has an unknown rarity.
+export function copiesByRarity(owned: [number, number][], rarities: [number, string, number][]): Map<number, Copies> {
+  const known = Map.groupBy(rarities, ([code]) => code);
+  return new Map(
+    owned.map(([code, quantity]) => {
+      const copies = (known.get(code) ?? []).map(([, rarity, count]): [string, number] => [rarity, count]).sort(([a], [b]) => rarityRank(b) - rarityRank(a));
+      const unknown = quantity - copies.reduce((sum, [, count]) => sum + count, 0);
+      if (unknown > 0) copies.push(["", unknown]);
+      return [code, copies];
+    }),
+  );
+}
+
+// The rarest rarity owned, undefined when no copy has a known one.
+export const bestRarity = (copies?: Copies) => copies?.find(([rarity]) => rarity !== "")?.[0];

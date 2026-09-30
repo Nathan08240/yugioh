@@ -1,6 +1,7 @@
 import type { Rewards as Earned } from "../../server/src/protocol.ts";
 import { CardView } from "./Card.tsx";
 import { cardName, ICONS, isDivine, rarityKey, rarityLabel, useDuelView } from "./cards.ts";
+import { bestRarity, type Copies } from "./collection.ts";
 
 // An icon of the sprite public/icons.svg (attr-feu, type-magie, ui-bot...). Decorative unless it has a label.
 export function Icon({ id, label, className }: Readonly<{ id: string; label?: string; className?: string }>) {
@@ -14,6 +15,17 @@ export function Icon({ id, label, className }: Readonly<{ id: string; label?: st
 // Rarity badge of a printing ("super" gives Super Rare in cyan).
 export function Rarity({ rarity }: Readonly<{ rarity: string }>) {
   return <span className={`rarete rarete--${rarityKey(rarity)}`}>{rarityLabel(rarity)}</span>;
+}
+
+// Badge of the rarest copy owned, over a card of a collection grid; none for a common one.
+export function BestRarity({ copies }: Readonly<{ copies?: Copies }>) {
+  const best = bestRarity(copies);
+  if (!best || rarityKey(best) === "commune") return null;
+  return (
+    <span className="meilleure-rarete">
+      <Rarity rarity={best} />
+    </span>
+  );
 }
 
 const boosters = (count: number) => (count > 1 ? `${count} boosters` : "1 booster");

@@ -1,16 +1,17 @@
 import postgres from "postgres";
 import { clientCard } from "./cards.ts";
-import type { Db } from "./db.ts";
+import type { Db, Sql } from "./db.ts";
 import { deckError, type CardLookup, type DeckDraft } from "./deckcheck.ts";
-import { isAllowed } from "./pool.ts";
+import { isAllowed, type Printing } from "./pool.ts";
 import type { ClientMessage, Deck, ServerMessage } from "./protocol.ts";
 
 export type DeckList = { decks: Deck[]; active: number | null };
+export type CollectionView = Omit<Extract<ServerMessage, { type: "collection" }>, "type">;
 export type DeckMessage = Extract<ClientMessage, { type: "collection" | "decks" | "save_deck" | "delete_deck" | "active_deck" }>;
 
 // Collection and deck storage, faked in tests.
 export type DeckStore = {
-  collection: (userId: string) => Promise<[number, number][]>;
+  collection: (userId: string) => Promise<CollectionView>;
   decks: (userId: string) => Promise<DeckList>;
   saveDeck: (userId: string, deck: DeckDraft) => Promise<{ id: number } | { error: string }>;
   // Resolves to false for the active deck or another player's deck.
@@ -38,7 +39,7 @@ export function validDeckMessage(msg: Record<string, unknown>): boolean {
 
 // The answer to a deck message, or the error for the sender.
 export async function deckReply(store: DeckStore, userId: string, msg: DeckMessage): Promise<ServerMessage | string> {
-  if (msg.type === "collection") return { type: "collection", cards: await store.collection(userId) };
+  if (msg.type === "collection") return { type: "collection", ...(await store.collection(userId)) };
   let saved: number | undefined;
   if (msg.type === "save_deck") {
     const result = await store.saveDeck(userId, msg.deck);
@@ -58,6 +59,27 @@ export async function readCollection(db: Db, userId: string): Promise<[number, n
   const rows = await db<{ code: number; quantity: number }[]>`
     select card_code as code, quantity from yugioh.collection where user_id = ${userId} order by card_code`;
   return rows.map((row) => [row.code, row.quantity]);
+}
+
+// Copies obtained since rarities are kept, as [passcode, rarity, quantity].
+export async function readRarities(db: Db, userId: string): Promise<[number, string, number][]> {
+  const rows = await db<{ code: number; rarity: string; quantity: number }[]>`
+    select card_code as code, rarity, quantity from yugioh.collection_rarities where user_id = ${userId} order by card_code, rarity`;
+  return rows.map((row) => [row.code, row.rarity, row.quantity]);
+}
+
+// Adds copies to the collection and to its breakdown by rarity, within the caller's transaction.
+export async function addCards(sql: Sql, userId: string, printings: Printing[]): Promise<void> {
+  const codes = printings.map((card) => card.code);
+  const rarities = printings.map((card) => card.rarity);
+  await sql`
+    insert into yugioh.collection (user_id, card_code, quantity)
+    select ${userId}::uuid, code, count(*) from unnest(${codes}::integer[]) code group by code
+    on conflict (user_id, card_code) do update set quantity = collection.quantity + excluded.quantity`;
+  await sql`
+    insert into yugioh.collection_rarities (user_id, card_code, rarity, quantity)
+    select ${userId}::uuid, code, rarity, count(*) from unnest(${codes}::integer[], ${rarities}::text[]) printing (code, rarity) group by code, rarity
+    on conflict (user_id, card_code, rarity) do update set quantity = collection_rarities.quantity + excluded.quantity`;
 }
 
 // Deck ids are bigint: the driver returns them as strings.
@@ -115,7 +137,7 @@ export async function activateDeck(db: Db, userId: string, id: number): Promise<
 
 export function dbDeckStore(db: Db): DeckStore {
   return {
-    collection: (userId) => readCollection(db, userId),
+    collection: async (userId) => ({ cards: await readCollection(db, userId), rarities: await readRarities(db, userId) }),
     decks: (userId) => listDecks(db, userId),
     saveDeck: (userId, deck) => saveDeck(db, userId, deck),
     deleteDeck: (userId, id) => deleteDeck(db, userId, id),

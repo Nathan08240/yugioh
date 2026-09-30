@@ -39,6 +39,9 @@ describe("progression et récompenses sur Postgres jetable", () => {
 
     expect(await completedDuels(server, id)).toEqual(new Set(["dk-weevil", "dk-mako"]));
     expect(await holdings(id)).toEqual({ pending: 2, cards: [{ card_code: 3643300, quantity: 1 }], unlocks: ["card:3643300"] });
+    expect(await admin`select card_code, rarity, quantity from yugioh.collection_rarities where user_id = ${id}`).toEqual([
+      { card_code: 3643300, rarity: "common", quantity: 1 },
+    ]);
   });
 
   it("n'accorde qu'une fois des victoires simultanées sur le même duel", async () => {
