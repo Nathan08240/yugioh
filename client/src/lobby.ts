@@ -1,3 +1,4 @@
+import type { EmoteId } from "../../server/src/emotes.ts";
 import type { Seat, ServerMessage, StoryArcView, Wire } from "../../server/src/protocol.ts";
 import { newBoard, playAll, type Board, type EngineMessage, type Message } from "./board.ts";
 
@@ -16,6 +17,9 @@ export type StoryWon = Extract<ServerMessage, { type: "story_won" }>;
 export type Asked = { question: EngineMessage; retry: boolean; id: number };
 // The time, in ms since the epoch, when `seat` loses the duel.
 export type Deadline = { seat: Seat; until: number };
+
+// The last emote of a seat; `n` tells two successive ones apart, even identical ones.
+export type ShownEmote = { id: EmoteId; n: number };
 
 export type LobbyState = {
   // undefined until the server has checked the token, null while the player has no pseudo.
@@ -39,6 +43,8 @@ export type LobbyState = {
   // Online duel between two players: when the seat asked loses unless they answer, and when a disconnected seat loses.
   answerBy?: Deadline;
   away?: Deadline;
+  // Last emote of each seat.
+  emotes: Partial<Record<Seat, ShownEmote>>;
   error?: string;
   closed: boolean;
   // Owned cards as [passcode, quantity] and the player's decks, loaded by the collection screen.
@@ -55,7 +61,7 @@ export type LobbyState = {
   won?: StoryWon;
 };
 
-export const initialLobby: LobbyState = { started: false, asked: 0, closed: false, needsStarter: false, openedCount: 0, storyOpen: false };
+export const initialLobby: LobbyState = { started: false, asked: 0, emotes: {}, closed: false, needsStarter: false, openedCount: 0, storyOpen: false };
 
 export function reduce(state: LobbyState, action: Action): LobbyState {
   switch (action.type) {
@@ -64,7 +70,7 @@ export function reduce(state: LobbyState, action: Action): LobbyState {
     case "closed":
       return { ...state, closed: true };
     case "left":
-      return { ...state, room: undefined, seat: undefined, board: undefined, started: false, question: undefined, error: undefined, won: undefined, answerBy: undefined, away: undefined };
+      return { ...state, room: undefined, seat: undefined, board: undefined, started: false, question: undefined, error: undefined, won: undefined, answerBy: undefined, away: undefined, emotes: {} };
     case "profile":
       return { ...state, pseudo: action.pseudo, needsStarter: action.needsStarter, admin: action.admin, error: undefined };
     case "joined":
@@ -80,6 +86,7 @@ export function reduce(state: LobbyState, action: Action): LobbyState {
         error: undefined,
         answerBy: undefined,
         away: undefined,
+        emotes: {},
       };
     case "messages":
       return {
@@ -94,6 +101,8 @@ export function reduce(state: LobbyState, action: Action): LobbyState {
       const deadline = action.ms === null ? undefined : { seat: action.seat, until: Date.now() + action.ms };
       return action.kind === "answer" ? { ...state, answerBy: deadline } : { ...state, away: deadline };
     }
+    case "emote":
+      return { ...state, emotes: { ...state.emotes, [action.seat]: { id: action.id, n: (state.emotes[action.seat]?.n ?? 0) + 1 } } };
     case "answered":
       return { ...state, question: undefined };
     case "collection":

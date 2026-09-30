@@ -167,7 +167,7 @@ function Screen({ state, page, send, reconnect, leave, respond, go, vsBot, story
     };
     return (
       <>
-        <Duel board={state.board} seat={state.seat ?? 0} asked={state.question} respond={respond} leave={leave} surrender={() => send({ type: "surrender" })} answerBy={state.answerBy} away={state.away} feed={state.feed} lp={state.lp} pseudo={state.pseudo} opponent={state.opponent} rules={specialRules(special)} kingdom={special.includes("duelist-kingdom")} />
+        <Duel board={state.board} seat={state.seat ?? 0} asked={state.question} respond={respond} leave={leave} surrender={() => send({ type: "surrender" })} emotes={state.emotes} sendEmote={(id) => send({ type: "emote", id })} answerBy={state.answerBy} away={state.away} feed={state.feed} lp={state.lp} pseudo={state.pseudo} opponent={state.opponent} rules={specialRules(special)} kingdom={special.includes("duelist-kingdom")} />
         {state.board.winner !== undefined && <Fin board={state.board} seat={state.seat ?? 0} room={state.room} vsBot={vsBot} opponent={state.opponent} story={story} leave={leave} go={leaveFor} />}
       </>
     );

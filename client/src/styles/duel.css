@@ -959,3 +959,60 @@ button.slot {
 .regles-duel .regles ul {
   grid-template-columns: 1fr;
 }
+
+/* Émotes : la bulle se pose contre la plaque de celui qui parle, la liste s'ouvre au-dessus du bouton */
+.plaque-moi {
+  display: grid;
+  gap: var(--e-2);
+}
+
+.emotes {
+  position: relative;
+  justify-self: start;
+}
+
+.emotes__bouton {
+  min-block-size: 40px;
+  padding-inline: var(--e-3);
+  font-size: var(--taille-s);
+}
+
+.emotes__liste {
+  position: absolute;
+  inset: auto auto calc(100% + var(--e-2)) 0;
+  z-index: var(--z-question);
+  display: grid;
+  gap: var(--e-1);
+  inline-size: max-content;
+  margin: 0;
+  padding: var(--e-2);
+  list-style: none;
+}
+
+.emote {
+  position: absolute;
+  inset: calc(100% + var(--e-2)) auto auto var(--e-4);
+  z-index: 2;
+  margin: 0;
+  padding: var(--e-2) var(--e-4);
+  border-radius: var(--r-3) var(--r-1);
+  background: var(--surface-forte);
+  box-shadow: inset 0 0 0 1px var(--camp), var(--ombre-2);
+  font: 700 var(--taille-m) / 1.2 var(--police-etroite);
+  pointer-events: none;
+}
+
+.plaque--moi .emote {
+  inset: auto auto calc(100% + var(--e-2)) var(--e-4);
+}
+
+/* Vide, la zone reste dans l'arbre d'accessibilité : le texte est annoncé quand il arrive */
+.emote:empty {
+  padding: 0;
+  opacity: 0;
+  box-shadow: none;
+}
+
+.emote:not(:empty) {
+  animation: bulle var(--duree-2) var(--courbe-sortie);
+}

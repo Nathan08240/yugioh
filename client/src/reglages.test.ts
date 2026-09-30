@@ -26,7 +26,7 @@ it("donne les valeurs par défaut quand localStorage lève", async () => {
 });
 
 it("ignore le contenu illisible ou inconnu, réglage par réglage", async () => {
-  vi.stubGlobal("localStorage", store({ "yugioh.reglages": '{"vitesse":"rapide","mouvement":"x","qualite":3}' }));
+  vi.stubGlobal("localStorage", store({ "yugioh.reglages": '{"vitesse":"rapide","mouvement":"x","qualite":3,"emotes":"peut-être"}' }));
   const { reglages, DEFAUTS } = await charger();
   expect(reglages()).toEqual({ ...DEFAUTS, vitesse: "rapide" });
   vi.resetModules();

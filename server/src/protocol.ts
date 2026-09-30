@@ -1,5 +1,6 @@
 import type { OcgMessage, OcgResponse } from "@n1xx1/ocgcore-wasm";
 import type { DeckDraft } from "./deckcheck.ts";
+import type { EmoteId } from "./emotes.ts";
 import type { Printing } from "./pool.ts";
 
 // WebSocket protocol, shared with the client. Payloads are JSON: bigint fields travel as strings.
@@ -21,6 +22,8 @@ export type ClientMessage =
   | { type: "respond"; response: OcgResponse }
   // Gives up the duel in progress: the other seat wins.
   | { type: "surrender" }
+  // A phrase of the fixed list (emotes.ts) for the other seat. One per EMOTE_DELAY: the server ignores the others.
+  | { type: "emote"; id: EmoteId }
   // Collection and decks: each deck message is answered with `decks`. `save_deck` creates a deck without `id`.
   | { type: "collection" }
   | { type: "decks" }
@@ -58,6 +61,8 @@ export type ServerMessage =
   // null: that clock stopped. Sent to both players, and again to a player who comes back.
   | { type: "timer"; kind: "answer" | "reconnect"; seat: Seat; ms: number | null }
   | { type: "error"; error: string }
+  // An emote of `seat`, sent to both seats.
+  | { type: "emote"; seat: Seat; id: EmoteId }
   // Owned cards as [passcode, quantity].
   | { type: "collection"; cards: [number, number][] }
   // `saved` is the deck a `save_deck` just stored.

@@ -1,17 +1,21 @@
 import { OcgLocation, OcgMessageType, OcgPhase, type OcgResponse } from "@n1xx1/ocgcore-wasm";
 import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from "react";
 import { flushSync } from "react-dom";
+import type { EmoteId } from "../../server/src/emotes.ts";
+import type { Seat } from "../../server/src/protocol.ts";
 import { cardAt, playAll, type Board, type Card, type LogEntry, type Message } from "./board.ts";
 import { Table, type Targets } from "./Board.tsx";
 import { CardDetail, CardView } from "./Card.tsx";
 import { cardName, DuelView, phaseName, useCards, useDuelView, useSystemStrings, type Cards } from "./cards.ts";
-import { minutes, type Asked, type Deadline } from "./lobby.ts";
+import { Emote, MenuEmotes } from "./Emotes.tsx";
+import { minutes, type Asked, type Deadline, type ShownEmote } from "./lobby.ts";
 import { D1, D2, D3, D4, ELAN, RESSORT } from "./motion.ts";
 import { cibles3D, zones } from "./plateau3d/disposition.ts";
 import { etapes, type Effet } from "./plateau3d/effets.ts";
 import { jouer, type Jeu, type Regie } from "./plateau3d/spectacle.ts";
 import { Confirm, interaction, type Choice, type Ui } from "./Question.tsx";
 import { apercuCombat, attaquantChoisi, placeKey, pointDe, reponseVisee, type Appui, type Point } from "./question.ts";
+import { useReglages } from "./reglages.ts";
 import { RulesBadge, type Rule } from "./regles.tsx";
 import { jouer as jouerSon, sonDe } from "./son.ts";
 import "./styles/duel.css";
@@ -42,6 +46,9 @@ type Props = {
   rules?: Rule[];
   // The duel has the Duelist Kingdom rule: ending a turn without monster is confirmed.
   kingdom?: boolean;
+  // Last emote of each seat, and how to send one (no emote button without it).
+  emotes?: Partial<Record<Seat, ShownEmote>>;
+  sendEmote?: (id: EmoteId) => void;
 };
 
 const { HAND, GRAVE, REMOVED } = OcgLocation;
@@ -97,8 +104,9 @@ function zoneCard(board: Board, id: string): Card | undefined {
 const codeAt = (board: Board, id: string) => zoneCard(board, id)?.code ?? 0;
 
 // The end of the duel (Fin.tsx) is drawn over the board by the lobby.
-export function Duel({ board, seat, asked, respond, leave, surrender, answerBy, away, feed, lp, pseudo, opponent, rules, kingdom }: Readonly<Props>) {
+export function Duel({ board, seat, asked, respond, leave, surrender, answerBy, away, feed, lp, pseudo, opponent, rules, kingdom, emotes, sendEmote }: Readonly<Props>) {
   const cards = useCards();
+  const [reglages] = useReglages();
   const strings = useSystemStrings();
   const [detail, setDetail] = useState<{ code: number; place?: string }>();
   const view = useMemo(() => ({ cards, show: (code: number, place?: string) => setDetail({ code, place }), seat }), [cards, seat]);
@@ -204,7 +212,7 @@ export function Duel({ board, seat, asked, respond, leave, surrender, answerBy, 
           )}
         </div>
         <div className="hud">
-          <Plaque board={shown} player={1 - seat} start={start} name={opponent ?? "Adversaire"} refs={hud.refs} visee={enDepot?.includes(String(1 - seat))} until={delai(1 - seat)} />
+          <Plaque board={shown} player={1 - seat} start={start} name={opponent ?? "Adversaire"} refs={hud.refs} visee={enDepot?.includes(String(1 - seat))} until={delai(1 - seat)} emote={reglages.emotes === "oui" ? emotes?.[(1 - seat) as Seat] : undefined} />
           <section className="main-adverse" ref={hud.refs.mains[1 - seat]} aria-label={`Main de l'adversaire : ${cartes(shown.players[1 - seat].hand.length)}`}>
             {[...shown.players[1 - seat].hand.keys()].map((i) => (
               <CardView key={i} code={0} />
@@ -215,7 +223,10 @@ export function Duel({ board, seat, asked, respond, leave, surrender, answerBy, 
             <div className="panneau colonne__detail">
               <CardDetail code={detail?.code} atk={stats?.atk} def={stats?.def} />
             </div>
-            <Plaque board={shown} player={seat} start={start} name={pseudo ?? "Vous"} refs={hud.refs} until={delai(seat)} />
+            <div className="plaque-moi">
+              <Plaque board={shown} player={seat} start={start} name={pseudo ?? "Vous"} refs={hud.refs} until={delai(seat)} emote={emotes?.[seat as Seat]} />
+              {sendEmote && <MenuEmotes send={sendEmote} />}
+            </div>
           </aside>
           <Hand hand={shown.players[seat].hand} seat={seat} ui={targets} main={hud.refs.mains[seat]} appui={appui} />
           <aside className="colonne colonne--droite">
@@ -520,8 +531,8 @@ function Compte({ until }: Readonly<{ until: number }>) {
   return <span className="chiffres">{minutes(until, now)}</span>;
 }
 
-// `visee`: a monster being dragged can attack this player directly. `until`: when the player loses unless they answer.
-function Plaque({ board, player, start, name, refs, visee, until }: Readonly<{ board: Board; player: number; start: number; name: string; refs: Refs; visee?: boolean; until?: number }>) {
+// `visee`: a monster being dragged can attack this player directly. `until`: when the player loses unless they answer. `emote`: the phrase shown in a bubble.
+function Plaque({ board, player, start, name, refs, visee, until, emote }: Readonly<{ board: Board; player: number; start: number; name: string; refs: Refs; visee?: boolean; until?: number; emote?: ShownEmote }>) {
   const { seat } = useDuelView();
   const side = board.players[player];
   const lp = Math.max(side.lp, 0);
@@ -576,6 +587,7 @@ function Plaque({ board, player, start, name, refs, visee, until }: Readonly<{ b
         <span ref={refs.deltas[player]} className="lp__delta" aria-hidden="true" />
         <span className="lp__barre" style={{ "--v": `${Math.min(100, (lp / start) * 100)}%` } as CSSProperties} />
       </div>
+      <Emote emote={emote} />
     </div>
   );
 }
