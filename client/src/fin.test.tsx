@@ -7,6 +7,7 @@ import { newBoard, playAll, type Message } from "./board.ts";
 import { DuelView } from "./cards.ts";
 import { Duel } from "./Duel.tsx";
 import { Fin } from "./Fin.tsx";
+import type { StoryWon } from "./lobby.ts";
 import { specialRules } from "./regles.tsx";
 
 const DRAGON = 89631139;
@@ -81,6 +82,23 @@ it("indique le niveau Facile pendant le duel et sur l'écran de fin", () => {
   const end = (easy: boolean) => render(<Fin board={board} seat={0} room="ABCDE" vsBot story={{ title: "Battle City · Duel 2 sur 3", easy }} leave={() => {}} go={() => {}} onRematch={() => {}} />);
   expect(end(true)).toContain("Battle City · Duel 2 sur 3 · Facile");
   expect(end(false)).not.toContain("Facile");
+});
+
+it("montre les étoiles obtenues, la suivante et la série de rejeu d'un duel d'histoire", () => {
+  const board = finished(1, 0);
+  const end = (won: StoryWon) =>
+    render(<Fin board={board} seat={0} room="r" vsBot story={{ title: "Duel", won, lp: 4000 }} leave={() => {}} go={() => {}} onRematch={() => {}} />);
+  const base = { type: "story_won", duel: "d", outro: "Fin.", rewards: null, starBooster: false } as const;
+  const first = end({ ...base, rewards: { boosters: 1 }, stars: 2, best: 2 });
+  for (const text of ['aria-label="2 étoiles sur 3"', "Gagnez en Normal avec au moins 2000 LP pour la 3e étoile.", "Ouvrir mes boosters"]) expect(first).toContain(text);
+  expect(first).not.toContain("rejeu");
+  const easy = end({ ...base, stars: 1, best: 2, replays: 2 });
+  for (const text of ["Meilleure note : 2 étoiles.", "Victoires de rejeu : 2/3 avant le prochain booster.", "Récompenses déjà obtenues."]) expect(easy).toContain(text);
+  expect(easy).not.toContain("Ouvrir mes boosters");
+  const full = end({ ...base, stars: 3, best: 3, starBooster: true, replays: 3 });
+  for (const text of ["3 étoiles : 1 booster gagné.", "Victoire de rejeu 3/3 : 1 booster gagné.", "Ouvrir mes boosters"]) expect(full).toContain(text);
+  expect(full).not.toContain("Gagnez en Normal");
+  expect(end({ ...base, stars: 1, best: 1 })).toContain("Gagnez en Normal pour la 2e étoile.");
 });
 
 it("montre le badge « Règles spéciales » d'un duel d'histoire seulement", () => {

@@ -69,3 +69,28 @@ export function Apercu({ texte }: Readonly<{ texte: string }>) {
     </p>
   );
 }
+
+// Stars of a story duel, out of 3.
+export function Stars({ count }: Readonly<{ count: number }>) {
+  return (
+    <span className="etoiles" role="img" aria-label={`${count} étoile${count > 1 ? "s" : ""} sur 3`}>
+      {[1, 2, 3].map((star) => (
+        <span key={star} className={star <= count ? "etoile etoile--gagnee" : "etoile"} aria-hidden="true">
+          ★
+        </span>
+      ))}
+    </span>
+  );
+}
+
+// LP to keep for the 3rd star: half the starting LP.
+const starLp = (lp: number) => Math.ceil(lp / 2);
+
+// What each star asks, for a duel starting at `lp` LP.
+export const starRules = (lp: number) => ["Gagner le duel", "Gagner en Normal", `Gagner en Normal avec au moins ${starLp(lp)} LP`];
+
+// What is missing for the next star after `best`, none once all 3 are won.
+export function nextStar(best: number, lp: number): string | undefined {
+  if (best >= 3) return undefined;
+  return best === 2 ? `Gagnez en Normal avec au moins ${starLp(lp)} LP pour la 3e étoile.` : "Gagnez en Normal pour la 2e étoile.";
+}

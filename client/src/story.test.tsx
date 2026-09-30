@@ -39,10 +39,11 @@ const duel = (id: string, status: StoryDuelView["status"], extra: Partial<StoryD
   rewards: { boosters: 1 },
   requires: [],
   status,
+  stars: status === "done" ? 1 : 0,
   ...extra,
 });
 const arcs: StoryArcView[] = [
-  { id: "dk", title: "Le Royaume des Duellistes", duels: [duel("dk-1", "done"), duel("dk-2", "done")] },
+  { id: "dk", title: "Le Royaume des Duellistes", duels: [duel("dk-1", "done", { stars: 3 }), duel("dk-2", "done", { stars: 2 })] },
   {
     id: "bc",
     title: "Battle City",
@@ -77,6 +78,10 @@ it("montre les arcs et les duels de l'arc en cours, verrouillés, disponibles et
   expect(html).toContain("Une carte divine + 2 boosters");
   expect(html).not.toContain("Slifer");
   expect(html).toContain("Machine à Sous + 2 boosters");
+  // Stars of each duel won and total of each arc.
+  expect(html).toContain('aria-label="1 étoile sur 3"');
+  expect(html).toMatch(/Étoiles : <\/span>5 \/ 6/);
+  expect(html).toMatch(/Étoiles : <\/span>1 \/ 9/);
 });
 
 it("présente le duel : adversaire, LP, main, règles spéciales, récompenses", () => {
@@ -91,6 +96,8 @@ it("présente le duel : adversaire, LP, main, règles spéciales, récompenses",
 
   const replay = render(<Briefing duel={{ ...bandit, status: "done", outro: "Keith est libéré." }} back={() => {}} start={() => {}} />);
   for (const text of ["Keith est libéré.", "Récompenses déjà obtenues", "Rejouer le duel"]) expect(replay).toContain(text);
+  // What each star asks, with the LP to keep for the 3rd.
+  for (const text of ["Gagner le duel", "Gagner en Normal", "Gagner en Normal avec au moins 2000 LP", "1 booster toutes les 3 victoires"]) expect(html).toContain(text);
 });
 
 it("met en valeur un Dieu Égyptien gagné", () => {

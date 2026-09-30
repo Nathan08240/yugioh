@@ -8,6 +8,7 @@ import {
   OcgResponseType,
   type InitializerSync,
   type OcgCoreSync,
+  type OcgFieldPlayer,
   type OcgLocPos,
   type OcgMessage,
   type OcgResponse,
@@ -191,6 +192,10 @@ export function fieldStats({ lib, handle }: Awaited<ReturnType<typeof openDuel>>
       .map((card) => (card && (controller === viewer || faceUp(card.position ?? 0)) ? { atk: card.attack ?? 0, def: card.defense ?? 0 } : null));
   return { type: "stats", monsters: [zones(0), zones(1)] };
 }
+
+// LP of `seat` right now: the engine returns them with the field, outside the typings of the library.
+export const lpLeft = ({ lib, handle }: Awaited<ReturnType<typeof openDuel>>, seat: 0 | 1) =>
+  (lib.duelQueryField(handle).players[seat] as OcgFieldPlayer & { lp: number }).lp;
 
 // Answers from what its seat may see: the question through hideCards, the messages so far through visibleTo.
 export type Player = (question: OcgMessage, log: readonly OcgMessage[]) => OcgResponse;

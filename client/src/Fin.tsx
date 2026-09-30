@@ -7,7 +7,8 @@ import { D1, D2, D3, D4, RESSORT, sequences, type AnimOptions, type Sequence, ty
 import type { Page } from "./Shell.tsx";
 import { jouer as jouerSon } from "./son.ts";
 import "./styles/fin.css";
-import { Rewards } from "./ui.tsx";
+import { REPLAY_WINS } from "../../server/src/protocol.ts";
+import { nextStar, Rewards, Stars } from "./ui.tsx";
 
 type Props = {
   board: Board;
@@ -16,8 +17,9 @@ type Props = {
   // Only an online duel between two players earns a booster.
   vsBot: boolean;
   opponent?: string;
-  // A story duel ("Battle City · Duel 4 sur 5"), its special rules, and its conclusion once the server has recorded the win.
-  story?: { title?: string; won?: StoryWon; special?: readonly string[]; easy?: boolean };
+  // A story duel ("Battle City · Duel 4 sur 5"), its special rules, its starting LP as written, and its conclusion once the
+  // server has recorded the win.
+  story?: { title?: string; won?: StoryWon; special?: readonly string[]; easy?: boolean; lp?: number };
   // Online rematch state; against the bot, asking starts a new duel at once.
   rematch?: LobbyState["rematch"];
   onRematch: (accept: boolean) => void;
@@ -48,6 +50,7 @@ const victory =
       at(".fin__titre", [{ opacity: 0, transform: "scale(1.35)", letterSpacing: "0.35em" }, { opacity: 1, transform: "none", letterSpacing: "0.02em" }], { duration: D4, delay: D1 }),
       at(".fin__score", RISE, { delay: D4 }),
       at(".fin__recit", RISE, { delay: D4 + D1 }),
+      at(".fin__etoiles", RISE, { delay: D4 + D2 }),
       ...[...root.querySelectorAll(".fin__gains > *")].map((gain, i) =>
         anim(gain, [{ opacity: 0, transform: "scale(0.6)" }, { opacity: 1, transform: "none" }], { easing: RESSORT, delay: D4 + D2 + i * 150 }),
       ),
@@ -89,7 +92,7 @@ export function Fin({ board, seat, room, vsBot, opponent, story, rematch, onRema
   if (story) context = `${story.title ?? "Mode Histoire"}${story.easy ? " · Facile" : ""}`;
   else if (vsBot) context = "Duel contre le bot";
   const back = story ? "Retour à l'histoire" : "Retour à l'accueil";
-  const boosters = won && !vsBot && !story ? 1 : (story?.won?.rewards?.boosters ?? 0);
+  const boosters = won && !vsBot && !story ? 1 : storyBoosters(story?.won);
 
   return (
     <section className={won ? "ecran ecran--scene fin-duel" : "ecran ecran--scene fin-duel ecran--defaite"} aria-labelledby="fin-titre">
@@ -192,7 +195,30 @@ function Score({ board, seat, won, lost, opponent }: Readonly<{ board: Board; se
   return <p className="fin__score">Égalité au tour {turn}</p>;
 }
 
-function Gains({ story, boosters }: Readonly<{ story?: { won?: StoryWon }; boosters: number }>) {
+// Boosters of a story win: its first-win rewards, the first 3 stars, the last win of a series of replays.
+function storyBoosters(won: StoryWon | undefined): number {
+  if (!won) return 0;
+  return (won.rewards?.boosters ?? 0) + Number(won.starBooster) + Number(won.replays === REPLAY_WINS);
+}
+
+// The stars of this win, what the next one asks, the replay series.
+function StoryStars({ won, lp }: Readonly<{ won: StoryWon; lp?: number }>) {
+  const hint = lp === undefined ? undefined : nextStar(won.best, lp);
+  let replay: string | undefined;
+  if (won.replays === REPLAY_WINS) replay = `Victoire de rejeu ${REPLAY_WINS}/${REPLAY_WINS} : 1 booster gagné.`;
+  else if (won.replays !== undefined) replay = `Victoires de rejeu : ${won.replays}/${REPLAY_WINS} avant le prochain booster.`;
+  return (
+    <div className="fin__etoiles">
+      <Stars count={won.stars} />
+      {won.best > won.stars && <p className="texte-2">Meilleure note : {won.best} étoiles.</p>}
+      {won.starBooster && <p className="texte-2">3 étoiles : 1 booster gagné.</p>}
+      {hint && <p className="texte-2">{hint}</p>}
+      {replay && <p className="texte-2">{replay}</p>}
+    </div>
+  );
+}
+
+function Gains({ story, boosters }: Readonly<{ story?: { won?: StoryWon; lp?: number }; boosters: number }>) {
   if (!story) {
     if (!boosters) return null;
     return (
@@ -205,6 +231,7 @@ function Gains({ story, boosters }: Readonly<{ story?: { won?: StoryWon }; boost
   return (
     <>
       <p className="fin__recit">{story.won.outro}</p>
+      <StoryStars won={story.won} lp={story.lp} />
       {story.won.rewards ? (
         <div className="fin__gains">
           <Rewards rewards={story.won.rewards} featured />

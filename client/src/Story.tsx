@@ -1,10 +1,10 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type Ref } from "react";
-import type { ClientMessage, StoryArcView, StoryDuelView, StoryLevel, StoryStatus } from "../../server/src/protocol.ts";
+import { REPLAY_WINS, type ClientMessage, type StoryArcView, type StoryDuelView, type StoryLevel, type StoryStatus } from "../../server/src/protocol.ts";
 import { cardName, isDivine, useDuelView, type Cards } from "./cards.ts";
 import { createQueue, entrance } from "./motion.ts";
 import { RuleBlock, specialRules } from "./regles.tsx";
 import "./styles/histoire.css";
-import { Icon, Rewards } from "./ui.tsx";
+import { Icon, Rewards, Stars, starRules } from "./ui.tsx";
 
 const STATUS: Record<StoryStatus, string> = { locked: "Verrouillé", available: "Disponible", done: "Gagné" };
 
@@ -12,6 +12,7 @@ const STATUS: Record<StoryStatus, string> = { locked: "Verrouillé", available: 
 const views = createQueue();
 
 const wins = (duels: StoryDuelView[]) => duels.filter((duel) => duel.status === "done").length;
+const stars = (duels: StoryDuelView[]) => duels.reduce((sum, duel) => sum + duel.stars, 0);
 const plural = (count: number, word: string) => `${count} ${word}${count > 1 ? "s" : ""}`;
 
 // The arc being played: the first one with a duel left to win, else the last one.
@@ -32,9 +33,13 @@ export function duelLabel(arcs: StoryArcView[] | undefined, id: string | undefin
   return undefined;
 }
 
+const findDuel = (arcs: StoryArcView[] | undefined, id: string | undefined) => arcs?.flatMap((arc) => arc.duels).find((duel) => duel.id === id);
+
 // The special rules of a story duel, for the duel screen and its end.
-export const duelSpecial = (arcs: StoryArcView[] | undefined, id: string | undefined): string[] =>
-  arcs?.flatMap((arc) => arc.duels).find((duel) => duel.id === id)?.special ?? [];
+export const duelSpecial = (arcs: StoryArcView[] | undefined, id: string | undefined): string[] => findDuel(arcs, id)?.special ?? [];
+
+// The starting LP of a story duel as written, for the stars of its end.
+export const duelLp = (arcs: StoryArcView[] | undefined, id: string | undefined) => findDuel(arcs, id)?.lp;
 
 function unlockHint(duel: StoryDuelView, arc: StoryArcView, arcs: StoryArcView[]): string {
   const [need] = duel.requires;
@@ -131,6 +136,11 @@ function ArcProgress({ arc, state }: Readonly<{ arc: StoryArcView; state: ArcSta
       {state === "fini" && <Icon id="ui-coche" />}
       <span className="sr">Duels gagnés : </span>
       {wins(arc.duels)} / {arc.duels.length}
+      <span className="arc__etoiles">
+        <span aria-hidden="true">★</span>
+        <span className="sr">Étoiles : </span>
+        {stars(arc.duels)} / {arc.duels.length * 3}
+      </span>
     </span>
   );
 }
@@ -154,6 +164,7 @@ function Path({ arc, arcs, pick }: Readonly<PathProps>) {
             {duel.status === "locked" && <Icon id="ui-cadenas" />}
             {STATUS[duel.status]}
           </p>
+          {duel.status === "done" && <Stars count={duel.stars} />}
           <h2>{duel.title}</h2>
           <p className="texte-2">contre {duel.opponent}</p>
           <Gain duel={duel} />
@@ -239,7 +250,7 @@ const LEVELS: readonly (readonly [StoryLevel, string])[] = [
   ["facile", "Facile"],
 ];
 
-// Normal keeps the duel as written; Facile doubles the player's starting LP. Rewards and progression are the same.
+// Normal keeps the duel as written; Facile doubles the player's starting LP. Rewards and progression are the same, stars are not.
 function Difficulty({ duel, level, choose }: Readonly<{ duel: StoryDuelView; level: StoryLevel; choose: (level: StoryLevel) => void }>) {
   return (
     <fieldset className="difficulte" data-entree>
@@ -252,8 +263,30 @@ function Difficulty({ duel, level, choose }: Readonly<{ duel: StoryDuelView; lev
           </label>
         ))}
       </div>
-      <p className="texte-2">{level === "facile" ? `Vos LP de départ sont doublés (${duel.lp * 2} LP). Récompenses et progression identiques.` : "Le duel tel qu'il a été écrit."}</p>
+      <p className="texte-2">{level === "facile" ? `Vos LP de départ sont doublés (${duel.lp * 2} LP). Récompenses et progression identiques, 1 étoile au plus.` : "Le duel tel qu'il a été écrit."}</p>
     </fieldset>
+  );
+}
+
+// What each star asks, and what stars and replays give.
+function StarRules({ duel }: Readonly<{ duel: StoryDuelView }>) {
+  return (
+    <div className="etoiles-regles" data-entree>
+      <h2 className="titre-bloc">
+        Étoiles {duel.status === "done" && <Stars count={duel.stars} />}
+      </h2>
+      <ol>
+        {starRules(duel.lp).map((rule, index) => (
+          <li key={rule}>
+            <Stars count={index + 1} />
+            {rule}
+          </li>
+        ))}
+      </ol>
+      <p className="texte-3">
+        3 étoiles : 1 booster, une seule fois. Gagner un duel déjà gagné : 1 booster toutes les {REPLAY_WINS} victoires.
+      </p>
+    </div>
   );
 }
 
@@ -300,6 +333,7 @@ export function Briefing({ ref, duel, label, back, start }: Readonly<BriefingPro
           <RuleBlock key={rule.title} rule={rule} open />
         ))}
         <Difficulty duel={duel} level={level} choose={setLevel} />
+        <StarRules duel={duel} />
         <div className="briefing__bas" data-entree>
           <div className="briefing__gains">
             <h2 className="titre-bloc">{replay ? "Récompenses déjà obtenues" : "Récompenses"}</h2>

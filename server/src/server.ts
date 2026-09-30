@@ -15,14 +15,14 @@ import { dbDeckStore, deckReply, isDeckMessage, poolCard, validDeckMessage, type
 import { activeDeck, createProfile, findProfile, openDb, type ActiveDeck, type Db, type Profile } from "./db.ts";
 import { EXTRA_MAX, isFusion, MAIN_MAX, MAIN_MIN } from "./deckcheck.ts";
 import { KAIBA } from "./decks.ts";
-import { agreeToRules, fieldStats, lpOf, openDuel, STANDARD_RULES, type Rules, type Seed } from "./duel.ts";
+import { agreeToRules, fieldStats, lpLeft, lpOf, openDuel, STANDARD_RULES, type Rules, type Seed } from "./duel.ts";
 import { EMOTE_DELAY, EMOTE_IDS, type EmoteId } from "./emotes.ts";
 import { isAllowed, POOL, SETS, type Printing } from "./pool.ts";
-import type { BotLevel, CardInfo, ClientMessage, DuelEvent, Rewards, Seat, ServerMessage, StoryLevel } from "./protocol.ts";
+import type { BotLevel, CardInfo, ClientMessage, DuelEvent, Seat, ServerMessage, StoryLevel, StoryResult } from "./protocol.ts";
 import { respond } from "./respond.ts";
 import { serveClient } from "./site.ts";
 import { chooseStarter, starterCards, type Starter } from "./starter.ts";
-import { completeDuel, completedDuels, isUnlocked, STORY, STORY_DUELS, storyDeck, storyExtra, storyRules, storyView, type StoryDuel } from "./story.ts";
+import { completeDuel, completedDuels, isUnlocked, STORY, STORY_DUELS, storyDeck, storyExtra, storyRules, storyStars, storyView, type StoryDuel } from "./story.ts";
 import { systemStrings } from "./strings.ts";
 import { hideCards, visibleTo } from "./visibility.ts";
 
@@ -71,10 +71,10 @@ export type Accounts = DeckStore & {
   // Rejects with a clear message: no right to open, or an unknown set.
   openBooster: (userId: string, setCode: string) => Promise<Printing[]>;
   creditBoosters: (userId: string, count: number) => Promise<void>;
-  // Ids of the story duels won.
-  storyProgress: (userId: string) => Promise<ReadonlySet<string>>;
-  // Resolves to the rewards granted, undefined for a duel already won.
-  completeStory: (userId: string, duel: StoryDuel) => Promise<Rewards | undefined>;
+  // Best stars of each story duel won, by id.
+  storyProgress: (userId: string) => Promise<ReadonlyMap<string, number>>;
+  // Records a win with its stars, resolves to what it earned.
+  completeStory: (userId: string, duel: StoryDuel, stars: number) => Promise<StoryResult>;
 };
 
 export function dbAccounts(db: Db): Accounts {
@@ -92,7 +92,7 @@ export function dbAccounts(db: Db): Accounts {
     openBooster: (userId, setCode) => openBooster(db, userId, setCode),
     creditBoosters: (userId, count) => creditBoosters(db, userId, count),
     storyProgress: (userId) => completedDuels(db, userId),
-    completeStory: (userId, duel) => completeDuel(db, userId, duel),
+    completeStory: (userId, duel, stars) => completeDuel(db, userId, duel, stars),
     ...dbDeckStore(db),
   };
 }
@@ -642,9 +642,9 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
       return undefined;
     }
 
-    function recordWin(room: Room, userId: string, duel: StoryDuel) {
-      accounts.completeStory(userId, duel).then(
-        (rewards) => send(room.players[0]?.socket, { type: "story_won", duel: duel.id, outro: duel.outro, rewards: rewards ?? null }),
+    function recordWin(room: Room, userId: string, duel: StoryDuel, stars: number) {
+      accounts.completeStory(userId, duel, stars).then(
+        (result) => send(room.players[0]?.socket, { type: "story_won", duel: duel.id, outro: duel.outro, ...result }),
         (error: unknown) => {
           console.error(error);
           send(room.players[0]?.socket, { type: "error", error: "victoire non enregistrée, rejouez le duel plus tard" });
@@ -659,9 +659,11 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
       if (!isUnlocked(duel, await accounts.storyProgress(userId))) return "duel verrouillé : gagnez d'abord les duels précédents";
       const deck = await duelDeck(userId);
       if (typeof deck === "string") return deck;
-      const room: Room = { code: newCode(rooms), players: [], rules: storyRules(duel, level) };
+      const rules = storyRules(duel, level);
+      const room: Room = { code: newCode(rooms), players: [], rules };
+      // The duel is still open when its winner is known: its LP give the stars.
       room.onWin = (winner) => {
-        if (winner === 0) recordWin(room, userId, duel);
+        if (winner === 0 && room.duel) recordWin(room, userId, duel, storyStars(level === "facile", lpLeft(room.duel, 0), lpOf(rules, 0)));
       };
       return enter(userId, room, deck, { deck: { main: storyDeck(duel), extra: storyExtra(duel) }, name: duel.opponent });
     }

@@ -14,7 +14,7 @@ import { autoAnswer } from "./question.ts";
 import { reglages } from "./reglages.ts";
 import { Regles, specialRules } from "./regles.tsx";
 import { Shell, type Page } from "./Shell.tsx";
-import { duelLabel, duelSpecial, Story } from "./Story.tsx";
+import { duelLabel, duelLp, duelSpecial, Story } from "./Story.tsx";
 import { supabase } from "./supabase.ts";
 
 // Same origin as the page: Vite proxies /ws to the game server in dev.
@@ -165,7 +165,7 @@ function Screen({ state, page, send, reconnect, leave, respond, go, vsBot, story
   }
   if (state.room && state.started && state.board) {
     const special = state.storyOpen ? duelSpecial(state.story, storyDuel) : [];
-    const story = state.storyOpen ? { title: duelLabel(state.story, storyDuel), won: state.won, special, easy } : undefined;
+    const story = state.storyOpen ? { title: duelLabel(state.story, storyDuel), won: state.won, special, easy, lp: duelLp(state.story, storyDuel) } : undefined;
     const leaveFor = (next: Page) => {
       leave();
       go(next);

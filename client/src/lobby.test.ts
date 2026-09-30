@@ -31,7 +31,7 @@ it("passe du pseudo à l'attente puis au plateau quand le duel démarre", () => 
 it("garde le mode Histoire ouvert pendant ses duels et oublie la conclusion en quittant le duel", () => {
   let state = reduce(reduce(initialLobby, { type: "story_menu", open: true }), { type: "story", arcs: [] });
   state = reduce(state, { type: "joined", room: "ABCDE", seat: 0, lp: 2000, decks: [41, 40], extras: [0, 0], log: [] });
-  const won = { type: "story_won", duel: "dk-weevil", outro: "Fin.", rewards: null } as const;
+  const won = { type: "story_won", duel: "dk-weevil", outro: "Fin.", rewards: null, stars: 1, best: 1, starBooster: false } as const;
   state = reduce(state, won);
   expect(state).toMatchObject({ storyOpen: true, story: [], won });
   expect(reduce(state, { type: "left" })).toMatchObject({ storyOpen: true, room: undefined, won: undefined });
@@ -73,7 +73,7 @@ it("garde le droit admin annoncé par le profil", () => {
 
 it("suit la revanche en ligne jusqu'au nouveau duel, qui l'efface avec la conclusion de l'histoire", () => {
   const joined: Extract<Action, { type: "joined" }> = { type: "joined", room: "ABCDE", seat: 0, lp: 4000, decks: [40, 40], extras: [0, 0], log: [] };
-  let state = reduce(reduce(initialLobby, joined), { type: "story_won", duel: "d", outro: "Fin.", rewards: null });
+  let state = reduce(reduce(initialLobby, joined), { type: "story_won", duel: "d", outro: "Fin.", rewards: null, stars: 1, best: 1, starBooster: false });
   state = reduce(state, { type: "rematch", from: 1 });
   expect(state.rematch).toEqual({ from: 1 });
   expect(reduce(state, { type: "rematch_declined" }).rematch).toBe("declined");
