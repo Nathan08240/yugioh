@@ -7,14 +7,16 @@ export type Wire<T> = T extends bigint ? string : T extends object ? { [K in key
 
 export type Seat = 0 | 1;
 
+export type BotLevel = "debutant" | "normal" | "expert";
+
 // `auth` must come first, with the Supabase access token. Joining a room again as the same user resumes the seat.
 export type ClientMessage =
   | { type: "auth"; token: string }
   | { type: "pseudo"; pseudo: string }
   | { type: "starter"; starter: "yugi" | "kaiba" }
   | { type: "create" }
-  // A room against the bot, which takes seat 1.
-  | { type: "bot" }
+  // A room against the bot, which takes seat 1. Without `level`, the bot plays at "normal".
+  | { type: "bot"; level?: BotLevel }
   | { type: "join"; room: string }
   | { type: "respond"; response: OcgResponse }
   // Collection and decks: each deck message is answered with `decks`. `save_deck` creates a deck without `id`.

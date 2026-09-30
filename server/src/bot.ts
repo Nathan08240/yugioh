@@ -24,7 +24,7 @@ import {
 import { cardAt, newBoard, playAll, type Board, type Card, type Message, type Place, type Side } from "../../client/src/board.ts";
 import { announceCard } from "./announce.ts";
 import { cardInfo, readCard, readScript } from "./cards.ts";
-import type { DuelEvent, Seat } from "./protocol.ts";
+import type { BotLevel, DuelEvent, Seat } from "./protocol.ts";
 import { respond, tributes } from "./respond.ts";
 
 // A face-down monster the bot cannot see is assumed this strong.
@@ -33,6 +33,9 @@ const GUESS = 1500;
 const NON_MONSTER = 1000;
 // Guards against an effect the engine would let the bot activate again and again.
 const MAX_ACTIVATIONS = 8;
+// Beginner mistakes: chance to pass on an activation, to attack without looking at the strengths.
+const SKIP_ACTIVATION = 0.5;
+const CARELESS_ATTACK = 0.3;
 const HAND_OR_FIELD = OcgLocation.HAND | OcgLocation.MZONE | OcgLocation.SZONE;
 // Deck Master System, Stringid(153000000, 5): summon the Deck Master from outside the duel?
 const SUMMON_DECK_MASTER = (153000000n << 20n) | 5n;
@@ -102,9 +105,14 @@ export class Bot {
   // Attack target chosen with the attacker, asked right after; null for a direct attack.
   private target: Place | null | undefined;
   private activations = 0;
+  private readonly level: BotLevel;
+  private readonly random: () => number;
 
-  constructor(seat: Seat, lp: number, decks: readonly number[], delay: number, extras?: readonly number[]) {
+  // `random` is injectable to test the beginner mistakes.
+  constructor(seat: Seat, lp: number, decks: readonly number[], delay: number, extras?: readonly number[], level: BotLevel = "normal", random: () => number = Math.random) {
     this.seat = seat;
+    this.level = level;
+    this.random = random;
     this.board = newBoard(lp, decks, extras);
     this.delay = delay;
   }
@@ -186,6 +194,18 @@ export class Bot {
     }
   }
 
+  // A beginner makes this mistake with the given chance.
+  private slips(chance: number): boolean {
+    return this.level === "debutant" && this.random() < chance;
+  }
+
+  // Expert: the opponent's monsters together could take all the bot's LP.
+  private endangered(): boolean {
+    if (this.level !== "expert") return false;
+    const total = cards(this.opponent().monsters).reduce((sum, card) => sum + current(card).atk, 0);
+    return total >= this.mine().lp;
+  }
+
   private mine(): Side {
     return this.board.players[this.seat];
   }
@@ -209,7 +229,7 @@ export class Bot {
   // Special summons, useful spells, the best summon, better positions, then traps set face down.
   private idleChoice(q: OcgMessageSelectIdlecmd): Choice | undefined {
     if (q.special_summons.length > 0) return [SelectIdleCMDAction.SELECT_SPECIAL_SUMMON, 0];
-    const activate = this.activation(q.activates);
+    const activate = this.slips(SKIP_ACTIVATION) ? -1 : this.activation(q.activates);
     if (activate !== -1) {
       this.activations++;
       return [SelectIdleCMDAction.SELECT_ACTIVATE, activate];
@@ -218,7 +238,7 @@ export class Bot {
     if (summon) return summon;
     const reposition = q.pos_changes.findIndex((card) => this.repositions(card, q.to_bp));
     if (reposition !== -1) return [SelectIdleCMDAction.SELECT_POS_CHANGE, reposition];
-    const trap = q.spell_sets.findIndex((card) => is(card.code, OcgType.TRAP));
+    const trap = this.level === "debutant" ? -1 : q.spell_sets.findIndex((card) => is(card.code, OcgType.TRAP));
     if (trap !== -1) return [SelectIdleCMDAction.SELECT_SPELL_SET, trap];
     return undefined;
   }
@@ -237,10 +257,10 @@ export class Bot {
     return cards(this.opponent().monsters).length > cards(this.mine().monsters).length;
   }
 
-  // Attack position when nothing the opponent shows is stronger, else set the best wall.
+  // Attack position when nothing the opponent shows is stronger (and the LP are safe), else set the best wall.
   private summon(q: OcgMessageSelectIdlecmd): Choice | undefined {
     const attacker = this.strongest(q.summons, (card) => card.atk);
-    if (attacker !== -1 && stats(q.summons[attacker].code).atk >= this.danger()) return [SelectIdleCMDAction.SELECT_SUMMON, attacker];
+    if (attacker !== -1 && !this.endangered() && stats(q.summons[attacker].code).atk >= this.danger()) return [SelectIdleCMDAction.SELECT_SUMMON, attacker];
     const wall = this.strongest(q.monster_sets, (card) => card.def);
     if (wall !== -1) return [SelectIdleCMDAction.SELECT_MONSTER_SET, wall];
     return attacker === -1 ? undefined : [SelectIdleCMDAction.SELECT_SUMMON, attacker];
@@ -273,8 +293,9 @@ export class Bot {
     const own = cardAt(this.board, card);
     if (!own) return false;
     const { atk } = current(own);
-    if (own.position & OcgPosition.DEFENSE) return atk > this.danger();
-    return !beforeBattle && atk < this.danger();
+    const endangered = this.endangered();
+    if (own.position & OcgPosition.DEFENSE) return !endangered && atk > this.danger();
+    return !beforeBattle && (endangered || atk < this.danger());
   }
 
   private battle(q: OcgMessageSelectBattleCMD): OcgResponse {
@@ -288,6 +309,8 @@ export class Bot {
   }
 
   // Strongest attacker first, on the most valuable monster it destroys, else directly when it can.
+  // A beginner sometimes attacks the first monster with the first attacker; an expert leaves face-down monsters
+  // for last, and then attacks them with the weakest attacker that beats them.
   private attackPlan(attacks: readonly OcgCardLocAttack[]): Attack | undefined {
     const opponent = 1 - this.seat;
     const targets = this.opponent().monsters.flatMap((card, sequence) => (card ? [{ card, place: { controller: opponent, location: OcgLocation.MZONE, sequence } }] : []));
@@ -295,14 +318,19 @@ export class Bot {
       const card = cardAt(this.board, attack);
       return card ? current(card).atk : stats(attack.code).atk;
     });
+    if (attacks.length > 0 && this.slips(CARELESS_ATTACK)) return { index: 0, target: targets[0]?.place ?? null };
     const order = [...attacks.keys()].sort((a, b) => atks[b] - atks[a]);
-    for (const index of order) {
-      const atk = atks[index];
-      const beaten = targets.filter(({ card }) => atk > guard(card)).sort((a, b) => value(b.card.code) - value(a.card.code));
-      if (beaten.length > 0) return { index, target: beaten[0].place };
-      if (attacks[index].can_direct) return { index, target: null };
-    }
-    return undefined;
+    const plan = (list: number[], known: boolean): Attack | undefined => {
+      for (const index of list) {
+        const atk = atks[index];
+        const beaten = targets.filter(({ card }) => atk > guard(card) && (!known || card.code !== 0)).sort((a, b) => value(b.card.code) - value(a.card.code));
+        if (beaten.length > 0) return { index, target: beaten[0].place };
+        if (attacks[index].can_direct) return { index, target: null };
+      }
+      return undefined;
+    };
+    if (this.level !== "expert") return plan(order, false);
+    return plan(order, true) ?? plan(order.reverse(), false);
   }
 
   private chain(q: OcgMessageSelectChain): OcgResponse {
@@ -348,7 +376,7 @@ export class Bot {
   }
 
   private position(q: OcgMessageSelectPosition): Position {
-    const weak = stats(q.code).atk < this.danger();
+    const weak = this.endangered() || stats(q.code).atk < this.danger();
     const order = weak
       ? [OcgPosition.FACEUP_DEFENSE, OcgPosition.FACEDOWN_DEFENSE, OcgPosition.FACEUP_ATTACK]
       : [OcgPosition.FACEUP_ATTACK, OcgPosition.FACEUP_DEFENSE, OcgPosition.FACEDOWN_DEFENSE];

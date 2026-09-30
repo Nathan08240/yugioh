@@ -17,7 +17,7 @@ import { EXTRA_MAX, isFusion, MAIN_MAX, MAIN_MIN } from "./deckcheck.ts";
 import { KAIBA } from "./decks.ts";
 import { agreeToRules, fieldStats, openDuel, STANDARD_RULES, type Rules, type Seed } from "./duel.ts";
 import { isAllowed, POOL, type Printing } from "./pool.ts";
-import type { CardInfo, ClientMessage, DuelEvent, Rewards, Seat, ServerMessage } from "./protocol.ts";
+import type { BotLevel, CardInfo, ClientMessage, DuelEvent, Rewards, Seat, ServerMessage } from "./protocol.ts";
 import { respond } from "./respond.ts";
 import { serveClient } from "./site.ts";
 import { chooseStarter, starterCards, type Starter } from "./starter.ts";
@@ -166,6 +166,8 @@ function send(socket: WebSocket | undefined, data: ServerMessage) {
   socket?.send(JSON.stringify(data, (_key, value) => (typeof value === "bigint" ? value.toString() : value)));
 }
 
+const BOT_LEVELS = new Set<unknown>(["debutant", "normal", "expert"] satisfies BotLevel[]);
+
 function parse(data: string): ClientMessage | undefined {
   let msg: Record<string, unknown>;
   try {
@@ -179,7 +181,7 @@ function parse(data: string): ClientMessage | undefined {
     (msg.type === "pseudo" && typeof msg.pseudo === "string") ||
     (msg.type === "starter" && (msg.starter === "yugi" || msg.starter === "kaiba")) ||
     msg.type === "create" ||
-    msg.type === "bot" ||
+    (msg.type === "bot" && (msg.level === undefined || BOT_LEVELS.has(msg.level))) ||
     msg.type === "story" ||
     (msg.type === "story_duel" && typeof msg.duel === "string") ||
     (msg.type === "join" && typeof msg.room === "string") ||
@@ -361,10 +363,10 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
     return seat;
   }
 
-  function addBot(room: Room, deck: ActiveDeck, name: string) {
+  function addBot(room: Room, deck: ActiveDeck, name: string, level?: BotLevel) {
     const player: Player = { id: "bot", name, log: [], deck: deck.main, extra: deck.extra };
     room.players.push(player);
-    player.bot = new Bot(1, rulesOf(room).lp, deckSizes(room), botDelay, extraSizes(room));
+    player.bot = new Bot(1, rulesOf(room).lp, deckSizes(room), botDelay, extraSizes(room), level);
     sendJoined(room, 0);
     start(room, newSeed()).catch((error: unknown) => console.error(error));
   }
@@ -440,12 +442,12 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
       return validDeck(deck) ? deck : "deck actif invalide";
     }
 
-    function enter(userId: string, room: Room, deck: ActiveDeck, bot?: { deck: ActiveDeck; name: string }): string | undefined {
+    function enter(userId: string, room: Room, deck: ActiveDeck, bot?: { deck: ActiveDeck; name: string; level?: BotLevel }): string | undefined {
       rooms.set(room.code, room);
       const index = sit(room, userId, socket, deck, user?.pseudo);
       if (index === undefined) return "salle complète";
       seat = { room, index };
-      if (bot) addBot(room, bot.deck, bot.name);
+      if (bot) addBot(room, bot.deck, bot.name, bot.level);
       return undefined;
     }
 
@@ -458,7 +460,7 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
         return joined ? enter(userId, joined, deck) : "salle introuvable";
       }
       const room: Room = { code: newCode(rooms), players: [] };
-      if (msg.type === "bot") return enter(userId, room, deck, { deck: { main: KAIBA, extra: [] }, name: "Bot" });
+      if (msg.type === "bot") return enter(userId, room, deck, { deck: { main: KAIBA, extra: [] }, name: "Bot", level: msg.level });
       room.onWin = (winner) => creditWinner(room, winner as Seat, accounts);
       return enter(userId, room, deck);
     }
