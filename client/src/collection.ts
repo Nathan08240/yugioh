@@ -42,7 +42,7 @@ function monsterMatches(card: CardInfo, filters: Filters): boolean {
 }
 
 // Lowercase without diacritics: "Éléments" and "elements" compare equal. The folded form of a card is computed once.
-const fold = (text: string) => [...text.toLowerCase().normalize("NFD")].filter((char) => char < "̀" || char > "ͯ").join("");
+export const fold = (text: string) => [...text.toLowerCase().normalize("NFD")].filter((char) => char < "̀" || char > "ͯ").join("");
 const foldedCards = new WeakMap<CardInfo, [name: string, desc: string]>();
 
 function textMatches(card: CardInfo, { name, text }: Filters): boolean {
