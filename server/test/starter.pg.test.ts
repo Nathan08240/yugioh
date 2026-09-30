@@ -54,7 +54,7 @@ describe("choix du starter sur Postgres jetable", () => {
     expect(await activeDeck(server, id)).toBeUndefined();
 
     await chooseStarter(server, id, "yugi");
-    expect(await activeDeck(server, id)).toEqual({ main: starterCards("yugi"), extra: [] });
+    expect(await activeDeck(server, id)).toEqual({ id: expect.any(Number), main: starterCards("yugi"), extra: [] });
 
     await admin`update yugioh.decks set extra_deck = ${[45231177, 45231177]} where user_id = ${id}`;
     expect((await activeDeck(server, id))?.extra).toEqual([45231177, 45231177]);

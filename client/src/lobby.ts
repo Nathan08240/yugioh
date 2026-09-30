@@ -1,5 +1,5 @@
 import type { EmoteId } from "../../server/src/emotes.ts";
-import type { Seat, ServerMessage, StoryArcView, Wire } from "../../server/src/protocol.ts";
+import type { DeckResult, Seat, ServerMessage, StoryArcView, Wire } from "../../server/src/protocol.ts";
 import { newBoard, playAll, type Board, type EngineMessage, type Message } from "./board.ts";
 
 export type DeckList = Extract<Wire<ServerMessage>, { type: "decks" }>;
@@ -54,6 +54,8 @@ export type LobbyState = {
   // Copies of known rarity as [passcode, rarity, quantity].
   rarities?: [number, string, number][];
   decks?: DeckList;
+  // Wins and losses per deck and mode, loaded with the decks.
+  results?: DeckResult[];
   // Booster timer and pending count, loaded by the boosters screen.
   boosters?: { nextFreeAt: string; pending: number };
   // The cards of the last booster opened, and a counter so a new opening resets the reveal animation.
@@ -119,6 +121,8 @@ export function reduce(state: LobbyState, action: Action): LobbyState {
       return { ...state, collection: action.cards, rarities: action.rarities };
     case "decks":
       return { ...state, decks: action, error: undefined };
+    case "duel_results":
+      return { ...state, results: action.results };
     case "error":
       return { ...state, error: action.error };
     case "duel_error":
