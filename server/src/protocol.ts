@@ -59,6 +59,11 @@ export type ClientMessage =
   | { type: "open_booster"; set: string }
   // Accounts listed in ADMIN_USER_IDS only: adds 1 to ADMIN_BOOSTERS_MAX earned boosters, answered with `booster_state`.
   | { type: "admin_boosters"; count: number }
+  // Wonder pick, once a day (wonder.ts): `wonder` reads the state, `wonder_draw` draws the 5 cards, `wonder_pick` keeps the face-down
+  // card `index` (0 to 4). Each is answered with `wonder`, or an error.
+  | { type: "wonder" }
+  | { type: "wonder_draw" }
+  | { type: "wonder_pick"; index: number }
   // Story mode: `story` asks for the arcs and progression, `story_duel` starts a duel against the bot, at "normal" without `level`.
   | { type: "story" }
   | { type: "story_duel"; duel: string; level?: StoryLevel }
@@ -113,10 +118,18 @@ export type ServerMessage =
   // `ultraIn`: the booster that many openings ahead holds an Ultra Rare or better for sure (1: the next one).
   | { type: "booster_state"; nextFreeAt: string; pending: number; ultraIn: number }
   | { type: "booster_opened"; set: string; cards: Printing[] }
+  | ({ type: "wonder" } & WonderView)
   | { type: "story"; arcs: StoryArcView[] }
   // A won story duel, recorded.
   | ({ type: "story_won"; duel: string; outro: string } & StoryResult)
   | { type: "duel_results"; results: DeckResult[] };
+
+// Wonder pick of the day. `cards` are shown face up in this order, then shuffled: face-down card `i` is `cards[shuffle[i]]`.
+// The server keeps `shuffle` to itself until the player picks `picked`, a face-down index.
+export type WonderView =
+  | { status: "available" }
+  | { status: "drawn"; cards: Printing[] }
+  | { status: "picked"; cards: Printing[]; shuffle: number[]; picked: number };
 
 export type Rewards = { boosters?: number; cards?: number[] };
 // A booster for every REPLAY_WINS wins of story duels already won, REPLAY_BOOSTERS_MAX a day at most (Europe/Paris).

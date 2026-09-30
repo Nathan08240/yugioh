@@ -8,6 +8,7 @@ import { rarityKey, rarityLabel } from "./cards.ts";
 import { ownedCodes } from "./collection.ts";
 import { countdown, type LobbyState } from "./lobby.ts";
 import { createQueue, type Step } from "./motion.ts";
+import { Pioche } from "./Pioche.tsx";
 import type { Page } from "./Shell.tsx";
 import "./styles/boosters.css";
 import "./styles/souhaits.css";
@@ -74,6 +75,7 @@ export function Boosters({ state, send, go }: Readonly<{ state: LobbyState; send
   const [now, setNow] = useState(Date.now());
   // Openings seen before this visit do not play again.
   const [dismissedCount, setDismissedCount] = useState(state.openedCount);
+  const [wonderOpen, setWonderOpen] = useState(false);
 
   // On entering, and after each opening: the booster counts and the collection, which marks the new cards.
   useEffect(() => {
@@ -81,6 +83,14 @@ export function Boosters({ state, send, go }: Readonly<{ state: LobbyState; send
     send({ type: "collection" });
     send({ type: "wishlist" });
   }, [state.openedCount]);
+
+  // The wonder pick of the day, and the collection once its card joined it.
+  useEffect(() => {
+    send({ type: "wonder" });
+  }, []);
+  useEffect(() => {
+    if (state.wonder?.status === "picked") send({ type: "collection" });
+  }, [state.wonder?.status]);
 
   useEffect(() => {
     fetch("/api/boosters")
@@ -172,6 +182,13 @@ export function Boosters({ state, send, go }: Readonly<{ state: LobbyState; send
             </p>
           </div>
         )}
+        <WonderPanel
+          wonder={state.wonder}
+          open={() => {
+            send({ type: "wonder_draw" });
+            setWonderOpen(true);
+          }}
+        />
       </aside>
 
       <div className="carrousel" data-entree>
@@ -222,6 +239,30 @@ export function Boosters({ state, send, go }: Readonly<{ state: LobbyState; send
           </li>
         ))}
       </ol>
+      {wonderOpen && state.wonder && state.wonder.status !== "available" && (
+        <Pioche wonder={state.wonder} send={send} collection={() => go("collection")} close={() => setWonderOpen(false)} />
+      )}
+    </div>
+  );
+}
+
+// The wonder pick of the day: a card to keep among five, once a day.
+function WonderPanel({ wonder, open }: Readonly<{ wonder?: LobbyState["wonder"]; open: () => void }>) {
+  const picked = wonder?.status === "picked";
+  let text = "Une carte offerte par jour, à choisir à l'aveugle parmi cinq.";
+  if (picked) text = "Carte du jour prise. Une nouvelle pioche vous attend demain, à minuit (heure de Paris).";
+  else if (wonder?.status === "drawn") text = "Votre tirage du jour vous attend : choisissez votre carte.";
+  return (
+    <div className="panneau miracle" data-entree>
+      <p>
+        <b>Pioche miracle</b>
+        <span className="texte-2">{text}</span>
+      </p>
+      {!picked && (
+        <button type="button" className="btn" disabled={!wonder} onClick={open}>
+          {wonder?.status === "drawn" ? "Reprendre la pioche" : "Tenter ma chance"}
+        </button>
+      )}
     </div>
   );
 }

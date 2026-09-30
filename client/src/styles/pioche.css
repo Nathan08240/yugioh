@@ -1,0 +1,140 @@
+/* Pioche miracle (Pioche.tsx) : cinq cartes montrées, retournées, mélangées, puis une seule gardée. */
+
+.miracle {
+  display: grid;
+  gap: var(--e-3);
+  padding: var(--e-4);
+}
+
+.miracle p {
+  display: grid;
+  gap: 2px;
+  font-size: var(--taille-s);
+}
+
+.miracle b {
+  font: 700 var(--taille-m) / 1.2 var(--police-etroite);
+}
+
+.pioche {
+  --carte-l: clamp(84px, min(14vw, 24vh), 180px);
+  --pas: calc(var(--carte-l) + var(--e-3));
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-bandeau);
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  gap: var(--e-4);
+  justify-items: center;
+  align-items: center;
+  padding: var(--e-5) var(--marge-ecran);
+  overflow: hidden auto;
+}
+
+.pioche__aide {
+  min-block-size: 1.5em;
+  text-align: center;
+  color: var(--texte-2);
+}
+
+.pioche__cartes {
+  display: flex;
+  gap: var(--e-3);
+  justify-content: center;
+  align-items: start;
+}
+
+.pioche__cartes li {
+  display: grid;
+  gap: var(--e-2);
+  justify-items: center;
+  transition: translate 0.5s var(--courbe-sortie);
+  translate: calc(var(--dx) * var(--pas)) 0;
+}
+
+.pioche__rarete {
+  font: 700 var(--taille-s) / 1 var(--police-etroite);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--texte-2);
+}
+
+/* Recto et verso en CSS 3D, comme la carte révélée d'un booster */
+.pioche__carte {
+  position: relative;
+  padding: 0;
+  border: 0;
+  border-radius: 6% / 4.1%;
+  background: none;
+  transform: perspective(900px) rotateY(0deg);
+  transform-style: preserve-3d;
+  transition: transform 0.6s var(--courbe-sortie) calc(var(--ordre, 0) * 0.7s);
+}
+
+.pioche__carte.est-cachee {
+  transform: perspective(900px) rotateY(180deg);
+  transition-delay: 0s;
+}
+
+.pioche__carte > .carte {
+  backface-visibility: hidden;
+}
+
+.pioche__carte > .pioche__dos {
+  position: absolute;
+  inset: 0;
+  transform: rotateY(180deg);
+}
+
+.pioche__carte:not(:disabled) {
+  cursor: pointer;
+}
+
+.pioche__carte:not(:disabled):hover,
+.pioche__carte:not(:disabled):focus-visible {
+  outline: 3px solid var(--holo);
+  outline-offset: 4px;
+}
+
+.pioche__carte.est-choisie {
+  box-shadow: 0 0 0 3px var(--or), 0 0 28px rgb(255 197 61 / 0.6);
+}
+
+.pioche__carte:not(.est-cachee)[data-r="rare"] {
+  box-shadow: 0 0 0 2px #dfe6f5, 0 0 22px rgb(223 230 245 / 0.5);
+}
+
+.pioche__carte:not(.est-cachee)[data-r="super"] {
+  box-shadow: 0 0 0 2px #43f0ff, 0 0 34px rgb(67 240 255 / 0.6);
+}
+
+.pioche__carte:not(.est-cachee):is([data-r="ultra"], [data-r="ultimate"]) {
+  box-shadow: 0 0 0 2px #ffe08a, 0 0 40px 6px rgb(255 197 61 / 0.55);
+}
+
+.pioche__carte:not(.est-cachee)[data-r="secret"] {
+  box-shadow: 0 0 0 2px #ff7ad9, 0 0 40px 6px rgb(255 122 217 / 0.5);
+}
+
+.pioche__carte.est-choisie:not(.est-cachee) {
+  box-shadow: 0 0 0 3px var(--or), 0 0 28px rgb(255 197 61 / 0.6);
+}
+
+.pioche__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--e-3);
+  justify-content: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-mouvement="libre"]) .pioche__cartes li,
+  :root:not([data-mouvement="libre"]) .pioche__carte {
+    transition: none;
+  }
+}
+
+:root[data-mouvement="reduit"] .pioche__cartes li,
+:root[data-mouvement="reduit"] .pioche__carte {
+  transition: none;
+}
