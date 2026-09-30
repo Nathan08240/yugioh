@@ -34,6 +34,8 @@ export function fakeAccounts(overrides: Partial<Accounts> = {}): Accounts {
     convertDuplicates: async () => "aucun doublon à convertir",
     craftCard: async () => "points insuffisants",
     claimDaily: async () => false,
+    eventWon: async () => false,
+    claimEvent: async () => true,
     ...overrides,
   };
 }

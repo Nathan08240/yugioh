@@ -93,3 +93,17 @@ it("suit la revanche en ligne jusqu'au nouveau duel, qui l'efface avec la conclu
   expect(replay).toMatchObject({ rematch: { from: 1 }, won: { duel: "d" } });
   expect(reduce(state, joined)).toMatchObject({ rematch: undefined, won: undefined });
 });
+
+it("garde l'événement de la semaine et les règles de la salle, et le booster gagné jusqu'au duel suivant", () => {
+  const joined: Extract<Action, { type: "joined" }> = { type: "joined", room: "ABCDE", seat: 0, lp: 2000, decks: [41, 40], extras: [0, 0], special: ["duelist-kingdom"], log: [] };
+  let state = reduce(initialLobby, { type: "event", rule: "duelist-kingdom", lp: 2000, hand: 5, won: false });
+  state = reduce(state, joined);
+  expect(state).toMatchObject({ special: ["duelist-kingdom"], event: { won: false } });
+  state = reduce(state, { type: "event_won" });
+  expect(state).toMatchObject({ eventWon: true, event: { won: true } });
+  // A reconnection replays the duel: the booster stays shown. A new duel, or leaving, clears it.
+  const replay = reduce(state, { ...joined, log: [{ type: OcgMessageType.DRAW, player: 0, drawn: [{ code: 1, position: 10 }] }] });
+  expect(replay.eventWon).toBe(true);
+  expect(reduce(state, joined).eventWon).toBeUndefined();
+  expect(reduce(state, { type: "left" })).toMatchObject({ special: undefined, eventWon: undefined });
+});

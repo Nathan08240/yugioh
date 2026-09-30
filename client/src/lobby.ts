@@ -82,6 +82,10 @@ export type LobbyState = {
   rematch?: { from: Seat } | "declined";
   // Bug reports the server has stored.
   reported: number;
+  // Special rules of the room (an event room), the event of the week, and its booster just earned in this duel.
+  special?: string[];
+  event?: Extract<Wire<ServerMessage>, { type: "event" }>;
+  eventWon?: boolean;
 };
 
 export const initialLobby: LobbyState = { started: false, asked: 0, emotes: {}, closed: false, needsStarter: false, openedCount: 0, storyOpen: false, reported: 0 };
@@ -93,7 +97,7 @@ export function reduce(state: LobbyState, action: Action): LobbyState {
     case "closed":
       return { ...state, closed: true };
     case "left":
-      return { ...state, room: undefined, seat: undefined, board: undefined, started: false, question: undefined, error: undefined, won: undefined, rematch: undefined, answerBy: undefined, away: undefined, emotes: {} };
+      return { ...state, room: undefined, seat: undefined, board: undefined, started: false, question: undefined, error: undefined, won: undefined, rematch: undefined, answerBy: undefined, away: undefined, emotes: {}, special: undefined, eventWon: undefined };
     case "profile":
       return { ...state, pseudo: action.pseudo, needsStarter: action.needsStarter, admin: action.admin, daily: action.daily || state.daily, error: undefined };
     case "joined":
@@ -103,6 +107,7 @@ export function reduce(state: LobbyState, action: Action): LobbyState {
         seat: action.seat,
         opponent: action.opponent,
         opponentAvatar: action.opponentAvatar,
+        special: action.special,
         lp: action.lp,
         opponentLp: action.opponentLp,
         board: playAll(newBoard(action.seat === 0 ? [action.lp, action.opponentLp ?? action.lp] : [action.opponentLp ?? action.lp, action.lp], action.decks, action.extras), action.log),
@@ -115,6 +120,7 @@ export function reduce(state: LobbyState, action: Action): LobbyState {
         // An empty log is a new duel (the first, or a rematch): a reconnection replays the old one.
         won: action.log.length === 0 ? undefined : state.won,
         rematch: action.log.length === 0 ? undefined : state.rematch,
+        eventWon: action.log.length === 0 ? undefined : state.eventWon,
       };
     case "messages":
       return {
@@ -155,6 +161,10 @@ export function reduce(state: LobbyState, action: Action): LobbyState {
       return { ...state, opened: { set: action.set, cards: action.cards }, openedCount: state.openedCount + 1 };
     case "wonder":
       return { ...state, wonder: action, error: undefined };
+    case "event":
+      return { ...state, event: action };
+    case "event_won":
+      return { ...state, eventWon: true, event: state.event && { ...state.event, won: true } };
     case "story_menu":
       return { ...state, storyOpen: action.open, error: undefined };
     case "story":

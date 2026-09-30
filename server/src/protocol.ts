@@ -23,9 +23,10 @@ export type ClientMessage =
   | { type: "auth"; token: string }
   | { type: "pseudo"; pseudo: string }
   | { type: "starter"; starter: "yugi" | "kaiba" }
-  | { type: "create" }
-  // A room against the bot, which takes seat 1. Without `level`, the bot plays at "normal".
-  | { type: "bot"; level?: BotLevel }
+  // `event`: a room under the special rule of the week (see `event`); absent or false, a normal duel.
+  | { type: "create"; event?: boolean }
+  // A room against the bot, which takes seat 1. Without `level`, the bot plays at "normal". `event`: as for `create`.
+  | { type: "bot"; level?: BotLevel; event?: boolean }
   | { type: "join"; room: string }
   | { type: "respond"; response: OcgResponse }
   // Gives up the duel in progress: the other seat wins.
@@ -72,7 +73,9 @@ export type ClientMessage =
   | { type: "story" }
   | { type: "story_duel"; duel: string; level?: StoryLevel }
   // Wins and losses of the player per deck, answered with `duel_results`.
-  | { type: "duel_results" };
+  | { type: "duel_results" }
+  // The event of the week, answered with `event`.
+  | { type: "event" };
 
 export type DuelMode = "online" | "bot" | "story";
 // Wins and losses of a player with a deck in a mode (and at a level, against the bot or in Story mode); `deck` is null for a deck deleted since.
@@ -90,12 +93,13 @@ export type DuelEvent = OcgMessage | StatsEvent;
 // from the starting LP (`lp` for the player, `opponentLp` when the opponent's differs), main deck and extra deck sizes (the engine never sends them).
 // `opponent` is the name of the other seat once someone (a player, the bot or a story character) sits there, `opponentAvatar`
 // the avatar (passcode of a card whose artwork to show) of an opponent who is a player and chose one.
+// `special`: the special rules of an event room (names of story.ts EXTRA_RULES).
 // `profile` answers `auth`, `pseudo` and `starter`: a null pseudo means the player has to choose one before playing,
 // `needsStarter` means the player has a pseudo but no active deck yet and must pick a starter deck.
 // `daily`: this connection is the first of the day (Europe/Paris), which earned a booster.
 export type ServerMessage =
   | { type: "profile"; pseudo: string | null; needsStarter: boolean; admin?: true; daily?: true }
-  | { type: "joined"; room: string; seat: Seat; lp: number; opponentLp?: number; decks: [number, number]; extras: [number, number]; opponent?: string; opponentAvatar?: number; log: DuelEvent[] }
+  | { type: "joined"; room: string; seat: Seat; lp: number; opponentLp?: number; decks: [number, number]; extras: [number, number]; opponent?: string; opponentAvatar?: number; special?: string[]; log: DuelEvent[] }
   | { type: "messages"; messages: DuelEvent[] }
   // `announce`: for ANNOUNCE_CARD, the pool cards the engine accepts.
   | { type: "question"; question: OcgMessage; retry: boolean; announce?: number[] }
@@ -129,7 +133,11 @@ export type ServerMessage =
   | { type: "story"; arcs: StoryArcView[] }
   // A won story duel, recorded.
   | ({ type: "story_won"; duel: string; outro: string } & StoryResult)
-  | { type: "duel_results"; results: DeckResult[] };
+  | { type: "duel_results"; results: DeckResult[] }
+  // The event of the week: a story special rule (story.ts EXTRA_RULES) played with `lp` and `hand`; `won`: this week's booster was taken.
+  | { type: "event"; rule: string; lp: number; hand: number; won: boolean }
+  // The first event win of the week was just recorded: 1 booster earned.
+  | { type: "event_won" };
 
 // Wonder pick of the day. `cards` are shown face up in this order, then shuffled: face-down card `i` is `cards[shuffle[i]]`.
 // The server keeps `shuffle` to itself until the player picks `picked`, a face-down index.

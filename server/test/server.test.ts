@@ -90,6 +90,8 @@ const accounts: Accounts = {
   craftCard: async () => "points insuffisants : 40 nécessaires",
   // Seul "quotidien" reçoit la récompense du jour à cette connexion.
   claimDaily: async (userId) => userId === "quotidien",
+  eventWon: async () => false,
+  claimEvent: async () => true,
 };
 // "admin" peut s'ajouter des boosters.
 process.env.ADMIN_USER_IDS = "admin, autreadmin";

@@ -18,6 +18,7 @@ import { KAIBA } from "./decks.ts";
 import { agreeToRules, fieldStats, lpLeft, lpOf, openDuel, STANDARD_RULES, type Rules, type Seed } from "./duel.ts";
 import { CRAFT_COSTS, dbEconomyStore, economyReply, isEconomyMessage, validEconomyMessage, type EconomyMessage, type EconomyStore } from "./economy.ts";
 import { EMOTE_DELAY, EMOTE_IDS, type EmoteId } from "./emotes.ts";
+import { claimEvent, eventOf, eventRules, eventWon, type WeeklyEvent } from "./event.ts";
 import { isAllowed, POOL, SETS, type Printing } from "./pool.ts";
 import { dbProfileStore, isProfileMessage, profileReply, validProfileMessage, type ProfileMessage, type ProfileStore } from "./profile.ts";
 import { REPORT_MAX, type BotLevel, type CardInfo, type ClientMessage, type DeckResult, type DuelEvent, type Seat, type ServerMessage, type StoryLevel, type StoryResult } from "./protocol.ts";
@@ -43,6 +44,8 @@ export type Room = {
   players: Player[];
   // STANDARD_RULES when absent.
   rules?: Rules;
+  // The event of the week this room plays under: its `rules` are the event's.
+  event?: WeeklyEvent;
   duel?: Awaited<ReturnType<typeof openDuel>>;
   question?: Question;
   decision?: Clock;
@@ -92,6 +95,9 @@ export type Accounts = DeckStore & WishStore & EconomyStore & WonderStore & Prof
   duelResults: (userId: string) => Promise<DeckResult[]>;
   // Resolves to false when the player already sent too many reports this hour.
   saveReport: (userId: string, message: string, report: Report) => Promise<boolean>;
+  // Event of the week (event.ts): whether its booster was taken, and taking it (resolves to false when it already was).
+  eventWon: (userId: string, eventId: string) => Promise<boolean>;
+  claimEvent: (userId: string, eventId: string) => Promise<boolean>;
 };
 
 export function dbAccounts(db: Db): Accounts {
@@ -113,6 +119,8 @@ export function dbAccounts(db: Db): Accounts {
     recordResult: (result) => recordResult(db, result),
     duelResults: (userId) => readResults(db, userId),
     saveReport: (userId, message, report) => saveReport(db, userId, message, report),
+    eventWon: (userId, eventId) => eventWon(db, userId, eventId),
+    claimEvent: (userId, eventId) => claimEvent(db, userId, eventId),
     ...dbDeckStore(db),
     ...dbWishStore(db),
     ...dbEconomyStore(db),
@@ -228,6 +236,8 @@ const dailyFlag = (daily: boolean) => (daily ? { daily: true as const } : {});
 const BOT_LEVELS = new Set<unknown>(["debutant", "normal", "expert"] satisfies BotLevel[]);
 const STORY_LEVELS = new Set<unknown>(["normal", "facile"] satisfies StoryLevel[]);
 
+const isOptionalFlag = (value: unknown) => value === undefined || typeof value === "boolean";
+
 function parse(data: string): ClientMessage | undefined {
   let msg: Record<string, unknown>;
   try {
@@ -240,10 +250,11 @@ function parse(data: string): ClientMessage | undefined {
     (msg.type === "auth" && typeof msg.token === "string" && msg.token.length <= 4096) ||
     (msg.type === "pseudo" && typeof msg.pseudo === "string") ||
     (msg.type === "starter" && (msg.starter === "yugi" || msg.starter === "kaiba")) ||
-    msg.type === "create" ||
-    (msg.type === "bot" && (msg.level === undefined || BOT_LEVELS.has(msg.level))) ||
+    (msg.type === "create" && isOptionalFlag(msg.event)) ||
+    (msg.type === "bot" && (msg.level === undefined || BOT_LEVELS.has(msg.level)) && isOptionalFlag(msg.event)) ||
     msg.type === "story" ||
     msg.type === "duel_results" ||
+    msg.type === "event" ||
     (msg.type === "story_duel" && typeof msg.duel === "string" && (msg.level === undefined || STORY_LEVELS.has(msg.level))) ||
     (msg.type === "emote" && EMOTE_IDS.has(msg.id)) ||
     (msg.type === "join" && typeof msg.room === "string") ||
@@ -345,7 +356,7 @@ function reportOf(room: Room): Report | undefined {
   if (!record) return undefined;
   let mode: Report["mode"] = "bot";
   if (online(room)) mode = "online";
-  else if (room.rules) mode = "histoire";
+  else if (room.mode?.mode === "story") mode = "histoire";
   return { mode, room: room.code, turn: record.turn, date: new Date().toISOString(), level: room.level, seed: record.seed.map(String), rules: rulesOf(room), decks: record.decks, responses: record.responses };
 }
 
@@ -435,7 +446,7 @@ function sendJoined(room: Room, seat: Seat) {
   const player = room.players[seat];
   if (!player) return;
   const [lp, opponentLp] = [lpOf(rulesOf(room), seat), lpOf(rulesOf(room), 1 - seat)];
-  send(player.socket, { type: "joined", room: room.code, seat, lp, opponentLp: opponentLp === lp ? undefined : opponentLp, decks: deckSizes(room), extras: extraSizes(room), opponent: room.players[1 - seat]?.name, opponentAvatar: room.players[1 - seat]?.avatar, log: player.log });
+  send(player.socket, { type: "joined", room: room.code, seat, lp, opponentLp: opponentLp === lp ? undefined : opponentLp, decks: deckSizes(room), extras: extraSizes(room), opponent: room.players[1 - seat]?.name, opponentAvatar: room.players[1 - seat]?.avatar, special: room.event && [room.event.rule], log: player.log });
 }
 
 // Runs the engine until it asks a question or the duel ends. A crash inside the engine closes only this room.
@@ -716,11 +727,24 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
       return undefined;
     }
 
+    // The first win of the week in an event room earns a booster, for a human seat only.
+    function rewardEvent(room: Room, seat: number) {
+      const player = room.players[seat];
+      if (!room.event || !player || player.bot) return;
+      accounts.claimEvent(player.id, room.event.id).then(
+        (earned) => {
+          if (earned) send(player.socket, { type: "event_won" });
+        },
+        (error: unknown) => console.error(error),
+      );
+    }
+
     // The bot of a quick duel sometimes greets and compliments its winner, as a player would.
     function enterBotRoom(userId: string, room: Room, deck: ActiveDeck, level?: BotLevel): string | undefined {
       const botSays = (id: EmoteId) => sendAll(room, { type: "emote", seat: 1, id });
       room.onWin = (winner) => {
         if (winner === 0) botSays("bienjoue");
+        rewardEvent(room, winner);
       };
       const error = enter(userId, room, deck, { deck: { main: KAIBA, extra: [] }, name: "Bot", level });
       if (!error && randomInt(2) === 0) setTimeout(() => botSays("bonduel"), BOT_GREETING_DELAY).unref();
@@ -736,11 +760,18 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
         return joined ? enter(userId, joined, deck) : "salle introuvable";
       }
       const room: Room = { code: newCode(rooms), players: [], mode: { mode: "online" } };
+      if (msg.event) {
+        room.event = eventOf();
+        room.rules = eventRules(room.event);
+      }
       if (msg.type === "bot") {
         room.mode = { mode: "bot", level: msg.level ?? "normal" };
         return enterBotRoom(userId, room, deck, msg.level);
       }
-      room.onWin = (winner) => creditWinner(room, winner as Seat, accounts);
+      room.onWin = (winner) => {
+        creditWinner(room, winner as Seat, accounts);
+        rewardEvent(room, winner);
+      };
       return enter(userId, room, deck);
     }
 
@@ -784,6 +815,12 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
         if (winner === 0 && room.duel) recordWin(room, userId, duel, storyStars(level === "facile", lpLeft(room.duel, 0), lpOf(rules, 0)));
       };
       return enter(userId, room, deck, { deck: { main: storyDeck(duel), extra: storyExtra(duel) }, name: duel.opponent });
+    }
+
+    async function showEvent(userId: string): Promise<undefined> {
+      const { id, rule, lp, hand } = eventOf();
+      send(socket, { type: "event", rule, lp, hand, won: await accounts.eventWon(userId, id) });
+      return undefined;
     }
 
     // Against the bot, a rematch starts at once. Online, it starts once both seats asked, with their active decks of the moment.
@@ -849,6 +886,7 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
       if (msg.type === "admin_boosters") return grantBoosters(user, msg.count);
       if (msg.type === "story") return showStory(user.id);
       if (msg.type === "duel_results") return sendResults(user.id);
+      if (msg.type === "event") return showEvent(user.id);
       if (msg.type === "respond") return seat ? answer(seat.room, seat.index, msg.response) : "pas dans une salle";
       if (msg.type === "surrender") return seat ? surrender(seat.room, seat.index) : "pas dans une salle";
       if (msg.type === "emote") return seat ? emote(seat.room, seat.index, msg.id) : "pas dans une salle";
