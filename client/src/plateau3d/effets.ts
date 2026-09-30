@@ -4,7 +4,8 @@ import { cardAt, playAll, type Board, type Message } from "../board.ts";
 import { has, type Cards } from "../cards.ts";
 import { placeKey } from "../question.ts";
 
-export type Depart = "destruction" | "sacrifice" | "materiau";
+export type Depart = "destruction" | "sacrifice" | "materiau" | "bannissement" | "main" | "deck" | "extra";
+export type Variation = { cle: string; atk: number; def: number };
 export type Effet =
   | { type: "pioche"; joueur: number; nombre: number }
   | { type: "entree"; cle: string; joueur: number }
@@ -17,14 +18,21 @@ export type Effet =
   | { type: "activation"; cle: string; maillon: number; joueur: number }
   | { type: "resolution"; maillon: number; annule: boolean }
   | { type: "phase"; phase: number; joueur: number }
-  | { type: "tour"; joueur: number; tour: number };
+  | { type: "tour"; joueur: number; tour: number }
+  | { type: "stats"; cartes: Variation[] };
 
 // Messages without animation of their own are applied at once, before the next step (`prelude`).
 // `avant` plays before `message` changes the board (the card still in place), `apres` once it has.
 export type Etape = { prelude: Message[]; avant: Effet[]; message?: Message; apres: Effet[] };
 
 const ON_FIELD: ReadonlySet<number> = new Set([OcgLocation.MZONE, OcgLocation.SZONE]);
-const OFF_FIELD: ReadonlySet<number> = new Set([OcgLocation.GRAVE, OcgLocation.REMOVED]);
+// Where a card leaving the field goes, other than the Graveyard (whose reason depends on what follows).
+const DESTINATIONS: ReadonlyMap<number, Depart> = new Map([
+  [OcgLocation.REMOVED, "bannissement"],
+  [OcgLocation.HAND, "main"],
+  [OcgLocation.DECK, "deck"],
+  [OcgLocation.EXTRA, "extra"],
+]);
 // The messages that tell what a card leaving the field was for; the others are skipped when looking ahead.
 const TELLING: ReadonlySet<Message["type"]> = new Set([
   OcgMessageType.SUMMONING,
@@ -61,8 +69,9 @@ function summonKind(msg: Extract<Message, { code: number }>, cards: Cards): "nor
 
 function moveEffects(msg: Extract<Message, { type: OcgMessageType.MOVE }>, ctx: Ctx): Pick<Etape, "avant" | "apres"> {
   const { from, to } = msg;
-  if (ON_FIELD.has(from.location) && OFF_FIELD.has(to.location) && cardAt(ctx.board, from)) {
-    return { avant: [{ type: "depart", cle: placeKey(from), genre: departure(ctx) }], apres: [] };
+  if (ON_FIELD.has(from.location) && cardAt(ctx.board, from)) {
+    const genre = to.location === OcgLocation.GRAVE ? departure(ctx) : DESTINATIONS.get(to.location);
+    if (genre) return { avant: [{ type: "depart", cle: placeKey(from), genre }], apres: [] };
   }
   if (ON_FIELD.has(to.location) && !ON_FIELD.has(from.location)) return { avant: [], apres: [{ type: "entree", cle: placeKey(to), joueur: to.controller }] };
   return { avant: [], apres: [] };
@@ -71,6 +80,27 @@ function moveEffects(msg: Extract<Message, { type: OcgMessageType.MOVE }>, ctx: 
 const NONE = { avant: [], apres: [] };
 const after = (...apres: Effet[]) => ({ avant: [], apres });
 const before = (...avant: Effet[]) => ({ avant, apres: [] });
+
+// Change of a stat against the one shown, else the printed one (unknown for a "?" ATK).
+function variation(now: number, shown: number | undefined, printed: number | undefined) {
+  const base = shown ?? printed;
+  return base === undefined || base < 0 ? 0 : now - base;
+}
+
+// The monsters whose ATK or DEF differ from what the board shows.
+function statsEffects(msg: Extract<Message, { type: "stats" }>, ctx: Ctx): Pick<Etape, "avant" | "apres"> {
+  const cartes = msg.monsters.flatMap((list, controller) =>
+    list.flatMap((now, sequence) => {
+      const card = ctx.board.players[controller].monsters[sequence];
+      if (!now || !card) return [];
+      const info = ctx.cards.get(card.code);
+      const atk = variation(now.atk, card.atk, info?.atk);
+      const def = variation(now.def, card.def, info?.def);
+      return atk || def ? [{ cle: placeKey({ controller, location: OcgLocation.MZONE, sequence }), atk, def }] : [];
+    }),
+  );
+  return cartes.length > 0 ? after({ type: "stats", cartes }) : NONE;
+}
 
 function effects(msg: Message, ctx: Ctx): Pick<Etape, "avant" | "apres"> {
   const { board } = ctx;
@@ -110,6 +140,8 @@ function effects(msg: Message, ctx: Ctx): Pick<Etape, "avant" | "apres"> {
       return after({ type: "phase", phase: msg.phase, joueur: board.turnPlayer });
     case OcgMessageType.NEW_TURN:
       return after({ type: "tour", joueur: msg.player, tour: board.turn + 1 });
+    case "stats":
+      return statsEffects(msg, ctx);
     default:
       return NONE;
   }

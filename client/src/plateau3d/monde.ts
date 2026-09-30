@@ -11,7 +11,7 @@ import type { Cards } from "../cards.ts";
 import { D2, D3, D4 } from "../motion.ts";
 import { placeKey } from "../question.ts";
 import { CARTE, pileId, PLATEAU, ZONE, zones, type CarteScene, type EtatScene, type PileScene, type Zone } from "./disposition.ts";
-import type { Depart, Effet } from "./effets.ts";
+import type { Depart, Effet, Variation } from "./effets.ts";
 import { FS_BALAYAGE, FS_CONE, FS_FAISCEAU, FS_HOLOGRAMME, FS_SOL, FS_SURBRILLANCE, VS_MONDE, VS_UV } from "./shaders.ts";
 import type { Jeu } from "./spectacle.ts";
 import { art, couleurCamp, dessinerDos, dessinerFace, dessinerFond, dessinerLueur, dessinerMaillon, dessinerPlateau, dessinerTranche, hdr, texture, TEX, toile, type Ressources } from "./textures.ts";
@@ -36,7 +36,7 @@ const STYLES: Record<Etat, { couleur?: string; force: number; fond: number; puls
 };
 const TERRAIN = { l: 2 * PLATEAU.l - 0.1, p: PLATEAU.p - 0.05, opacite: 0.72, gain: 1.2 };
 const FIELD: ReadonlySet<string> = new Set(["terrain", "monstre", "magie"]);
-const DEPARTS: Record<Depart, string> = { destruction: "--danger", sacrifice: "--or", materiau: "--type-fusion" };
+const DEPARTS: Record<Depart, string> = { destruction: "--danger", sacrifice: "--or", materiau: "--type-fusion", bannissement: "--ombre-violet", main: "--holo-2", deck: "--holo", extra: "--holo" };
 
 const sortie = (k: number) => 1 - (1 - k) ** 4;
 const elan = (k: number) => k ** 3;
@@ -412,12 +412,21 @@ export class Monde {
         return this.activation(this.zones.get(effet.cle), jeu);
       case "tour":
         return this.tour(effet.joueur === this.seat ? 0 : 1, jeu);
+      case "stats":
+        return this.eclatStats(effet.cartes, jeu);
       default:
         return Promise.resolve();
     }
   }
 
-  // The card comes from the hand (bottom of the screen, top for the opponent) and lands on its zone.
+  // The hand of a camp in the scene: bottom of the screen, top for the opponent.
+  private pointMain(camp: number) {
+    const rayon = new THREE.Raycaster();
+    rayon.setFromCamera(new THREE.Vector2(0, camp === 0 ? -0.9 : 0.95), this.camera);
+    return rayon.ray.at(camp === 0 ? 4.5 : 9, new THREE.Vector3());
+  }
+
+  // The card comes from the hand and lands on its zone.
   private async entree(zone: ZoneM | undefined, jeu: Jeu) {
     const carte = zone?.carte;
     if (!zone || !carte) return;
@@ -426,9 +435,7 @@ export class Monde {
       return;
     }
     carte.libre = true;
-    const rayon = new THREE.Raycaster();
-    rayon.setFromCamera(new THREE.Vector2(0, zone.camp === 0 ? -0.9 : 0.95), this.camera);
-    const depart = rayon.ray.at(zone.camp === 0 ? 4.5 : 9, new THREE.Vector3());
+    const depart = this.pointMain(zone.camp);
     const haut = new THREE.Vector3(zone.x, 0.5, zone.z);
     const courbe = new THREE.QuadraticBezierCurve3(depart, depart.clone().lerp(haut, 0.5).setY(Math.max(depart.y, haut.y) + 0.4), haut);
     const inclinaison = zone.camp === 0 ? Math.PI / 2 - TANGAGE : 0;
@@ -546,29 +553,103 @@ export class Monde {
     eclat.visible = false;
   }
 
-  // Destroyed: flash and flight to the Graveyard; tribute: dissolves into light; material: sucked into a violet spiral.
+  // Destroyed: flash and flight to the Graveyard; tribute: dissolves into light; material: sucked into a violet spiral;
+  // banished: spins up and fades away; back to the hand or a Deck: flies there.
   private async depart(zone: ZoneM | undefined, genre: Depart, jeu: Jeu) {
     const carte = zone?.carte;
     if (!zone || !carte) return;
     if (jeu.reduced) await this.fondu(carte, 1, 0, jeu);
     else {
       carte.libre = true;
-      const vol = genre === "destruction" ? this.briser(zone, carte) : this.dissoudre(carte, genre === "materiau");
-      await Promise.all([this.eclat(zone, DEPARTS[genre], jeu), jeu.tween(D3, (k) => vol(elan(k), k))]);
+      const vol = this.vol(zone, carte, genre);
+      await Promise.all([this.eclat(zone, DEPARTS[genre], jeu), jeu.tween(D3, (k) => vol(elan(k), k)), genre === "bannissement" && this.fondu(carte, 1, 0, jeu, D3)]);
     }
     this.retirerCarte(zone);
   }
 
-  private briser(zone: ZoneM, carte: CarteM) {
+  private vol(zone: ZoneM, carte: CarteM, genre: Depart) {
+    switch (genre) {
+      case "sacrifice":
+      case "materiau":
+        return this.dissoudre(carte, genre === "materiau");
+      case "bannissement":
+        return this.bannir(zone, carte);
+      case "main":
+        return this.rentrer(zone, carte);
+      case "deck":
+        return this.briser(zone, carte, OcgLocation.DECK, 0);
+      case "extra":
+        return this.briser(zone, carte, OcgLocation.EXTRA, 0);
+      default:
+        return this.briser(zone, carte, OcgLocation.GRAVE, 2);
+    }
+  }
+
+  // Flight to a pile of the owner, turning `tours` radians on the way.
+  private briser(zone: ZoneM, carte: CarteM, pile: OcgLocation, tours: number) {
     const pose = this.pose(carte);
-    const cimetiere = this.zones.get(pileId(zone.joueur, OcgLocation.GRAVE)) ?? zone;
+    const arrivee = this.zones.get(pileId(zone.joueur, pile)) ?? zone;
     const depuis = carte.groupe.position.clone();
     const vers = new THREE.Vector3();
     return (e: number, k: number) => {
-      carte.groupe.position.lerpVectors(depuis, vers.set(cimetiere.x, 0.3 + 0.4 * Math.sin(Math.PI * k), cimetiere.z), e);
-      carte.groupe.rotation.set(0, pose.rotY + e * 2, pose.rotZ);
+      carte.groupe.position.lerpVectors(depuis, vers.set(arrivee.x, 0.3 + 0.4 * Math.sin(Math.PI * k), arrivee.z), e);
+      carte.groupe.rotation.set(0, pose.rotY + e * tours, pose.rotZ);
       carte.groupe.scale.setScalar(pose.echelle * (1 - 0.7 * e));
     };
+  }
+
+  // Banished: the card rises, spins up and drifts halfway to the Graveyard while it fades (see `depart`).
+  private bannir(zone: ZoneM, carte: CarteM) {
+    const pose = this.pose(carte);
+    const cimetiere = this.zones.get(pileId(zone.joueur, OcgLocation.GRAVE)) ?? zone;
+    const depuis = carte.groupe.position.clone();
+    return (e: number) => {
+      carte.groupe.position.set(depuis.x + (cimetiere.x - depuis.x) * e * 0.5, depuis.y + e * 0.6, depuis.z + (cimetiere.z - depuis.z) * e * 0.5);
+      carte.groupe.rotation.set(0, pose.rotY + e * 8, pose.rotZ);
+      carte.groupe.scale.setScalar(pose.echelle * (1 - e));
+    };
+  }
+
+  // Back to the hand: the way of `entree` in reverse, the card tilts to the screen and shrinks.
+  private rentrer(zone: ZoneM, carte: CarteM) {
+    const pose = this.pose(carte);
+    const depuis = carte.groupe.position.clone();
+    const main = this.pointMain(zone.camp);
+    const courbe = new THREE.QuadraticBezierCurve3(depuis, depuis.clone().lerp(main, 0.5).setY(Math.max(depuis.y, main.y) + 0.4), main);
+    const inclinaison = zone.camp === 0 ? Math.PI / 2 - TANGAGE : 0;
+    return (e: number) => {
+      carte.groupe.position.copy(courbe.getPoint(e));
+      carte.groupe.rotation.set(inclinaison * e, pose.rotY, pose.rotZ);
+      carte.groupe.scale.setScalar(pose.echelle * (1 - 0.3 * e));
+    };
+  }
+
+  // A flare on the changed ATK (left of the card) and DEF (right): green for a rise, red for a drop.
+  private async eclatStats(cartes: Variation[], jeu: Jeu) {
+    if (jeu.reduced) return;
+    const eclats: THREE.Sprite[] = [];
+    for (const { cle, atk, def } of cartes) {
+      const groupe = this.zones.get(cle)?.carte?.groupe;
+      if (!groupe) continue;
+      for (const [delta, cote] of [[atk, -1], [def, 1]]) {
+        if (!delta) continue;
+        const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.fx.eclat.material.map, color: hdr(delta > 0 ? "--succes" : "--danger", 2.5), blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false }));
+        sprite.position.set(cote * CARTE.l * 0.3, 0.04, CARTE.h * 0.44);
+        sprite.renderOrder = 12;
+        groupe.add(sprite);
+        eclats.push(sprite);
+      }
+    }
+    await jeu.tween(D3, (k) => {
+      for (const sprite of eclats) {
+        sprite.scale.setScalar(0.15 + 0.3 * sortie(k));
+        sprite.material.opacity = Math.sin(Math.PI * k);
+      }
+    });
+    for (const sprite of eclats) {
+      sprite.removeFromParent();
+      sprite.material.dispose();
+    }
   }
 
   // A tribute rises into light; a material spirals to the middle of the board.
@@ -584,11 +665,11 @@ export class Monde {
   }
 
   // The card fades in or out: its materials become transparent for the time of the fade.
-  private async fondu(carte: CarteM, de: number, a: number, jeu: Jeu) {
+  private async fondu(carte: CarteM, de: number, a: number, jeu: Jeu, duree = D2) {
     const originaux = carte.mesh.material;
     const clones = (originaux as THREE.Material[]).map((m) => Object.assign(m.clone(), { transparent: true, alphaTest: 0 }));
     carte.mesh.material = clones;
-    await jeu.tween(D2, (k) => {
+    await jeu.tween(duree, (k) => {
       for (const m of clones) m.opacity = de + (a - de) * k;
     }, true);
     carte.mesh.material = originaux;
