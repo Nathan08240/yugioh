@@ -1,8 +1,9 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type Dispatch, type SetStateAction } from "react";
 import { COPIES_MAX, countBy, deckError, EXTRA_MAX, isFusion, MAIN_MAX, MAIN_MIN, NAME_MAX, type DeckCard, type DeckDraft } from "../../server/src/deckcheck.ts";
 import suggested from "../../server/data/suggested-decks.json";
-import type { ClientMessage, Deck } from "../../server/src/protocol.ts";
+import type { ClientMessage, Deck, DeckResult } from "../../server/src/protocol.ts";
 import { CardDetail, CardView } from "./Card.tsx";
+import { DeckRecord } from "./DeckRecord.tsx";
 import { attributeKey, cardName, DuelView, frame, useCards, useDuelView } from "./cards.ts";
 import { drawHand, fitSuggestion, formatYdk, importDeck, parseYdk, type Skipped, type Suggestion } from "./deckTools.ts";
 import { filterCollection, kindCounts, noFilters, type Filters, type Kind } from "./collection.ts";
@@ -13,7 +14,7 @@ import { Icon } from "./ui.tsx";
 
 type Send = (msg: ClientMessage) => void;
 type SetDraft = Dispatch<SetStateAction<DeckDraft | undefined>>;
-type Props = { collection?: [number, number][]; decks?: DeckList; send: Send };
+type Props = { collection?: [number, number][]; decks?: DeckList; results?: DeckResult[]; send: Send };
 
 const LEVELS = Array.from({ length: 12 }, (_, i) => i + 1);
 const KINDS: [Kind, string][] = [
@@ -30,7 +31,7 @@ const same = (a: DeckDraft, b: Deck) => a.name === b.name && a.main.join() === b
 const plural = (count: number, word: string) => `${count} ${word}${count > 1 ? "s" : ""}`;
 
 // Collection on the left, card detail in the middle, the edited deck on the right. The server checks every save.
-export function DeckBuilder({ collection, decks, send }: Readonly<Props>) {
+export function DeckBuilder({ collection, decks, results, send }: Readonly<Props>) {
   const cards = useCards();
   const [shown, setShown] = useState<number>();
   const view = useMemo(() => ({ cards, show: setShown, seat: 0 }), [cards]);
@@ -40,6 +41,7 @@ export function DeckBuilder({ collection, decks, send }: Readonly<Props>) {
   useEffect(() => {
     send({ type: "collection" });
     send({ type: "decks" });
+    send({ type: "duel_results" });
   }, []);
 
   // A fresh deck list shows the deck just saved, else the one being edited, else the active one.
@@ -60,7 +62,7 @@ export function DeckBuilder({ collection, decks, send }: Readonly<Props>) {
         <aside className="panneau atelier__detail" aria-label="Détail de la carte" data-entree>
           <CardDetail code={shown} />
         </aside>
-        <DeckPanel decks={decks} draft={draft} owned={collection} setDraft={setDraft} send={send} />
+        <DeckPanel decks={decks} results={results} draft={draft} owned={collection} setDraft={setDraft} send={send} />
       </div>
     </DuelView>
   );
@@ -274,16 +276,16 @@ function Range({ label, value: [min, max], onChange }: Readonly<RangeProps>) {
   );
 }
 
-type DeckPanelProps = { decks: DeckList; draft?: DeckDraft; owned: [number, number][]; setDraft: SetDraft; send: Send };
+type DeckPanelProps = { decks: DeckList; results?: DeckResult[]; draft?: DeckDraft; owned: [number, number][]; setDraft: SetDraft; send: Send };
 
-function DeckPanel({ decks, draft, owned, setDraft, send }: Readonly<DeckPanelProps>) {
+function DeckPanel({ decks, results, draft, owned, setDraft, send }: Readonly<DeckPanelProps>) {
   const { cards } = useDuelView();
   const ownedMap = useMemo(() => new Map(owned), [owned]);
 
   return (
     <aside className="panneau atelier__deck" aria-label="Deck en cours" data-entree>
       {draft ? (
-        <DeckEditor key={draft.id ?? "new"} decks={decks} draft={draft} error={deckError(draft, (code) => cards.get(code), ownedMap)} owned={ownedMap} setDraft={setDraft} send={send} />
+        <DeckEditor key={draft.id ?? "new"} decks={decks} results={results} draft={draft} error={deckError(draft, (code) => cards.get(code), ownedMap)} owned={ownedMap} setDraft={setDraft} send={send} />
       ) : (
         <>
           <p className="texte-2">Aucun deck pour l'instant.</p>
@@ -296,9 +298,9 @@ function DeckPanel({ decks, draft, owned, setDraft, send }: Readonly<DeckPanelPr
   );
 }
 
-type EditorProps = { decks: DeckList; draft: DeckDraft; error?: string; owned: ReadonlyMap<number, number>; setDraft: SetDraft; send: Send };
+type EditorProps = { decks: DeckList; results?: DeckResult[]; draft: DeckDraft; error?: string; owned: ReadonlyMap<number, number>; setDraft: SetDraft; send: Send };
 
-function DeckEditor({ decks, draft, error, owned, setDraft, send }: Readonly<EditorProps>) {
+function DeckEditor({ decks, results, draft, error, owned, setDraft, send }: Readonly<EditorProps>) {
   const { cards } = useDuelView();
   const saved = decks.decks.find((deck) => deck.id === draft.id);
   const dirty = !saved || !same(draft, saved);
@@ -344,6 +346,7 @@ function DeckEditor({ decks, draft, error, owned, setDraft, send }: Readonly<Edi
           </button>
         )}
       </div>
+      {saved && <DeckRecord results={results} deck={saved.id} />}
       <label className="champ">
         Nom du deck
         <span className="champ__saisie">

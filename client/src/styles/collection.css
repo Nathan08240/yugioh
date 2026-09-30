@@ -289,6 +289,16 @@
   justify-content: space-between;
 }
 
+.deck-bilan {
+  margin: 0;
+}
+
+.deck-bilan__modes {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: var(--e-3);
+}
+
 .deck-tete .choix {
   flex: 1;
   min-inline-size: 0;

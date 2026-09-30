@@ -18,8 +18,9 @@ import { KAIBA } from "./decks.ts";
 import { agreeToRules, fieldStats, lpOf, openDuel, STANDARD_RULES, type Rules, type Seed } from "./duel.ts";
 import { EMOTE_DELAY, EMOTE_IDS, type EmoteId } from "./emotes.ts";
 import { isAllowed, POOL, SETS, type Printing } from "./pool.ts";
-import type { BotLevel, CardInfo, ClientMessage, DuelEvent, Rewards, Seat, ServerMessage, StoryLevel } from "./protocol.ts";
+import type { BotLevel, CardInfo, ClientMessage, DeckResult, DuelEvent, Rewards, Seat, ServerMessage, StoryLevel } from "./protocol.ts";
 import { respond } from "./respond.ts";
+import { type DuelResult, readResults, recordResult } from "./results.ts";
 import { serveClient } from "./site.ts";
 import { chooseStarter, starterCards, type Starter } from "./starter.ts";
 import { completeDuel, completedDuels, isUnlocked, STORY, STORY_DUELS, storyDeck, storyExtra, storyRules, storyView, type StoryDuel } from "./story.ts";
@@ -29,7 +30,7 @@ import { hideCards, visibleTo } from "./visibility.ts";
 type Question = Extract<OcgMessage, { player: number }>;
 // `stats`: the last stats event sent, as JSON.
 // `gone`: the player lost their connection during an online duel and loses it at `at` unless they come back.
-type Player = { id: string; name?: string; socket?: WebSocket; log: DuelEvent[]; deck: readonly number[]; extra?: readonly number[]; bot?: Bot; stats?: string; gone?: { at: number; timer: NodeJS.Timeout } };
+type Player = { id: string; name?: string; socket?: WebSocket; log: DuelEvent[]; deck: readonly number[]; deckId?: number; extra?: readonly number[]; bot?: Bot; stats?: string; gone?: { at: number; timer: NodeJS.Timeout } };
 // Time `left` to the asked seat of an online duel, counting down from `since` while `timer` runs (paused while they are disconnected).
 type Clock = { seat: Seat; left: number; since: number; timer?: NodeJS.Timeout };
 export type Room = {
@@ -48,6 +49,10 @@ export type Room = {
   level?: BotLevel;
   // Rewards of the room: a booster for an online duel, the story progression against the bot.
   onWin?: (winner: number) => void;
+  // Mode of the duel, and NEW_TURN messages so far: stored for each human player when the duel ends.
+  mode?: Pick<DuelResult, "mode" | "level">;
+  turns?: number;
+  onEnd?: (winner: Seat, reason: number) => void;
 };
 
 const rulesOf = (room: Room) => room.rules ?? STANDARD_RULES;
@@ -75,6 +80,9 @@ export type Accounts = DeckStore & {
   storyProgress: (userId: string) => Promise<ReadonlySet<string>>;
   // Resolves to the rewards granted, undefined for a duel already won.
   completeStory: (userId: string, duel: StoryDuel) => Promise<Rewards | undefined>;
+  // Stores the result of a finished duel for a human player, and reads their wins and losses per deck and mode.
+  recordResult: (result: DuelResult) => Promise<void>;
+  duelResults: (userId: string) => Promise<DeckResult[]>;
 };
 
 export function dbAccounts(db: Db): Accounts {
@@ -93,6 +101,8 @@ export function dbAccounts(db: Db): Accounts {
     creditBoosters: (userId, count) => creditBoosters(db, userId, count),
     storyProgress: (userId) => completedDuels(db, userId),
     completeStory: (userId, duel) => completeDuel(db, userId, duel),
+    recordResult: (result) => recordResult(db, result),
+    duelResults: (userId) => readResults(db, userId),
     ...dbDeckStore(db),
   };
 }
@@ -213,6 +223,7 @@ function parse(data: string): ClientMessage | undefined {
     msg.type === "create" ||
     (msg.type === "bot" && (msg.level === undefined || BOT_LEVELS.has(msg.level))) ||
     msg.type === "story" ||
+    msg.type === "duel_results" ||
     (msg.type === "story_duel" && typeof msg.duel === "string" && (msg.level === undefined || STORY_LEVELS.has(msg.level))) ||
     (msg.type === "emote" && EMOTE_IDS.has(msg.id)) ||
     (msg.type === "join" && typeof msg.room === "string") ||
@@ -287,6 +298,7 @@ function finish(room: Room, winner: Seat, reason: number) {
   if (!room.duel) return;
   broadcast(room, room.duel, [{ type: OcgMessageType.WIN, player: winner, reason }]);
   room.onWin?.(winner);
+  room.onEnd?.(winner, reason);
   endDuel(room);
 }
 
@@ -408,11 +420,15 @@ export function advance(room: Room) {
       return;
     }
     const events = messages.filter((msg) => !ANSWERS.has(msg.type));
+    room.turns = (room.turns ?? 0) + events.filter((msg) => msg.type === OcgMessageType.NEW_TURN).length;
     // The engine keeps sending WIN without ever reaching END: the first one closes the duel.
     const win = events.findIndex((msg) => msg.type === OcgMessageType.WIN);
     broadcast(room, duel, win === -1 ? events : events.slice(0, win + 1));
     const won = events[win];
-    if (won?.type === OcgMessageType.WIN) room.onWin?.(won.player);
+    if (won?.type === OcgMessageType.WIN) {
+      room.onWin?.(won.player);
+      room.onEnd?.(won.player as Seat, won.reason);
+    }
     if (win !== -1 || status === OcgProcessResult.END) {
       endDuel(room);
       return;
@@ -447,6 +463,7 @@ function answer(room: Room, seat: Seat, response: OcgResponse): string | undefin
 async function start(room: Room, seed: Seed) {
   const decks = room.players.map((player) => player.deck);
   const extras = room.players.map((player) => player.extra ?? []);
+  room.turns = 0;
   room.duel = await openDuel(seed, decks, (text) => console.error(`[salle ${room.code}] ${text}`), undefined, rulesOf(room), extras);
   advance(room);
 }
@@ -482,7 +499,7 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
     const known = room.players.findIndex((player) => player.id === id);
     if (known === -1 && room.players.length === 2) return undefined;
     const isNew = known === -1;
-    const seat = (isNew ? room.players.push({ id, name, log: [], deck: deck.main, extra: deck.extra }) - 1 : known) as Seat;
+    const seat = (isNew ? room.players.push({ id, name, log: [], deck: deck.main, deckId: deck.id, extra: deck.extra }) - 1 : known) as Seat;
     const player = room.players[seat];
     if (player.socket !== socket) player.socket?.close();
     player.socket = socket;
@@ -603,7 +620,19 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
       return validDeck(deck) ? deck : "deck actif invalide";
     }
 
+    // Stores the result of the duel for each human player. A failure is logged, the duel is over anyway.
+    function recordResults(room: Room, winner: Seat, reason: number) {
+      const { mode } = room;
+      if (!mode) return;
+      room.players.forEach((player, index) => {
+        if (player.bot) return;
+        const result = { userId: player.id, deckId: player.deckId, ...mode, won: index === winner, reason, turns: room.turns ?? 0 };
+        accounts.recordResult(result).catch((error: unknown) => console.error(error));
+      });
+    }
+
     function enter(userId: string, room: Room, deck: ActiveDeck, bot?: { deck: ActiveDeck; name: string; level?: BotLevel }): string | undefined {
+      room.onEnd = (winner, reason) => recordResults(room, winner, reason);
       rooms.set(room.code, room);
       const index = sit(room, userId, socket, deck, user?.pseudo);
       if (index === undefined) return "salle complète";
@@ -631,8 +660,11 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
         const joined = rooms.get(msg.room.toUpperCase());
         return joined ? enter(userId, joined, deck) : "salle introuvable";
       }
-      const room: Room = { code: newCode(rooms), players: [] };
-      if (msg.type === "bot") return enterBotRoom(userId, room, deck, msg.level);
+      const room: Room = { code: newCode(rooms), players: [], mode: { mode: "online" } };
+      if (msg.type === "bot") {
+        room.mode = { mode: "bot", level: msg.level ?? "normal" };
+        return enterBotRoom(userId, room, deck, msg.level);
+      }
       room.onWin = (winner) => creditWinner(room, winner as Seat, accounts);
       return enter(userId, room, deck);
     }
@@ -659,7 +691,7 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
       if (!isUnlocked(duel, await accounts.storyProgress(userId))) return "duel verrouillé : gagnez d'abord les duels précédents";
       const deck = await duelDeck(userId);
       if (typeof deck === "string") return deck;
-      const room: Room = { code: newCode(rooms), players: [], rules: storyRules(duel, level) };
+      const room: Room = { code: newCode(rooms), players: [], rules: storyRules(duel, level), mode: { mode: "story", level: level ?? "normal" } };
       room.onWin = (winner) => {
         if (winner === 0) recordWin(room, userId, duel);
       };
@@ -700,9 +732,15 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
       room.players.forEach((player, seatIndex) => {
         const deck = decks[seatIndex] as ActiveDeck;
         player.deck = deck.main;
+        player.deckId = deck.id;
         player.extra = deck.extra;
       });
       restart(room);
+      return undefined;
+    }
+
+    async function sendResults(userId: string): Promise<undefined> {
+      send(socket, { type: "duel_results", results: await accounts.duelResults(userId) });
       return undefined;
     }
 
@@ -718,6 +756,7 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
       if (msg.type === "open_booster") return openBoosterFor(user, msg.set);
       if (msg.type === "admin_boosters") return grantBoosters(user, msg.count);
       if (msg.type === "story") return showStory(user.id);
+      if (msg.type === "duel_results") return sendResults(user.id);
       if (msg.type === "respond") return seat ? answer(seat.room, seat.index, msg.response) : "pas dans une salle";
       if (msg.type === "surrender") return seat ? surrender(seat.room, seat.index) : "pas dans une salle";
       if (msg.type === "emote") return seat ? emote(seat.room, seat.index, msg.id) : "pas dans une salle";

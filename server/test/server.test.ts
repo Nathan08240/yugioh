@@ -50,6 +50,8 @@ const accounts: Accounts = {
   creditBoosters: async () => {},
   storyProgress: async () => new Set(),
   completeStory: async () => undefined,
+  recordResult: async () => {},
+  duelResults: async () => [],
 };
 // "admin" peut s'ajouter des boosters.
 process.env.ADMIN_USER_IDS = "admin, autreadmin";

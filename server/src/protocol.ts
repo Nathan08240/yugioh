@@ -42,7 +42,13 @@ export type ClientMessage =
   | { type: "admin_boosters"; count: number }
   // Story mode: `story` asks for the arcs and progression, `story_duel` starts a duel against the bot, at "normal" without `level`.
   | { type: "story" }
-  | { type: "story_duel"; duel: string; level?: StoryLevel };
+  | { type: "story_duel"; duel: string; level?: StoryLevel }
+  // Wins and losses of the player per deck, answered with `duel_results`.
+  | { type: "duel_results" };
+
+export type DuelMode = "online" | "bot" | "story";
+// Wins and losses of a player with a deck in a mode; `deck` is null for a deck deleted since.
+export type DeckResult = { deck: number | null; mode: DuelMode; wins: number; losses: number };
 
 export type Deck = { id: number; name: string; main: number[]; extra: number[] };
 
@@ -80,7 +86,8 @@ export type ServerMessage =
   | { type: "booster_opened"; set: string; cards: Printing[] }
   | { type: "story"; arcs: StoryArcView[] }
   // A won story duel, recorded. `rewards` is null when the duel had already been won.
-  | { type: "story_won"; duel: string; outro: string; rewards: Rewards | null };
+  | { type: "story_won"; duel: string; outro: string; rewards: Rewards | null }
+  | { type: "duel_results"; results: DeckResult[] };
 
 export type Rewards = { boosters?: number; cards?: number[] };
 // Locked until every duel of `requires` is won.
