@@ -242,6 +242,36 @@
   font: 700 var(--taille-m) / 1.2 var(--police-etroite);
 }
 
+.tour__abandon {
+  min-block-size: 40px;
+  padding-inline: var(--e-3);
+  font-size: var(--taille-s);
+}
+
+/* Confirmation de l'abandon, sous la ligne du tour */
+.tour .actions {
+  display: grid;
+  gap: var(--e-2);
+  padding: var(--e-3);
+  border-radius: var(--r-2) var(--r-1);
+  background: rgb(6 8 23 / 0.85);
+  font-size: var(--taille-s);
+}
+
+/* Temps restant pour répondre, sur la plaque du joueur interrogé */
+.plaque__temps {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  font: 700 var(--taille-s) / 1.2 var(--police-chiffres);
+  color: var(--or);
+}
+
+.plaque__temps .ic {
+  inline-size: 1.05em;
+  block-size: 1.05em;
+}
+
 .phases {
   display: flex;
   gap: 3px;

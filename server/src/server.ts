@@ -27,7 +27,10 @@ import { hideCards, visibleTo } from "./visibility.ts";
 
 type Question = Extract<OcgMessage, { player: number }>;
 // `stats`: the last stats event sent, as JSON.
-type Player = { id: string; name?: string; socket?: WebSocket; log: DuelEvent[]; deck: readonly number[]; extra?: readonly number[]; bot?: Bot; stats?: string };
+// `gone`: the player lost their connection during an online duel and loses it at `at` unless they come back.
+type Player = { id: string; name?: string; socket?: WebSocket; log: DuelEvent[]; deck: readonly number[]; extra?: readonly number[]; bot?: Bot; stats?: string; gone?: { at: number; timer: NodeJS.Timeout } };
+// Time `left` to the asked seat of an online duel, counting down from `since` while `timer` runs (paused while they are disconnected).
+type Clock = { seat: Seat; left: number; since: number; timer?: NodeJS.Timeout };
 export type Room = {
   code: string;
   players: Player[];
@@ -35,6 +38,7 @@ export type Room = {
   rules?: Rules;
   duel?: Awaited<ReturnType<typeof openDuel>>;
   question?: Question;
+  decision?: Clock;
   timer?: NodeJS.Timeout;
   // Rewards of the room: a booster for an online duel, the story progression against the bot.
   onWin?: (winner: number) => void;
@@ -93,6 +97,13 @@ const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const ROOM_TTL = 10 * 60_000;
 // Pause before each answer of the bot, so the human can follow its moves.
 const BOT_DELAY = 700;
+// In an online duel between two players: time to answer a question of the engine, and to come back after a lost connection.
+export const DECISION_TIME = 2 * 60_000;
+export const RECONNECT_TIME = 2 * 60_000;
+// WIN reasons of the ends decided by the server, as EDOPro numbers them.
+const SURRENDER = 0;
+const TIME_LIMIT = 3;
+const CONNECTION_LOST = 4;
 
 // Response type the engine expects for each of its questions.
 const ANSWERS = new Map<OcgMessageType, OcgResponseType>([
@@ -190,6 +201,7 @@ function parse(data: string): ClientMessage | undefined {
     (msg.type === "story_duel" && typeof msg.duel === "string") ||
     (msg.type === "join" && typeof msg.room === "string") ||
     (msg.type === "respond" && typeof msg.response === "object" && msg.response !== null) ||
+    msg.type === "surrender" ||
     msg.type === "booster_state" ||
     (msg.type === "open_booster" && typeof msg.set === "string") ||
     validDeckMessage(msg);
@@ -243,6 +255,72 @@ function endDuel(room: Room) {
   room.duel?.lib.destroyDuel(room.duel.handle);
   room.duel = undefined;
   room.question = undefined;
+  clearTimeout(room.decision?.timer);
+  room.decision = undefined;
+  for (const player of room.players) {
+    clearTimeout(player.gone?.timer);
+    player.gone = undefined;
+  }
+}
+
+// Ends the duel like a WIN of the engine, for a reason the engine never sees. Only the first end of a duel counts.
+function finish(room: Room, winner: Seat, reason: number) {
+  if (!room.duel) return;
+  broadcast(room, room.duel, [{ type: OcgMessageType.WIN, player: winner, reason }]);
+  room.onWin?.(winner);
+  endDuel(room);
+}
+
+function surrender(room: Room, seat: Seat): string | undefined {
+  if (!room.duel) return "aucun duel en cours";
+  finish(room, (1 - seat) as Seat, SURRENDER);
+  return undefined;
+}
+
+const online = (room: Room) => room.players.length === 2 && !room.players.some((player) => player.bot);
+const sendAll = (room: Room, data: ServerMessage) => room.players.forEach((player) => send(player.socket, data));
+
+// Starts or resumes the clock of the asked seat, while they are connected.
+function runClock(room: Room) {
+  const clock = room.decision;
+  if (!clock || clock.timer || !room.players[clock.seat]?.socket) return;
+  clock.since = Date.now();
+  clock.timer = setTimeout(() => finish(room, (1 - clock.seat) as Seat, TIME_LIMIT), clock.left).unref();
+  sendAll(room, { type: "timer", kind: "answer", seat: clock.seat, ms: clock.left });
+}
+
+function pauseClock(room: Room) {
+  const clock = room.decision;
+  if (!clock?.timer) return;
+  clearTimeout(clock.timer);
+  clock.timer = undefined;
+  clock.left -= Date.now() - clock.since;
+  sendAll(room, { type: "timer", kind: "answer", seat: clock.seat, ms: null });
+}
+
+// A player of an online duel lost their connection: their clock stops, the other wins if they do not come back in time.
+function away(room: Room, seat: Seat) {
+  const player = room.players[seat];
+  if (!room.duel || !online(room) || !player || player.gone) return;
+  if (room.decision?.seat === seat) pauseClock(room);
+  player.gone = { at: Date.now() + RECONNECT_TIME, timer: setTimeout(() => finish(room, (1 - seat) as Seat, CONNECTION_LOST), RECONNECT_TIME).unref() };
+  sendAll(room, { type: "timer", kind: "reconnect", seat, ms: RECONNECT_TIME });
+}
+
+// The player is back: their clock resumes, and they get the clocks still running.
+function back(room: Room, seat: Seat) {
+  const player = room.players[seat];
+  if (player?.gone) {
+    clearTimeout(player.gone.timer);
+    player.gone = undefined;
+    sendAll(room, { type: "timer", kind: "reconnect", seat, ms: null });
+  }
+  const clock = room.decision;
+  if (clock?.timer) send(player?.socket, { type: "timer", kind: "answer", seat: clock.seat, ms: clock.left - (Date.now() - clock.since) });
+  else runClock(room);
+  room.players.forEach((other, index) => {
+    if (other.gone) send(player?.socket, { type: "timer", kind: "reconnect", seat: index as Seat, ms: other.gone.at - Date.now() });
+  });
 }
 
 function fail(room: Room, error: string) {
@@ -296,6 +374,9 @@ export function advance(room: Room) {
     }
     const last = messages.at(-1);
     if (status === OcgProcessResult.WAITING && last && "player" in last) {
+      clearTimeout(room.decision?.timer);
+      room.decision = online(room) ? { seat: last.player as Seat, left: DECISION_TIME, since: 0 } : undefined;
+      runClock(room);
       room.question = last;
       ask(room, false);
       return;
@@ -360,6 +441,7 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
     player.socket = socket;
     clearTimeout(room.timer);
     sendJoined(room, seat);
+    back(room, seat);
     // The host's first `joined` guessed the guest's deck size as 0: correct it once they arrive.
     if (isNew && seat === 1) sendJoined(room, 0);
     if (room.question?.player === seat) ask(room, false);
@@ -376,8 +458,11 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
   }
 
   function leave(room: Room, socket: WebSocket) {
-    const player = room.players.find((seated) => seated.socket === socket);
-    if (player) player.socket = undefined;
+    const seat = room.players.findIndex((seated) => seated.socket === socket);
+    if (seat !== -1) {
+      room.players[seat].socket = undefined;
+      away(room, seat as Seat);
+    }
     if (room.players.some((player) => player.socket)) return;
     room.timer = setTimeout(() => {
       endDuel(room);
@@ -510,6 +595,7 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
       if (msg.type === "open_booster") return openBoosterFor(user, msg.set);
       if (msg.type === "story") return showStory(user.id);
       if (msg.type === "respond") return seat ? answer(seat.room, seat.index, msg.response) : "pas dans une salle";
+      if (msg.type === "surrender") return seat ? surrender(seat.room, seat.index) : "pas dans une salle";
       if (seat) return "déjà dans une salle";
       if (msg.type === "story_duel") return playStory(user.id, msg.duel);
       return enterRoom(user.id, msg);

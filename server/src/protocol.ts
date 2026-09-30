@@ -17,6 +17,8 @@ export type ClientMessage =
   | { type: "bot" }
   | { type: "join"; room: string }
   | { type: "respond"; response: OcgResponse }
+  // Gives up the duel in progress: the other seat wins.
+  | { type: "surrender" }
   // Collection and decks: each deck message is answered with `decks`. `save_deck` creates a deck without `id`.
   | { type: "collection" }
   | { type: "decks" }
@@ -48,6 +50,9 @@ export type ServerMessage =
   | { type: "joined"; room: string; seat: Seat; lp: number; decks: [number, number]; extras: [number, number]; opponent?: string; log: DuelEvent[] }
   | { type: "messages"; messages: DuelEvent[] }
   | { type: "question"; question: OcgMessage; retry: boolean }
+  // Online duel between two players: ms left before `seat` loses, to answer the engine or to come back after a lost connection.
+  // null: that clock stopped. Sent to both players, and again to a player who comes back.
+  | { type: "timer"; kind: "answer" | "reconnect"; seat: Seat; ms: number | null }
   | { type: "error"; error: string }
   // Owned cards as [passcode, quantity].
   | { type: "collection"; cards: [number, number][] }

@@ -1,14 +1,14 @@
 import { once } from "node:events";
 import type { AddressInfo } from "node:net";
 import { OcgMessageType, OcgProcessResult, OcgResponseType, SelectIdleCMDAction, type OcgMessage, type OcgResponse } from "@n1xx1/ocgcore-wasm";
-import { afterAll, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
 import { WebSocket } from "ws";
 import type { Bot } from "../src/bot.ts";
 import { KAIBA, YUGI } from "../src/decks.ts";
 import { POOL, SETS } from "../src/pool.ts";
 import type { CardInfo, ClientMessage, ServerMessage, Wire } from "../src/protocol.ts";
 import { respond } from "../src/respond.ts";
-import { advance, creditWinner, startServer, type Accounts, type Room } from "../src/server.ts";
+import { advance, creditWinner, DECISION_TIME, RECONNECT_TIME, startServer, type Accounts, type Room } from "../src/server.ts";
 
 const FLAME_SWORDSMAN = 45231177;
 
@@ -383,5 +383,94 @@ describe("récompense de boosters à la fin d'un duel", () => {
 
     expect(onWin).toHaveBeenCalledWith(1);
     expect(room.duel).toBeUndefined();
+  });
+});
+
+describe("fins de duel décidées par le serveur", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+  const fakeTimers = () => vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
+  const wins = (client: Awaited<ReturnType<typeof connect>>) => client.messages().filter((msg) => msg.type === OcgMessageType.WIN);
+  const win = (player: number, reason: number) => [{ type: OcgMessageType.WIN, player, reason }];
+  // Boosters credited to these users: duels of the previous tests may still end meanwhile.
+  const credited = (users: string[]) => vi.mocked(accounts.creditBoosters).mock.calls.filter(([id]) => users.includes(id));
+
+  // An online duel where nobody answers, once the engine has asked its first question to seat `asked`.
+  async function hold(host: string, guest: string) {
+    decks.set(host, YUGI);
+    decks.set(guest, KAIBA);
+    const a = await connect(host, () => undefined);
+    a.send({ type: "create" });
+    await vi.waitFor(() => expect(joined(a.received)).toBeDefined());
+    const room = joined(a.received)?.room ?? "";
+    const b = await connect(guest, () => undefined);
+    b.send({ type: "join", room });
+    const players = [a, b];
+    const first = () => players.findIndex((client) => client.received.some((msg) => msg.type === "question"));
+    await vi.waitFor(() => expect(first()).not.toBe(-1), { timeout: 20_000 });
+    const asked = first();
+    return { players, room, asked, other: players[1 - asked], names: [host, guest] };
+  }
+
+  it("un abandon donne la victoire à l'autre joueur, une seule fois, avec la raison 0", { timeout: 30_000 }, async () => {
+    vi.spyOn(accounts, "creditBoosters");
+    const { players, names } = await hold("abandon-a", "abandon-b");
+    players[0].send({ type: "surrender" });
+    await vi.waitFor(() => expect(wins(players[1])).toEqual(win(1, 0)));
+    expect(wins(players[0])).toEqual(win(1, 0));
+    players[1].send({ type: "surrender" });
+    await vi.waitFor(() => expect(players[1].received).toContainEqual({ type: "error", error: "aucun duel en cours" }));
+    expect(credited(names)).toEqual([["abandon-b", 1]]);
+  });
+
+  it("le joueur qui ne répond pas à temps perd le duel, avec la raison 3", { timeout: 30_000 }, async () => {
+    vi.spyOn(accounts, "creditBoosters");
+    fakeTimers();
+    const { players, asked, other, names } = await hold("lent-a", "lent-b");
+    for (const client of players) expect(client.received).toContainEqual({ type: "timer", kind: "answer", seat: asked, ms: DECISION_TIME });
+    vi.advanceTimersByTime(DECISION_TIME);
+    await vi.waitFor(() => expect(wins(other)).toEqual(win(1 - asked, 3)));
+    vi.advanceTimersByTime(RECONNECT_TIME + DECISION_TIME);
+    expect(wins(players[asked])).toEqual(win(1 - asked, 3));
+    expect(credited(names)).toEqual([[names[1 - asked], 1]]);
+  });
+
+  it("un joueur déconnecté trop longtemps perd le duel, avec la raison 4 ; son temps de réponse est suspendu", { timeout: 30_000 }, async () => {
+    fakeTimers();
+    const { players, asked, other } = await hold("parti-a", "parti-b");
+    players[asked].socket.close();
+    await vi.waitFor(() => expect(other.received).toContainEqual({ type: "timer", kind: "reconnect", seat: asked, ms: RECONNECT_TIME }));
+    expect(other.received).toContainEqual({ type: "timer", kind: "answer", seat: asked, ms: null });
+    vi.advanceTimersByTime(RECONNECT_TIME);
+    await vi.waitFor(() => expect(wins(other)).toEqual(win(1 - asked, 4)));
+  });
+
+  it("un joueur revenu avant le délai garde son siège, son temps de réponse reprend", { timeout: 30_000 }, async () => {
+    fakeTimers();
+    const { players, room, asked, other, names } = await hold("revenu-a", "revenu-b");
+    players[asked].socket.close();
+    await vi.waitFor(() => expect(other.received).toContainEqual({ type: "timer", kind: "reconnect", seat: asked, ms: RECONNECT_TIME }));
+    vi.advanceTimersByTime(RECONNECT_TIME - 5000);
+    const again = await connect(names[asked], () => undefined);
+    again.send({ type: "join", room });
+    await vi.waitFor(() => expect(other.received).toContainEqual({ type: "timer", kind: "reconnect", seat: asked, ms: null }));
+    expect(again.received).toContainEqual({ type: "timer", kind: "answer", seat: asked, ms: expect.any(Number) });
+    vi.advanceTimersByTime(6000);
+    expect(wins(other)).toEqual([]);
+    vi.advanceTimersByTime(DECISION_TIME);
+    await vi.waitFor(() => expect(wins(other)).toEqual(win(1 - asked, 3)));
+  });
+
+  it("aucune minuterie contre le bot", { timeout: 30_000 }, async () => {
+    fakeTimers();
+    decks.set("patient", YUGI);
+    const human = await connect("patient", () => undefined);
+    human.send({ type: "bot" });
+    await vi.waitFor(() => expect(human.received.some((msg) => msg.type === "question")).toBe(true), { timeout: 20_000 });
+    vi.advanceTimersByTime(DECISION_TIME + RECONNECT_TIME);
+    expect(human.received.filter((msg) => msg.type === "timer")).toEqual([]);
+    expect(wins(human)).toEqual([]);
   });
 });

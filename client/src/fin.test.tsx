@@ -75,7 +75,7 @@ it("donne la vraie cause d'une défaite qui n'est pas une perte de LP, sans coup
 
 it("montre le badge « Règles spéciales » d'un duel d'histoire seulement", () => {
   const board = finished(1);
-  const duel = (rules?: ReturnType<typeof specialRules>) => render(<Duel board={board} seat={0} respond={() => {}} leave={() => {}} rules={rules} />);
+  const duel = (rules?: ReturnType<typeof specialRules>) => render(<Duel board={board} seat={0} respond={() => {}} leave={() => {}} surrender={() => {}} rules={rules} />);
   const html = duel(specialRules(["duelist-kingdom"]));
   for (const text of ["Règles spéciales", "Règles du Royaume des Duellistes", "Pas d&#x27;attaque directe."]) expect(html).toContain(text);
   expect(duel(specialRules([]))).not.toContain("Règles spéciales");
