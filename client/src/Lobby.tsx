@@ -13,6 +13,7 @@ import { Parametres } from "./Parametres.tsx";
 import { autoAnswer } from "./question.ts";
 import { reglages } from "./reglages.ts";
 import { Regles, specialRules } from "./regles.tsx";
+import { Scelle } from "./Scelle.tsx";
 import { Shell, type Page } from "./Shell.tsx";
 import { duelLabel, duelLp, duelSpecial, Story } from "./Story.tsx";
 import { supabase } from "./supabase.ts";
@@ -35,6 +36,7 @@ export function Lobby() {
   const vsBot = useRef(false);
   const storyDuel = useRef<string>(undefined);
   const storyEasy = useRef(false);
+  const sealedDuel = useRef(false);
   const cards = useCards();
   const view = useMemo(() => ({ cards, show: () => {}, seat: 0 }), [cards]);
 
@@ -70,12 +72,18 @@ export function Lobby() {
   }, [ready]);
 
   const send: Send = (msg) => {
-    if (msg.type === "bot" || msg.type === "story_duel") vsBot.current = true;
+    if (msg.type === "bot" || msg.type === "story_duel" || msg.type === "sealed_duel") {
+      vsBot.current = true;
+      sealedDuel.current = msg.type === "sealed_duel";
+    }
     if (msg.type === "story_duel") {
       storyDuel.current = msg.duel;
       storyEasy.current = msg.level === "facile";
     }
-    if (msg.type === "create" || msg.type === "join") vsBot.current = false;
+    if (msg.type === "create" || msg.type === "join") {
+      vsBot.current = false;
+      sealedDuel.current = false;
+    }
     socket.current?.send(JSON.stringify(msg));
   };
   const reconnect = () => {
@@ -107,7 +115,7 @@ export function Lobby() {
           {state.error}
         </p>
       )}
-      <Screen state={state} page={state.storyOpen ? "histoire" : page} send={send} reconnect={reconnect} leave={leave} respond={respond} go={go} vsBot={vsBot.current} storyDuel={storyDuel.current} easy={storyEasy.current} />
+      <Screen state={state} page={state.storyOpen ? "histoire" : page} send={send} reconnect={reconnect} leave={leave} respond={respond} go={go} vsBot={vsBot.current} storyDuel={storyDuel.current} easy={storyEasy.current} sealedDuel={sealedDuel.current} />
     </DuelView>
   );
 }
@@ -123,13 +131,14 @@ type ScreenProps = {
   vsBot: boolean;
   storyDuel?: string;
   easy: boolean;
+  sealedDuel: boolean;
 };
 
 const signOut = () => {
   supabase.auth.signOut();
 };
 
-function Screen({ state, page, send, reconnect, leave, respond, go, vsBot, storyDuel, easy }: Readonly<ScreenProps>) {
+function Screen({ state, page, send, reconnect, leave, respond, go, vsBot, storyDuel, easy, sealedDuel }: Readonly<ScreenProps>) {
   if (state.closed) {
     return (
       <Shell id="perdu">
@@ -174,7 +183,7 @@ function Screen({ state, page, send, reconnect, leave, respond, go, vsBot, story
     return (
       <>
         <Duel board={state.board} seat={state.seat ?? 0} asked={state.question} respond={respond} leave={leave} surrender={() => send({ type: "surrender" })} emotes={state.emotes} sendEmote={(id) => send({ type: "emote", id })} report={report} answerBy={state.answerBy} away={state.away} feed={state.feed} lp={state.lp} opponentLp={state.opponentLp} pseudo={state.pseudo} opponent={state.opponent} rules={specialRules(special)} easy={state.storyOpen && easy} kingdom={special.includes("duelist-kingdom")} />
-        {state.board.winner !== undefined && <Fin board={state.board} seat={state.seat ?? 0} room={state.room} vsBot={vsBot} opponent={state.opponent} story={story} rematch={state.rematch} onRematch={(accept) => send({ type: "rematch", accept })} report={report} leave={leave} go={leaveFor} />}
+        {state.board.winner !== undefined && <Fin board={state.board} seat={state.seat ?? 0} room={state.room} vsBot={vsBot} opponent={state.opponent} story={story} rematch={state.rematch} onRematch={(accept) => send({ type: "rematch", accept })} report={report} leave={leave} go={leaveFor} sealed={sealedDuel ? (state.sealed ?? undefined) : undefined} />}
       </>
     );
   }
@@ -193,6 +202,7 @@ function Screen({ state, page, send, reconnect, leave, respond, go, vsBot, story
       {page === "histoire" && <Story arcs={state.story} send={send} />}
       {page === "regles" && <Regles />}
       {page === "parametres" && <Parametres />}
+      {page === "scelle" && <Scelle run={state.sealed} send={send} go={go} />}
     </Shell>
   );
 }

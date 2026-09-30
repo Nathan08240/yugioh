@@ -1,5 +1,5 @@
 import type { EmoteId } from "../../server/src/emotes.ts";
-import type { DeckResult, Seat, ServerMessage, StoryArcView, Wire } from "../../server/src/protocol.ts";
+import type { DeckResult, SealedRun, Seat, ServerMessage, StoryArcView, Wire } from "../../server/src/protocol.ts";
 import { newBoard, playAll, type Board, type EngineMessage, type Message } from "./board.ts";
 
 export type DeckList = Extract<Wire<ServerMessage>, { type: "decks" }>;
@@ -71,6 +71,8 @@ export type LobbyState = {
   rematch?: { from: Seat } | "declined";
   // Bug reports the server has stored.
   reported: number;
+  // Latest Sealed session, null before the first one, loaded by the Sealed screen.
+  sealed?: SealedRun | null;
 };
 
 export const initialLobby: LobbyState = { started: false, asked: 0, emotes: {}, closed: false, needsStarter: false, openedCount: 0, storyOpen: false, reported: 0 };
@@ -149,6 +151,8 @@ export function reduce(state: LobbyState, action: Action): LobbyState {
       return { ...state, rematch: "declined" };
     case "report_sent":
       return { ...state, reported: state.reported + 1 };
+    case "sealed":
+      return { ...state, sealed: action.run, error: undefined };
   }
 }
 

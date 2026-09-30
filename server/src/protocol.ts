@@ -54,7 +54,14 @@ export type ClientMessage =
   | { type: "story" }
   | { type: "story_duel"; duel: string; level?: StoryLevel }
   // Wins and losses of the player per deck, answered with `duel_results`.
-  | { type: "duel_results" };
+  | { type: "duel_results" }
+  // Sealed mode (sealed.ts), each answered with `sealed`: the latest session, a new one (or the one in progress), its deck
+  // (once, from the reserve only), or giving it up without reward. `sealed_duel` starts its next duel against the bot.
+  | { type: "sealed" }
+  | { type: "sealed_start" }
+  | { type: "sealed_deck"; main: number[]; extra: number[] }
+  | { type: "sealed_abandon" }
+  | { type: "sealed_duel" };
 
 export type DuelMode = "online" | "bot" | "story";
 // Wins and losses of a player with a deck in a mode; `deck` is null for a deck deleted since.
@@ -102,7 +109,9 @@ export type ServerMessage =
   | { type: "story"; arcs: StoryArcView[] }
   // A won story duel, recorded.
   | ({ type: "story_won"; duel: string; outro: string } & StoryResult)
-  | { type: "duel_results"; results: DeckResult[] };
+  | { type: "duel_results"; results: DeckResult[] }
+  // null before the first session.
+  | { type: "sealed"; run: SealedRun | null };
 
 export type Rewards = { boosters?: number; cards?: number[] };
 // A booster for every REPLAY_WINS wins of story duels already won.
@@ -111,6 +120,15 @@ export const REPLAY_WINS = 3;
 // least half the starting LP left), `best` kept for the duel; `starBooster`: the booster of the first 3 stars of the duel.
 // `replays`, for a duel already won: wins of the current series of REPLAY_WINS, the last one gives a booster.
 export type StoryResult = { rewards: Rewards | null; stars: number; best: number; starBooster: boolean; replays?: number };
+// A Sealed session ends at SEALED_WINS wins or SEALED_LOSSES losses; SEALED_REWARDS[wins] boosters at its end.
+export const SEALED_WINS = 3;
+export const SEALED_LOSSES = 2;
+export const SEALED_REWARDS = [0, 1, 2, 4];
+export type SealedStatus = "building" | "playing" | "done" | "abandoned";
+// `pool`: the reserve of the 6 boosters of `set` (`setName`), one printing per copy. `main` and `extra`: the deck, null until validated.
+// `boosters`: earned once done.
+export type SealedRun = { id: number; set: string; setName: string; pool: Printing[]; main: number[] | null; extra: number[] | null; wins: number; losses: number; status: SealedStatus; boosters: number };
+
 // Locked until every duel of `requires` is won.
 export type StoryStatus = "locked" | "available" | "done";
 export type StoryDuelView = {

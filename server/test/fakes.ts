@@ -1,5 +1,17 @@
 import { YUGI } from "../src/decks.ts";
+import type { SealedStore } from "../src/sealed.ts";
 import type { Accounts } from "../src/server.ts";
+
+// A player without any Sealed session.
+export const noSealed: SealedStore = {
+  sealedRun: async () => undefined,
+  startSealed: async () => {
+    throw new Error("non simulé");
+  },
+  saveSealedDeck: async () => "non simulé",
+  sealedResult: async () => undefined,
+  abandonSealed: async () => undefined,
+};
 
 // Accounts where every token is the user id, every user has a pseudo and plays Yugi's deck; `overrides` replaces any part.
 export function fakeAccounts(overrides: Partial<Accounts> = {}): Accounts {
@@ -25,6 +37,7 @@ export function fakeAccounts(overrides: Partial<Accounts> = {}): Accounts {
     recordResult: async () => {},
     duelResults: async () => [],
     saveReport: async () => true,
+    ...noSealed,
     ...overrides,
   };
 }

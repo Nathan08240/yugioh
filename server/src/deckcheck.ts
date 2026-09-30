@@ -37,8 +37,8 @@ function sizeError({ name, main, extra }: DeckDraft): string | undefined {
   return undefined;
 }
 
-// The first rule the deck breaks, or undefined. `owned` is the player's collection: passcode to quantity.
-export function deckError(deck: DeckDraft, card: CardLookup, owned: ReadonlyMap<number, number>): string | undefined {
+// The first rule the deck breaks, or undefined. `owned` is the player's collection (or the Sealed reserve, named by `source`): passcode to quantity.
+export function deckError(deck: DeckDraft, card: CardLookup, owned: ReadonlyMap<number, number>, source = "la collection"): string | undefined {
   const size = sizeError(deck);
   if (size) return size;
   const codes = [...deck.main, ...deck.extra];
@@ -55,6 +55,6 @@ export function deckError(deck: DeckDraft, card: CardLookup, owned: ReadonlyMap<
   if (tooMany !== undefined) return `${data(tooMany).name} : ${COPIES_MAX} exemplaires au plus`;
   const used = countBy(codes);
   const notOwned = codes.find((code) => (used.get(code) ?? 0) > (owned.get(code) ?? 0));
-  if (notOwned !== undefined) return `${data(notOwned).name} : plus d'exemplaires que dans la collection`;
+  if (notOwned !== undefined) return `${data(notOwned).name} : plus d'exemplaires que dans ${source}`;
   return undefined;
 }

@@ -11,6 +11,7 @@ import type { CardInfo, ClientMessage, ServerMessage, Wire } from "../src/protoc
 import { respond } from "../src/respond.ts";
 import { WISH_MAX } from "../src/wishlist.ts";
 import { advance, creditWinner, DECISION_TIME, RECONNECT_TIME, startServer, type Accounts, type Room } from "../src/server.ts";
+import { noSealed } from "./fakes.ts";
 
 const FLAME_SWORDSMAN = 45231177;
 
@@ -67,6 +68,7 @@ const accounts: Accounts = {
   recordResult: async () => {},
   duelResults: async () => [],
   saveReport: async () => true,
+  ...noSealed,
 };
 // "admin" peut s'ajouter des boosters.
 process.env.ADMIN_USER_IDS = "admin, autreadmin";

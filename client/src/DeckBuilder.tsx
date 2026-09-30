@@ -70,7 +70,7 @@ export function DeckBuilder({ collection, rarities, decks, results, send }: Read
   );
 }
 
-function add(draft: DeckDraft, code: number, card: DeckCard | undefined): DeckDraft {
+export function add(draft: DeckDraft, code: number, card: DeckCard | undefined): DeckDraft {
   if (card && isFusion(card)) return { ...draft, extra: [...draft.extra, code] };
   return { ...draft, main: [...draft.main, code] };
 }
@@ -103,9 +103,10 @@ const LEAVE: Keyframe[] = [
   { opacity: 0, translate: "24px 0" },
 ];
 
-type CollectionProps = { collection: [number, number][]; copies: ReadonlyMap<number, Copies>; draft?: DeckDraft; onAdd: (code: number) => void; onCreate: (draft: DeckDraft) => void };
+// `suggest`: offers the suggested decks, which the Sealed reserve cannot follow.
+type CollectionProps = { collection: [number, number][]; copies: ReadonlyMap<number, Copies>; draft?: DeckDraft; onAdd: (code: number) => void; onCreate: (draft: DeckDraft) => void; suggest?: boolean };
 
-function CollectionPanel({ collection, copies, draft, onAdd, onCreate }: Readonly<CollectionProps>) {
+export function CollectionPanel({ collection, copies, draft, onAdd, onCreate, suggest = true }: Readonly<CollectionProps>) {
   const { cards, show } = useDuelView();
   const [filters, setFilters] = useState<Filters>(noFilters);
   const shownCards = useMemo(() => filterCollection(collection, cards, filters), [collection, cards, filters]);
@@ -114,7 +115,7 @@ function CollectionPanel({ collection, copies, draft, onAdd, onCreate }: Readonl
 
   return (
     <section className="atelier__collection" aria-label="Collection" data-entree>
-      <Suggestions collection={collection} onCreate={onCreate} />
+      {suggest && <Suggestions collection={collection} onCreate={onCreate} />}
       <Constructeur collection={collection} draft={draft} onCreate={onCreate} />
       <FilterBar filters={filters} onChange={setFilters} />
       <p className="texte-3 atelier__resume">
@@ -488,7 +489,7 @@ function DeckTools({ draft, owned, setDraft }: Readonly<ToolsProps>) {
   );
 }
 
-function Count({ label, rule, count, ok }: Readonly<{ label: string; rule: string; count: number; ok: boolean }>) {
+export function Count({ label, rule, count, ok }: Readonly<{ label: string; rule: string; count: number; ok: boolean }>) {
   return (
     <p className={ok ? undefined : "est-hors-regle"}>
       <span className="chiffres">{count}</span>
@@ -504,7 +505,7 @@ function Count({ label, rule, count, ok }: Readonly<{ label: string; rule: strin
 type Line = [code: number, copies: number, extra: boolean];
 
 // Main deck then Extra deck, one line per card with its copies. A new line slides in, a changed count pops, a last copy slides out.
-function DeckLines({ draft, setDraft }: Readonly<{ draft: DeckDraft; setDraft: SetDraft }>) {
+export function DeckLines({ draft, setDraft }: Readonly<{ draft: DeckDraft; setDraft: SetDraft }>) {
   const { cards, show } = useDuelView();
   const list = useRef<HTMLUListElement>(null);
   const previous = useRef<Map<number, number>>(undefined);

@@ -3,7 +3,8 @@ import { createQueue, entrance, exit } from "./motion.ts";
 import "./styles/shell.css";
 import { Icon } from "./ui.tsx";
 
-export type Page = "accueil" | "collection" | "boosters" | "histoire" | "regles" | "parametres";
+// "scelle" opens from the home screen only.
+export type Page = "accueil" | "collection" | "boosters" | "histoire" | "regles" | "parametres" | "scelle";
 
 const NAV: [Page, string][] = [
   ["accueil", "Accueil"],
