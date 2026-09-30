@@ -5,12 +5,12 @@ import { cardAt, playAll, type Board, type Card, type LogEntry, type Message } f
 import { Table, type Targets } from "./Board.tsx";
 import { CardDetail, CardView } from "./Card.tsx";
 import { cardName, DuelView, phaseName, useCards, useDuelView, useSystemStrings, type Cards } from "./cards.ts";
-import type { Asked } from "./lobby.ts";
+import { minutes, type Asked, type Deadline } from "./lobby.ts";
 import { D1, D2, D3, D4, ELAN, RESSORT } from "./motion.ts";
 import { cibles3D, zones } from "./plateau3d/disposition.ts";
 import { etapes, type Effet } from "./plateau3d/effets.ts";
 import { jouer, type Jeu, type Regie } from "./plateau3d/spectacle.ts";
-import { interaction, type Choice, type Ui } from "./Question.tsx";
+import { Confirm, interaction, type Choice, type Ui } from "./Question.tsx";
 import { apercuCombat, attaquantChoisi, placeKey, pointDe, reponseVisee, type Appui, type Point } from "./question.ts";
 import { RulesBadge, type Rule } from "./regles.tsx";
 import "./styles/duel.css";
@@ -29,6 +29,10 @@ type Props = {
   asked?: Asked;
   respond: (response: OcgResponse) => void;
   leave: () => void;
+  surrender: () => void;
+  // Online duel between two players: when the seat asked loses unless they answer, and when a disconnected seat loses.
+  answerBy?: Deadline;
+  away?: Deadline;
   feed?: Feed;
   lp?: number;
   pseudo?: string;
@@ -92,7 +96,7 @@ function zoneCard(board: Board, id: string): Card | undefined {
 const codeAt = (board: Board, id: string) => zoneCard(board, id)?.code ?? 0;
 
 // The end of the duel (Fin.tsx) is drawn over the board by the lobby.
-export function Duel({ board, seat, asked, respond, leave, feed, lp, pseudo, opponent, rules, kingdom }: Readonly<Props>) {
+export function Duel({ board, seat, asked, respond, leave, surrender, answerBy, away, feed, lp, pseudo, opponent, rules, kingdom }: Readonly<Props>) {
   const cards = useCards();
   const strings = useSystemStrings();
   const [detail, setDetail] = useState<{ code: number; place?: string }>();
@@ -164,6 +168,9 @@ export function Duel({ board, seat, asked, respond, leave, feed, lp, pseudo, opp
   const enJeu = detail?.place ? zoneCard(shown, detail.place) : undefined;
   const stats = enJeu?.code === detail?.code ? enJeu : undefined;
   const targets: Targets = { ...ui, picked };
+  const enCours = board.winner === undefined;
+  const delai = (player: number) => (enCours && answerBy?.seat === player ? answerBy.until : undefined);
+  const absent = enCours && away?.seat === 1 - seat ? away.until : undefined;
 
   return (
     <DuelView value={view}>
@@ -196,18 +203,18 @@ export function Duel({ board, seat, asked, respond, leave, feed, lp, pseudo, opp
           )}
         </div>
         <div className="hud">
-          <Plaque board={shown} player={1 - seat} start={start} name={opponent ?? "Adversaire"} refs={hud.refs} visee={enDepot?.includes(String(1 - seat))} />
+          <Plaque board={shown} player={1 - seat} start={start} name={opponent ?? "Adversaire"} refs={hud.refs} visee={enDepot?.includes(String(1 - seat))} until={delai(1 - seat)} />
           <section className="main-adverse" ref={hud.refs.mains[1 - seat]} aria-label={`Main de l'adversaire : ${cartes(shown.players[1 - seat].hand.length)}`}>
             {[...shown.players[1 - seat].hand.keys()].map((i) => (
               <CardView key={i} code={0} />
             ))}
           </section>
-          <Turn board={shown} seat={seat} leave={leave} />
+          <Turn board={shown} seat={seat} leave={leave} surrender={surrender} />
           <aside className="colonne colonne--gauche">
             <div className="panneau colonne__detail">
               <CardDetail code={detail?.code} atk={stats?.atk} def={stats?.def} />
             </div>
-            <Plaque board={shown} player={seat} start={start} name={pseudo ?? "Vous"} refs={hud.refs} />
+            <Plaque board={shown} player={seat} start={start} name={pseudo ?? "Vous"} refs={hud.refs} until={delai(seat)} />
           </aside>
           <Hand hand={shown.players[seat].hand} seat={seat} ui={targets} main={hud.refs.mains[seat]} appui={appui} />
           <aside className="colonne colonne--droite">
@@ -216,6 +223,11 @@ export function Duel({ board, seat, asked, respond, leave, feed, lp, pseudo, opp
             <Log log={shown.log} opponent={opponent} />
             <section className="panneau question" aria-live="polite">
               <p className="surtitre surtitre--or">{asked && idle ? "À vous de répondre" : "Duel en cours"}</p>
+              {absent !== undefined && (
+                <p className="message message--erreur">
+                  {nom} s'est déconnecté, victoire dans <Compte until={absent} />
+                </p>
+              )}
               {asked?.retry && idle && <p className="error">Choix refusé par le moteur : essayez autre chose.</p>}
               {idle || !asked ? ui.panel : <p className="muted">Action en cours…</p>}
               {apercuCible && <Apercu texte={apercuCible} />}
@@ -492,8 +504,18 @@ function useHud(regie: Regie, seat: number, cards: Cards) {
   return { refs };
 }
 
-// `visee`: a monster being dragged can attack this player directly.
-function Plaque({ board, player, start, name, refs, visee }: Readonly<{ board: Board; player: number; start: number; name: string; refs: Refs; visee?: boolean }>) {
+// m:ss left before `until`, updated every half second.
+function Compte({ until }: Readonly<{ until: number }>) {
+  const [now, setNow] = useState(Date.now);
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 500);
+    return () => clearInterval(id);
+  }, []);
+  return <span className="chiffres">{minutes(until, now)}</span>;
+}
+
+// `visee`: a monster being dragged can attack this player directly. `until`: when the player loses unless they answer.
+function Plaque({ board, player, start, name, refs, visee, until }: Readonly<{ board: Board; player: number; start: number; name: string; refs: Refs; visee?: boolean; until?: number }>) {
   const { seat } = useDuelView();
   const side = board.players[player];
   const lp = Math.max(side.lp, 0);
@@ -532,6 +554,13 @@ function Plaque({ board, player, start, name, refs, visee }: Readonly<{ board: B
             {side.grave.length}
           </span>
         </span>
+        {until !== undefined && (
+          <span className="plaque__temps">
+            <Icon id="ui-horloge" />
+            <span className="sr">Temps pour répondre</span>
+            <Compte until={until} />
+          </span>
+        )}
       </div>
       <div className="lp">
         <span className="sr">{label}</span>
@@ -554,8 +583,9 @@ const PHASES: [ReadonlySet<number>, string, string][] = [
   [new Set([OcgPhase.END]), "EP", "End Phase"],
 ];
 
-function Turn({ board, seat, leave }: Readonly<{ board: Board; seat: number; leave: () => void }>) {
+function Turn({ board, seat, leave, surrender }: Readonly<{ board: Board; seat: number; leave: () => void; surrender: () => void }>) {
   const mine = board.turnPlayer === seat;
+  const [confirming, setConfirming] = useState(false);
   return (
     <div className={mine ? "tour est-mon-tour" : "tour"}>
       <div className="tour__ligne">
@@ -563,10 +593,24 @@ function Turn({ board, seat, leave }: Readonly<{ board: Board; seat: number; lea
           <span className="surtitre">Tour {board.turn}</span>
           <b className={mine ? "moi" : "adverse"}>{mine ? "Votre tour" : "Tour de l'adversaire"}</b>
         </p>
+        <button className="btn btn--fantome tour__abandon" type="button" onClick={() => setConfirming(true)}>
+          Abandonner
+        </button>
         <button className="btn-icone" type="button" aria-label="Quitter le duel" title="Quitter le duel" onClick={leave}>
           <Icon id="ui-sortie" />
         </button>
       </div>
+      {confirming && (
+        <Confirm
+          text="Abandonner le duel ? Votre adversaire remporte la victoire."
+          label="Abandonner"
+          confirm={() => {
+            setConfirming(false);
+            surrender();
+          }}
+          cancel={() => setConfirming(false)}
+        />
+      )}
       <ol className="phases" aria-label="Phases du tour">
         {PHASES.map(([phases, court, long]) => {
           const current = phases.has(board.phase);

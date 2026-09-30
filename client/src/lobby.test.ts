@@ -1,6 +1,6 @@
 import { OcgMessageType } from "@n1xx1/ocgcore-wasm";
-import { expect, it } from "vitest";
-import { initialLobby, reduce } from "./lobby.ts";
+import { expect, it, vi } from "vitest";
+import { initialLobby, minutes, reduce } from "./lobby.ts";
 
 it("passe du pseudo à l'attente puis au plateau quand le duel démarre", () => {
   let state = reduce(initialLobby, { type: "profile", pseudo: null, needsStarter: false });
@@ -35,4 +35,15 @@ it("garde le mode Histoire ouvert pendant ses duels et oublie la conclusion en q
   state = reduce(state, won);
   expect(state).toMatchObject({ storyOpen: true, story: [], won });
   expect(reduce(state, { type: "left" })).toMatchObject({ storyOpen: true, room: undefined, won: undefined });
+});
+
+it("suit les délais d'un duel en ligne jusqu'à leur arrêt ou la fin du duel", () => {
+  vi.useFakeTimers({ now: 1000 });
+  let state = reduce(initialLobby, { type: "timer", kind: "answer", seat: 1, ms: 120_000 });
+  state = reduce(state, { type: "timer", kind: "reconnect", seat: 1, ms: 60_000 });
+  expect(state).toMatchObject({ answerBy: { seat: 1, until: 121_000 }, away: { seat: 1, until: 61_000 } });
+  expect(reduce(state, { type: "timer", kind: "answer", seat: 1, ms: null }).answerBy).toBeUndefined();
+  expect(reduce(state, { type: "left" })).toMatchObject({ answerBy: undefined, away: undefined });
+  expect([minutes(121_000, 1000), minutes(66_500, 1000), minutes(0, 1000)]).toEqual(["2:00", "1:06", "0:00"]);
+  vi.useRealTimers();
 });

@@ -111,7 +111,7 @@ function menu(title: string, choices: Choice[], actions: Action[], ctx: Ctx): Ui
 
 function Buttons({ actions, ctx }: Readonly<{ actions: Action[]; ctx: Ctx }>) {
   const [asked, setAsked] = useState<Action>();
-  if (asked) return <Confirm action={asked} ctx={ctx} cancel={() => setAsked(undefined)} />;
+  if (asked) return <Confirm text={asked.warn} label="Finir le tour" confirm={() => ctx.respond(asked.response)} cancel={() => setAsked(undefined)} />;
   return (
     <div className="actions">
       {actions.map((action) => (
@@ -124,7 +124,7 @@ function Buttons({ actions, ctx }: Readonly<{ actions: Action[]; ctx: Ctx }>) {
 }
 
 // Cancel has the focus; Escape cancels too, without reaching the other Escape handlers.
-function Confirm({ action, ctx, cancel }: Readonly<{ action: Action; ctx: Ctx; cancel: () => void }>) {
+export function Confirm({ text, label, confirm, cancel }: Readonly<{ text?: string; label: string; confirm: () => void; cancel: () => void }>) {
   const first = useRef<HTMLButtonElement>(null);
   useEffect(() => first.current?.focus(), []);
   useEffect(() => {
@@ -138,12 +138,12 @@ function Confirm({ action, ctx, cancel }: Readonly<{ action: Action; ctx: Ctx; c
   }, [cancel]);
   return (
     <div role="alertdialog" aria-label="Confirmation" className="actions">
-      <p>{action.warn}</p>
+      <p>{text}</p>
       <button ref={first} type="button" className="btn" onClick={cancel}>
         Annuler
       </button>
-      <button type="button" className="btn btn--fantome" onClick={() => ctx.respond(action.response)}>
-        Finir le tour
+      <button type="button" className="btn btn--fantome" onClick={confirm}>
+        {label}
       </button>
     </div>
   );
