@@ -148,11 +148,19 @@
   --duree-fondu: 150ms; /* seul mouvement gardé en réduction : un fondu d'opacité */
 }
 
+/* Le réglage « Réduire les animations » (reglages.ts) marque la racine : reduit le force, libre lève celui du système */
 @media (prefers-reduced-motion: reduce) {
-  :root {
+  :root:not([data-mouvement="libre"]) {
     --duree-1: 0ms;
     --duree-2: 0ms;
     --duree-3: 0ms;
     --duree-4: 0ms;
   }
+}
+
+:root[data-mouvement="reduit"] {
+  --duree-1: 0ms;
+  --duree-2: 0ms;
+  --duree-3: 0ms;
+  --duree-4: 0ms;
 }

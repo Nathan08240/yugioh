@@ -7,6 +7,7 @@ import type { PerspectiveCamera } from "three";
 import type { Board } from "../board.ts";
 import type { Cards } from "../cards.ts";
 import { pointDe, type Appui, type Point } from "../question.ts";
+import { useReglages } from "../reglages.ts";
 import { etatScene, pileId, zones, ZONE, type EtatScene, type Zone } from "./disposition.ts";
 import { Monde, type Qualite } from "./monde.ts";
 import type { Regie } from "./spectacle.ts";
@@ -35,7 +36,9 @@ type Monté = RefObject<Monde | null>;
 
 export default function Plateau3D(props: Readonly<Props>) {
   const { board, seat, cibles, choisies } = props;
-  const [qualite, setQualite] = useState<Qualite>("haute");
+  const [reglage] = useReglages();
+  const [degradee, setDegradee] = useState(false);
+  const qualite: Qualite = reglage.qualite === "basse" || degradee ? "basse" : "haute";
   const [pret, setPret] = useState(false);
   const monde = useRef<Monde>(null);
   const etat = useMemo(() => etatScene(board, seat), [board, seat]);
@@ -58,7 +61,7 @@ export default function Plateau3D(props: Readonly<Props>) {
       onCreated={({ gl }) => gl.domElement.setAttribute("aria-hidden", "true")}
     >
       {/* Under 45 frames per second for 3 s: low quality, for good. */}
-      <PerformanceMonitor ms={300} iterations={10} bounds={() => [45, 1000]} flipflops={1} onDecline={() => setQualite("basse")} />
+      <PerformanceMonitor ms={300} iterations={10} bounds={() => [45, 1000]} flipflops={1} onDecline={() => setDegradee(true)} />
       <Scene {...props} monde={monde} qualite={qualite} pret={pret} onPret={() => setPret(true)} />
       {pret && <Etiquettes etat={etat} seat={seat} cibles={cibles} onZone={props.onZone} onSurvol={props.onSurvol} onAppui={props.onAppui} />}
     </Canvas>
