@@ -48,6 +48,76 @@ const RULES = new Map<string, Rule>([
   ],
 ]);
 
+// The rules of the game as played here: Goat format (April 2005), 4000 LP.
+const BASICS: Rule[] = [
+  {
+    title: "Le duel",
+    details: [
+      "Chaque duelliste commence avec 4000 LP et 5 cartes en main.",
+      "On gagne quand les LP de l'adversaire tombent à 0, ou quand il doit piocher dans un deck vide.",
+      "Les règles sont celles du format Goat, d'avril 2005.",
+    ],
+  },
+  {
+    title: "Le tour",
+    details: [
+      "Draw Phase : on pioche 1 carte.",
+      "Standby Phase : se jouent les effets et coûts de début de tour.",
+      "Main Phase 1 : on Invoque, on Pose, on joue ses Magies et ses Pièges.",
+      "Battle Phase : les monstres attaquent.",
+      "Main Phase 2 : comme la Main Phase 1, sans attaque.",
+      "End Phase : fin du tour. Avec plus de 6 cartes en main, on défausse le surplus.",
+    ],
+  },
+  {
+    title: "Invoquer un monstre",
+    details: [
+      "Une Invocation Normale ou une Pose par tour, depuis la main.",
+      "Niveau 4 ou moins : aucun Sacrifice.",
+      "Niveau 5 ou 6 : 1 Sacrifice. Niveau 7 ou plus : 2 Sacrifices.",
+      "Un Sacrifice est un monstre de votre Terrain envoyé au Cimetière.",
+      "Une Invocation Spéciale vient d'un effet et ne compte pas dans la limite du tour.",
+    ],
+  },
+  {
+    title: "Positions",
+    details: [
+      "Position d'Attaque : face recto, à la verticale. Le monstre peut attaquer.",
+      "Position de Défense : face recto, couché. Il ne peut pas attaquer.",
+      "Face verso : un monstre Posé est face cachée en Défense. Il se retourne en Invocation-Flip ou quand il est attaqué.",
+      "On change la position d'un monstre une fois par tour, sauf le tour où il est arrivé.",
+    ],
+  },
+  {
+    title: "Combat",
+    details: [
+      "Un monstre attaque une fois par tour. Sans monstre en face, il attaque directement les LP.",
+      "Attaque contre Attaque : le plus faible est détruit, son contrôleur perd la différence d'ATK. À égalité, les deux sont détruits.",
+      "Attaque contre Défense : si l'ATK dépasse la DEF, le défenseur est détruit sans dégâts. Sinon, l'attaquant perd la différence en LP.",
+      "Un monstre face verso est retourné avant le calcul des dégâts.",
+    ],
+  },
+  {
+    title: "Magies et Pièges",
+    details: [
+      "Une Magie s'active pendant votre Main Phase. Un Piège se Pose face verso et s'active à partir du tour suivant.",
+      "Magie Continue, Équipement ou Terrain : elle reste sur le Terrain. Magie Normale : elle va au Cimetière après usage.",
+      "Vitesse 1 : Magies Normales, Continues, Équipement, Terrain et Rituel. Vitesse 2 : Jeu-Rapide, Pièges Normaux et Continus. Vitesse 3 : Contre-Pièges.",
+      "Quand une carte s'active, l'adversaire peut répondre avec une carte de vitesse égale ou supérieure : c'est une chaîne, qui se résout en partant de la dernière carte jouée.",
+    ],
+  },
+  {
+    title: "Fusion et Rituel",
+    details: [
+      "Fusion : jouez Polymérisation, envoyez au Cimetière les monstres demandés par le monstre de Fusion, puis Invoquez-le Spécialement depuis l'Extra Deck.",
+      "Rituel : jouez la Magie Rituel, Sacrifiez des monstres de la main ou du Terrain dont les Niveaux égalent au moins celui du monstre Rituel, puis Invoquez-le Spécialement depuis la main.",
+    ],
+  },
+];
+
+// Every rule of the game, for the Rules page: the basics, then the special rules of each story arc.
+export const allRules = (): Rule[] => [...BASICS, ...RULES.values()];
+
 // The rules to show for the `special` names of a story duel.
 export const specialRules = (names: readonly string[]): Rule[] => names.flatMap((name) => RULES.get(name) ?? []);
 
@@ -95,5 +165,20 @@ export function RulesBadge({ rules }: Readonly<{ rules: Rule[] }>) {
         ))}
       </div>
     </details>
+  );
+}
+
+// The Rules page: basics open, story arc rules folded.
+export function Regles() {
+  return (
+    <div className="regles-page">
+      <div data-entree>
+        <p className="surtitre">Aide</p>
+        <h1 className="titre">Règles</h1>
+      </div>
+      {allRules().map((rule) => (
+        <RuleBlock key={rule.title} rule={rule} open={BASICS.includes(rule)} />
+      ))}
+    </div>
   );
 }

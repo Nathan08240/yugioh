@@ -10,7 +10,7 @@ import { Duel } from "./Duel.tsx";
 import { Fin } from "./Fin.tsx";
 import { initialLobby, reduce, type Action, type LobbyState } from "./lobby.ts";
 import { autoAnswer } from "./question.ts";
-import { specialRules } from "./regles.tsx";
+import { Regles, specialRules } from "./regles.tsx";
 import { Shell, type Page } from "./Shell.tsx";
 import { duelLabel, duelSpecial, Story } from "./Story.tsx";
 import { supabase } from "./supabase.ts";
@@ -172,6 +172,7 @@ function Screen({ state, page, send, reconnect, leave, respond, go, vsBot, story
       {page === "collection" && <DeckBuilder collection={state.collection} decks={state.decks} send={send} />}
       {page === "boosters" && <Boosters state={state} send={send} go={go} />}
       {page === "histoire" && <Story arcs={state.story} send={send} />}
+      {page === "regles" && <Regles />}
     </Shell>
   );
 }

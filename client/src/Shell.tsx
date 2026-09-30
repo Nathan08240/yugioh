@@ -3,13 +3,14 @@ import { createQueue, entrance, exit } from "./motion.ts";
 import "./styles/shell.css";
 import { Icon } from "./ui.tsx";
 
-export type Page = "accueil" | "collection" | "boosters" | "histoire";
+export type Page = "accueil" | "collection" | "boosters" | "histoire" | "regles";
 
 const NAV: [Page, string][] = [
   ["accueil", "Accueil"],
   ["collection", "Collection et decks"],
   ["boosters", "Boosters"],
   ["histoire", "Mode Histoire"],
+  ["regles", "Règles"],
 ];
 
 // Screen transitions have their own queue: they never wait behind the animations of a duel.
