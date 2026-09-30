@@ -24,8 +24,9 @@ import { faceUp, hideCards, visibleTo } from "./visibility.ts";
 export const RULES = OcgDuelMode.MODE_GOAT;
 export const STARTING_LP = 4000;
 // `cards`: EDOPro Extra Rules cards (aux.EnableExtraRules), shuffled into player 0's deck; each one leaves the duel at the start.
-// `playerLp`: starting LP of player 0 when it differs from `lp`.
-export type Rules = { lp: number; playerLp?: number; hand: number; cards: readonly number[] };
+// `playerLp`: starting LP of player 0 when it differs from `lp`. `draw`: cards drawn each turn, 1 when absent.
+// `firstTurnAttack`: player 0 may attack on the first turn (Puzzles).
+export type Rules = { lp: number; playerLp?: number; hand: number; cards: readonly number[]; draw?: number; firstTurnAttack?: boolean };
 export const STANDARD_RULES: Rules = { lp: STARTING_LP, hand: 5, cards: [] };
 export const lpOf = (rules: Rules, seat: number) => (seat === 0 ? (rules.playerLp ?? rules.lp) : rules.lp);
 // aux.EnableExtraRules asks both players to agree, Stringid(4014, 6), and Virtual World whether to apply the Deck Master
@@ -137,7 +138,15 @@ function describe(msg: OcgMessage, state: DuelState, nameAt: (loc: OcgLocPos) =>
 
 let core: Promise<OcgCoreSync> | undefined;
 
+// A card placed before the duel starts, where the engine puts it: sequence 0 of the deck is its top.
+export type Placed = { code: number; controller: 0 | 1; location: OcgLocation; sequence: number; position: OcgPosition };
+
+// The placed cards as MOVE messages from outside the duel, so that clients and the bot see them on their board.
+export const fieldMoves = (field: readonly Placed[]): OcgMessage[] =>
+  field.map(({ code, ...to }) => ({ type: OcgMessageType.MOVE, card: code, from: { controller: to.controller, location: 0 as OcgLocation, sequence: 0, position: 0 as OcgPosition }, to }));
+
 // Creates a started duel, each deck shuffled by the seed (deck 0 goes to player 0). `extras` are the extra decks, in the same order.
+// `field`: cards placed before the start, after the decks (a duel state set up by hand, as a puzzle).
 export async function openDuel(
   seed: Seed,
   decks: readonly (readonly number[])[],
@@ -145,11 +154,12 @@ export async function openDuel(
   onScript = (_name: string) => {},
   rules = STANDARD_RULES,
   extras: readonly (readonly number[])[] = [],
+  field: readonly Placed[] = [],
 ) {
   const lib = await (core ??= createCore({ sync: true }));
-  const settings = (seat: number) => ({ startingLP: lpOf(rules, seat), startingDrawCount: rules.hand, drawCountPerTurn: 1 });
+  const settings = (seat: number) => ({ startingLP: lpOf(rules, seat), startingDrawCount: rules.hand, drawCountPerTurn: rules.draw ?? 1 });
   const handle = lib.createDuel({
-    flags: RULES,
+    flags: rules.firstTurnAttack ? RULES | OcgDuelMode.ATTACK_FIRST_TURN : RULES,
     seed,
     team1: settings(0),
     team2: settings(1),
@@ -176,6 +186,7 @@ export async function openDuel(
       lib.duelNewCard(handle, { team, duelist: 0, code, controller: team, location: OcgLocation.EXTRA, sequence: 0, position: OcgPosition.FACEDOWN_DEFENSE });
     }
   });
+  for (const card of field) lib.duelNewCard(handle, { team: card.controller, duelist: 0, ...card });
   lib.startDuel(handle);
   return { lib, handle };
 }
@@ -208,16 +219,17 @@ export async function runDuel(
   decks: readonly (readonly number[])[] = [YUGI, KAIBA],
   rules = STANDARD_RULES,
   extras: readonly (readonly number[])[] = [],
+  field: readonly Placed[] = [],
 ): Promise<DuelState> {
   const state: DuelState = { turns: 0, lp: [lpOf(rules, 0), lpOf(rules, 1)], winner: null, log: [], errors: [], scripts: [], reason: null };
-  const { lib, handle } = await openDuel(seed, decks, (text) => state.errors.push(text), (name) => state.scripts.push(name), rules, extras);
+  const { lib, handle } = await openDuel(seed, decks, (text) => state.errors.push(text), (name) => state.scripts.push(name), rules, extras, field);
 
   const nameAt = (loc: OcgLocPos) => {
     const card = lib.duelQuery(handle, { flags: OcgQueryFlags.CODE, controller: loc.controller, location: loc.location, sequence: loc.sequence, overlaySequence: 0 });
     return card?.code ? cardName(card.code) : "?";
   };
 
-  const logs: OcgMessage[][] = [[], []];
+  const logs: OcgMessage[][] = [0, 1].map((seat) => fieldMoves(field).flatMap((msg) => visibleTo(msg, seat) ?? []));
   let question: OcgMessage | undefined;
   for (let step = 0; step < MAX_STEPS; step++) {
     const status = lib.duelProcess(handle);

@@ -72,6 +72,9 @@ export type ClientMessage =
   // Story mode: `story` asks for the arcs and progression, `story_duel` starts a duel against the bot, at "normal" without `level`.
   | { type: "story" }
   | { type: "story_duel"; duel: string; level?: StoryLevel }
+  // Puzzles: `puzzles` asks for the list, answered with `puzzles`; `puzzle` starts one against the bot.
+  | { type: "puzzles" }
+  | { type: "puzzle"; id: string }
   // Wins and losses of the player per deck, answered with `duel_results`.
   | { type: "duel_results" }
   // The event of the week, answered with `event`.
@@ -137,7 +140,10 @@ export type ServerMessage =
   // The event of the week: a story special rule (story.ts EXTRA_RULES) played with `lp` and `hand`; `won`: this week's booster was taken.
   | { type: "event"; rule: string; lp: number; hand: number; won: boolean }
   // The first event win of the week was just recorded: 1 booster earned.
-  | { type: "event_won" };
+  | { type: "event_won" }
+  | { type: "puzzles"; puzzles: PuzzleView[] }
+  // A solved puzzle, recorded: `booster` the first time only.
+  | { type: "puzzle_won"; id: string; booster: boolean };
 
 // Wonder pick of the day. `cards` are shown face up in this order, then shuffled: face-down card `i` is `cards[shuffle[i]]`.
 // The server keeps `shuffle` to itself until the player picks `picked`, a face-down index.
@@ -145,6 +151,10 @@ export type WonderView =
   | { status: "available" }
   | { status: "drawn"; cards: Printing[] }
   | { status: "picked"; cards: Printing[]; shuffle: number[]; picked: number };
+
+export type PuzzleView = { id: string; title: string; goal: string; done: boolean };
+// WIN reason of a failed puzzle: the player's turn ended with the opponent still standing.
+export const PUZZLE_FAILED = 0x60;
 
 export type Rewards = { boosters?: number; cards?: number[] };
 // A booster for every REPLAY_WINS wins of story duels already won, REPLAY_BOOSTERS_MAX a day at most (Europe/Paris).

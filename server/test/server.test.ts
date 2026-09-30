@@ -84,6 +84,8 @@ const accounts: Accounts = {
   completeStory: async (_userId, _duel, stars) => ({ rewards: null, stars, best: stars, starBooster: false, replays: 1 }),
   recordResult: async () => {},
   duelResults: async () => [],
+  solvedPuzzles: async () => new Set(),
+  solvePuzzle: async () => true,
   saveReport: async () => true,
   previewConversion: async () => ({ cards: [[1, "", 2]], points: 10 }),
   convertDuplicates: async (_userId, expected) => (expected === 10 ? undefined : "la collection a changé, relancez l'aperçu"),

@@ -1,0 +1,58 @@
+/* Puzzles (Puzzles.tsx) : liste des situations à gagner en un tour */
+
+.puzzles {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--e-4);
+  inline-size: 100%;
+  max-inline-size: var(--largeur-max);
+  margin-inline: auto;
+  padding: var(--e-4) var(--marge-ecran) var(--e-6);
+}
+
+.puzzles__tete {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--e-3);
+  align-items: end;
+  justify-content: space-between;
+}
+
+.puzzles__liste {
+  display: grid;
+  gap: var(--e-3);
+  padding: 0;
+  list-style: none;
+}
+
+.puzzle {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  gap: var(--e-3);
+  align-items: center;
+}
+
+.puzzle h2 {
+  font: 700 var(--taille-l) / 1.15 var(--police-etroite);
+}
+
+.puzzle__num {
+  display: grid;
+  place-items: center;
+  inline-size: 2.2em;
+  block-size: 2.2em;
+  border-radius: 50%;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 2px var(--holo);
+}
+
+.puzzle--fait .puzzle__num {
+  box-shadow: inset 0 0 0 2px var(--or);
+}
+
+@media (width < 640px) {
+  .puzzle {
+    grid-template-columns: auto 1fr;
+  }
+}

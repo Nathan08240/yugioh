@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
-import type { BotLevel, ClientMessage, StoryArcView } from "../../server/src/protocol.ts";
+import type { BotLevel, ClientMessage, PuzzleView, StoryArcView } from "../../server/src/protocol.ts";
 import { CardView } from "./Card.tsx";
 import { cardName, stat, strongest, useDuelView } from "./cards.ts";
 import { countdown, inviteLink, type DeckList, type LobbyState } from "./lobby.ts";
@@ -41,6 +41,7 @@ export function Accueil({ state, send, go }: Readonly<{ state: LobbyState; send:
   useEffect(() => {
     send({ type: "booster_state" });
     send({ type: "story" });
+    send({ type: "puzzles" });
     send({ type: "collection" });
     send({ type: "decks" });
     send({ type: "event" });
@@ -120,6 +121,9 @@ export function Accueil({ state, send, go }: Readonly<{ state: LobbyState; send:
         )}
         <Mode icon="ui-histoire" title="Mode Histoire" onClick={() => go("histoire")}>
           <StoryLine arcs={state.story} />
+        </Mode>
+        <Mode icon="ui-eclair" title="Puzzles" onClick={() => go("puzzles")}>
+          <PuzzleLine puzzles={state.puzzles} />
         </Mode>
         <Mode icon="ui-booster" title="Boosters" badge={state.boosters?.pending} onClick={() => go("boosters")}>
           <BoosterLine boosters={state.boosters} />
@@ -207,6 +211,12 @@ function StoryLine({ arcs }: Readonly<{ arcs?: StoryArcView[] }>) {
       <span className="jauge" style={{ "--v": `${(arc.won / arc.total) * 100}%` } as CSSProperties} />
     </>
   );
+}
+
+function PuzzleLine({ puzzles }: Readonly<{ puzzles?: PuzzleView[] }>) {
+  if (!puzzles) return "Des situations à gagner en un seul tour.";
+  const solved = puzzles.filter((puzzle) => puzzle.done).length;
+  return `${solved} réussi${solved > 1 ? "s" : ""} sur ${puzzles.length} · gagnez en un seul tour`;
 }
 
 function BoosterLine({ boosters }: Readonly<{ boosters?: LobbyState["boosters"] }>) {

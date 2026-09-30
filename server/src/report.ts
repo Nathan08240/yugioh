@@ -1,7 +1,7 @@
 import type postgres from "postgres";
 import { OcgMessageType, OcgProcessResult, type OcgMessage, type OcgResponse } from "@n1xx1/ocgcore-wasm";
 import type { Db } from "./db.ts";
-import { openDuel, type Rules } from "./duel.ts";
+import { openDuel, type Placed, type Rules } from "./duel.ts";
 import type { BotLevel } from "./protocol.ts";
 import { engineForm } from "./respond.ts";
 
@@ -14,7 +14,7 @@ const MAX_STEPS = 20_000;
 
 // Everything needed to replay a duel: the engine seed (bigints as strings), the rules, both decks and every response the engine accepted.
 export type Report = {
-  mode: "online" | "bot" | "histoire";
+  mode: "online" | "bot" | "histoire" | "puzzle";
   room: string;
   turn: number;
   date: string;
@@ -22,6 +22,8 @@ export type Report = {
   seed: string[];
   rules: Rules;
   decks: { main: number[]; extra: number[] }[];
+  // The cards placed before the start, for a puzzle.
+  field?: Placed[];
   responses: OcgResponse[];
 };
 
@@ -38,7 +40,7 @@ export async function saveReport(db: Db, userId: string, message: string, report
 // Runs the duel of a report again, answering each question with the next recorded response, and returns every message of the engine.
 export async function replay(report: Report, trace: { messages?: (messages: OcgMessage[]) => void; answer?: (response: OcgResponse) => void } = {}): Promise<OcgMessage[]> {
   const seed = report.seed.map(BigInt) as [bigint, bigint, bigint, bigint];
-  const { lib, handle } = await openDuel(seed, report.decks.map((deck) => deck.main), console.error, undefined, report.rules, report.decks.map((deck) => deck.extra));
+  const { lib, handle } = await openDuel(seed, report.decks.map((deck) => deck.main), console.error, undefined, report.rules, report.decks.map((deck) => deck.extra), report.field);
   const out: OcgMessage[] = [];
   try {
     let next = 0;

@@ -1,6 +1,6 @@
 import type { OcgResponse } from "@n1xx1/ocgcore-wasm";
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
-import type { ClientMessage } from "../../server/src/protocol.ts";
+import type { ClientMessage, PuzzleView } from "../../server/src/protocol.ts";
 import { Accueil, Salle } from "./Accueil.tsx";
 import { Boosters } from "./Boosters.tsx";
 import { DuelView, useCards } from "./cards.ts";
@@ -11,6 +11,7 @@ import { Fin } from "./Fin.tsx";
 import { initialLobby, reduce, roomFromUrl, type Action, type LobbyState } from "./lobby.ts";
 import { Parametres } from "./Parametres.tsx";
 import { Profil } from "./Profil.tsx";
+import { puzzleRule, Puzzles } from "./Puzzles.tsx";
 import { autoAnswer } from "./question.ts";
 import { reglages } from "./reglages.ts";
 import { Regles, specialRules } from "./regles.tsx";
@@ -36,6 +37,7 @@ export function Lobby() {
   const vsBot = useRef(false);
   const storyDuel = useRef<string>(undefined);
   const storyEasy = useRef(false);
+  const puzzleId = useRef<string>(undefined);
   const cards = useCards();
   const view = useMemo(() => ({ cards, show: () => {}, seat: 0 }), [cards]);
 
@@ -75,7 +77,8 @@ export function Lobby() {
   }, [ready]);
 
   const send: Send = (msg) => {
-    if (msg.type === "bot" || msg.type === "story_duel") vsBot.current = true;
+    if (msg.type === "bot" || msg.type === "story_duel" || msg.type === "puzzle") vsBot.current = true;
+    if (msg.type === "puzzle") puzzleId.current = msg.id;
     if (msg.type === "story_duel") {
       storyDuel.current = msg.duel;
       storyEasy.current = msg.level === "facile";
@@ -106,6 +109,9 @@ export function Lobby() {
     if (next !== "histoire") setPage(next);
   };
 
+  const shown = state.storyOpen ? "histoire" : page;
+  // A puzzle is only played from its screen.
+  const puzzle = shown === "puzzles" ? state.puzzles?.find((candidate) => candidate.id === puzzleId.current) : undefined;
   return (
     <DuelView value={view}>
       {state.error && (
@@ -113,7 +119,7 @@ export function Lobby() {
           {state.error}
         </p>
       )}
-      <Screen state={state} page={state.storyOpen ? "histoire" : page} send={send} reconnect={reconnect} leave={leave} respond={respond} go={go} vsBot={vsBot.current} storyDuel={storyDuel.current} easy={storyEasy.current} />
+      <Screen state={state} page={shown} send={send} reconnect={reconnect} leave={leave} respond={respond} go={go} vsBot={vsBot.current} storyDuel={storyDuel.current} easy={storyEasy.current} puzzle={puzzle} />
     </DuelView>
   );
 }
@@ -129,13 +135,14 @@ type ScreenProps = {
   vsBot: boolean;
   storyDuel?: string;
   easy: boolean;
+  puzzle?: PuzzleView;
 };
 
 const signOut = () => {
   supabase.auth.signOut();
 };
 
-function Screen({ state, page, send, reconnect, leave, respond, go, vsBot, storyDuel, easy }: Readonly<ScreenProps>) {
+function Screen({ state, page, send, reconnect, leave, respond, go, vsBot, storyDuel, easy, puzzle }: Readonly<ScreenProps>) {
   if (state.closed) {
     return (
       <Shell id="perdu">
@@ -179,8 +186,8 @@ function Screen({ state, page, send, reconnect, leave, respond, go, vsBot, story
     const report = { send: (message: string) => send({ type: "report", message: message || undefined }), sent: state.reported };
     return (
       <>
-        <Duel board={state.board} seat={state.seat ?? 0} asked={state.question} respond={respond} leave={leave} surrender={() => send({ type: "surrender" })} emotes={state.emotes} sendEmote={(id) => send({ type: "emote", id })} report={report} answerBy={state.answerBy} away={state.away} feed={state.feed} lp={state.lp} opponentLp={state.opponentLp} pseudo={state.pseudo} opponent={state.opponent} avatar={state.profile?.avatar ?? undefined} opponentAvatar={state.opponentAvatar} rules={specialRules(special)} easy={state.storyOpen && easy} kingdom={special.includes("duelist-kingdom")} />
-        {state.board.winner !== undefined && <Fin board={state.board} seat={state.seat ?? 0} room={state.room} vsBot={vsBot} opponent={state.opponent} story={story} eventBooster={state.eventWon} rematch={state.rematch} onRematch={(accept) => send({ type: "rematch", accept })} report={report} leave={leave} go={leaveFor} />}
+        <Duel board={state.board} seat={state.seat ?? 0} asked={state.question} respond={respond} leave={leave} surrender={() => send({ type: "surrender" })} emotes={state.emotes} sendEmote={(id) => send({ type: "emote", id })} report={report} answerBy={state.answerBy} away={state.away} feed={state.feed} lp={state.lp} opponentLp={state.opponentLp} pseudo={state.pseudo} opponent={state.opponent} avatar={state.profile?.avatar ?? undefined} opponentAvatar={state.opponentAvatar} rules={puzzle ? puzzleRule(puzzle) : specialRules(special)} easy={state.storyOpen && easy} kingdom={special.includes("duelist-kingdom")} />
+        {state.board.winner !== undefined && <Fin board={state.board} seat={state.seat ?? 0} room={state.room} vsBot={vsBot} opponent={state.opponent} story={story} eventBooster={state.eventWon} puzzle={puzzle && { title: puzzle.title, booster: state.solved?.booster }} rematch={state.rematch} onRematch={(accept) => send({ type: "rematch", accept })} report={report} leave={leave} go={leaveFor} />}
       </>
     );
   }
@@ -197,6 +204,7 @@ function Screen({ state, page, send, reconnect, leave, respond, go, vsBot, story
       {page === "collection" && <Collection collection={state.collection} rarities={state.rarities} decks={state.decks} results={state.results} wishlist={state.wishlist} points={state.points} conversion={state.conversion} send={send} />}
       {page === "boosters" && <Boosters state={state} send={send} go={go} />}
       {page === "histoire" && <Story arcs={state.story} send={send} />}
+      {page === "puzzles" && <Puzzles puzzles={state.puzzles} send={send} />}
       {page === "regles" && <Regles />}
       {page === "profil" && <Profil state={state} send={send} />}
       {page === "parametres" && <Parametres />}

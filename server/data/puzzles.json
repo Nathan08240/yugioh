@@ -1,0 +1,81 @@
+[
+  {
+    "id": "coup-de-grace",
+    "title": "Le coup de grâce",
+    "goal": "Un seul monstre protège les 2500 LP adverses. Dégagez-le, puis frappez directement.",
+    "player": { "lp": 4000, "hand": [66788016], "monsters": [[46986414, "attack"]] },
+    "opponent": { "lp": 2500, "monsters": [[15025844, "attack"]] },
+    "solution": [["activate", 66788016], ["battle"], ["attack", 46986414]]
+  },
+  {
+    "id": "hache",
+    "title": "Tranchant",
+    "goal": "Il reste 1900 LP à l'adversaire. Votre chevalier seul n'y suffira pas.",
+    "player": { "lp": 4000, "hand": [40619825], "monsters": [[6368038, "attack"]] },
+    "opponent": { "lp": 1900, "monsters": [[91152256, "attack"]] },
+    "solution": [["activate", 40619825], ["battle"], ["attack", 6368038], ["select", 91152256]]
+  },
+  {
+    "id": "defense-brisee",
+    "title": "Défense brisée",
+    "goal": "Un monstre face cachée bloque la route. Faites-le sortir et achevez l'adversaire à 2200 LP.",
+    "player": { "lp": 4000, "hand": [63102017, 19523799], "monsters": [[5053103, "attack"]] },
+    "opponent": { "lp": 2200, "monsters": [[32274490, "set"]] },
+    "solution": [["activate", 63102017], ["activate", 19523799], ["battle"], ["attack", 5053103], ["select", 32274490]]
+  },
+  {
+    "id": "pioche",
+    "title": "La bonne pioche",
+    "goal": "Vous connaissez les deux cartes du dessus de votre deck : Monster Reborn, puis Ookazi. L'adversaire a 4700 LP.",
+    "player": { "lp": 4000, "hand": [55144522], "monsters": [[91152256, "attack"]], "grave": [70781052], "deck": [83764718, 19523799] },
+    "opponent": { "lp": 4700 },
+    "solution": [["activate", 55144522], ["activate", 83764718], ["select", 70781052], ["activate", 19523799], ["battle"], ["attack", 70781052], ["attack", 91152256]]
+  },
+  {
+    "id": "surcharge",
+    "title": "Surcharge",
+    "goal": "Vos deux machines peuvent doubler leur puissance. Choisissez bien qui attaque le mur et qui frappe l'adversaire à 3200 LP.",
+    "player": { "lp": 4000, "hand": [23171610], "monsters": [[44203504, "attack"], [30655537, "attack"]] },
+    "opponent": { "lp": 3200, "monsters": [[13039848, "defense"]] },
+    "solution": [["activate", 23171610], ["battle"], ["attack", 30655537], ["select", 13039848], ["attack", 44203504]]
+  },
+  {
+    "id": "miroir",
+    "title": "Le piège du miroir",
+    "goal": "Le terrain adverse est vide, à une carte posée près. Méfiez-vous avant d'attaquer ses 3800 LP.",
+    "player": { "lp": 4000, "hand": [5318639], "monsters": [[11091375, "attack"], [69140098, "attack"]] },
+    "opponent": { "lp": 3800, "spells": [44095762] },
+    "solution": [["activate", 5318639], ["select", 0], ["battle"], ["attack", 11091375], ["attack", 69140098]]
+  },
+  {
+    "id": "troupeau",
+    "title": "Le troupeau",
+    "goal": "Aucune attaque ne passera ce mur. Il reste 3300 LP à l'adversaire : trouvez d'autres munitions.",
+    "player": { "lp": 4000, "hand": [73915051, 19523799], "monsters": [[11384280, "attack"]] },
+    "opponent": { "lp": 3300, "monsters": [[13039848, "defense"]] },
+    "solution": [
+      ["activate", 73915051],
+      ["activate", 11384280], ["select", 73915052],
+      ["activate", 11384280], ["select", 73915053],
+      ["activate", 11384280], ["select", 73915054],
+      ["activate", 11384280], ["select", 73915055],
+      ["activate", 11384280], ["select", 11384280],
+      ["activate", 19523799]
+    ]
+  },
+  {
+    "id": "grand-final",
+    "title": "Le grand final",
+    "goal": "5400 LP, un dragon légendaire et une carte posée en face. Tout ce que vous avez comptera, jusqu'au dragon lui-même.",
+    "player": { "lp": 1000, "hand": [5318639, 4031928], "monsters": [[11384280, "attack"]] },
+    "opponent": { "lp": 5400, "monsters": [[89631139, "attack"]], "spells": [44095762] },
+    "solution": [
+      ["activate", 5318639], ["select", 0],
+      ["activate", 4031928], ["select", 89631139],
+      ["battle"], ["attack", 89631139], ["attack", 11384280],
+      ["main2"],
+      ["activate", 11384280], ["select", 89631139],
+      ["activate", 11384280], ["select", 11384280]
+    ]
+  }
+]
