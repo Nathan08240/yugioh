@@ -1,5 +1,5 @@
 import type { EmoteId } from "../../server/src/emotes.ts";
-import type { DeckResult, Seat, ServerMessage, StoryArcView, Wire } from "../../server/src/protocol.ts";
+import type { DeckResult, Seat, ServerMessage, StoryArcView, TowerView, Wire } from "../../server/src/protocol.ts";
 import { newBoard, playAll, type Board, type EngineMessage, type Message } from "./board.ts";
 
 export type DeckList = Extract<Wire<ServerMessage>, { type: "decks" }>;
@@ -12,6 +12,7 @@ export type Action =
   | { type: "left" }
   | { type: "story_menu"; open: boolean };
 export type StoryWon = Extract<ServerMessage, { type: "story_won" }>;
+export type TowerWon = Extract<ServerMessage, { type: "tower_won" }>;
 
 // `id` tells two successive questions apart, even identical ones.
 // `announce`: the cards the player may declare, for ANNOUNCE_CARD.
@@ -67,6 +68,10 @@ export type LobbyState = {
   storyOpen: boolean;
   story?: StoryArcView[];
   won?: StoryWon;
+  // Tower mode: the floors and progression, the floor of the duel in progress, its win once recorded.
+  tower?: TowerView;
+  floor?: number;
+  towerWon?: TowerWon;
   // Online rematch: the seat that asked, or declined for good.
   rematch?: { from: Seat } | "declined";
   // Bug reports the server has stored.
@@ -82,7 +87,7 @@ export function reduce(state: LobbyState, action: Action): LobbyState {
     case "closed":
       return { ...state, closed: true };
     case "left":
-      return { ...state, room: undefined, seat: undefined, board: undefined, started: false, question: undefined, error: undefined, won: undefined, rematch: undefined, answerBy: undefined, away: undefined, emotes: {} };
+      return { ...state, room: undefined, seat: undefined, board: undefined, started: false, question: undefined, error: undefined, won: undefined, floor: undefined, towerWon: undefined, rematch: undefined, answerBy: undefined, away: undefined, emotes: {} };
     case "profile":
       return { ...state, pseudo: action.pseudo, needsStarter: action.needsStarter, admin: action.admin, error: undefined };
     case "joined":
@@ -91,6 +96,7 @@ export function reduce(state: LobbyState, action: Action): LobbyState {
         room: action.room,
         seat: action.seat,
         opponent: action.opponent,
+        floor: action.floor,
         lp: action.lp,
         opponentLp: action.opponentLp,
         board: playAll(newBoard(action.seat === 0 ? [action.lp, action.opponentLp ?? action.lp] : [action.opponentLp ?? action.lp, action.lp], action.decks, action.extras), action.log),
@@ -102,6 +108,7 @@ export function reduce(state: LobbyState, action: Action): LobbyState {
         emotes: {},
         // An empty log is a new duel (the first, or a rematch): a reconnection replays the old one.
         won: action.log.length === 0 ? undefined : state.won,
+        towerWon: action.log.length === 0 ? undefined : state.towerWon,
         rematch: action.log.length === 0 ? undefined : state.rematch,
       };
     case "messages":
@@ -143,6 +150,10 @@ export function reduce(state: LobbyState, action: Action): LobbyState {
       return { ...state, story: action.arcs };
     case "story_won":
       return { ...state, won: action };
+    case "tower":
+      return { ...state, tower: { floors: action.floors, floor: action.floor, best: action.best, claimed: action.claimed } };
+    case "tower_won":
+      return { ...state, towerWon: action };
     case "rematch":
       return { ...state, rematch: { from: action.from } };
     case "rematch_declined":

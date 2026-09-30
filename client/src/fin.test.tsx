@@ -121,3 +121,14 @@ it("propose la revanche selon son état : à demander, en attente, à accepter o
   // Against the bot the button restarts at once, whatever the online state.
   expect(fin(board)).toContain("Revanche</button>");
 });
+
+it("en mode Tour, propose l'étage suivant après une victoire et l'étage 1 après une défaite", () => {
+  const tower = (winner: number, won?: { floor: number; best: number; boosters: number }) =>
+    render(<Fin board={finished(1, winner)} seat={0} room="r" vsBot tower={{ floor: 6, won: won && { type: "tower_won", ...won } }} leave={() => {}} go={() => {}} onRematch={() => {}} />);
+  const victory = tower(0, { floor: 6, best: 6, boosters: 2 });
+  for (const text of ["La Tour · Étage 6 sur 10", "Étage 6 franchi. Record : 6 étages.", "2 boosters", "Étage suivant", "Retour à la Tour"]) expect(victory).toContain(text);
+  expect(tower(0)).toContain("Enregistrement de la victoire");
+  const defeat = tower(1);
+  for (const text of ["Recommencer à l&#x27;étage 1", "votre record est gardé"]) expect(defeat).toContain(text);
+  expect(defeat).not.toContain("Revanche");
+});

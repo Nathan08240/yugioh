@@ -54,7 +54,11 @@ export type ClientMessage =
   | { type: "story" }
   | { type: "story_duel"; duel: string; level?: StoryLevel }
   // Wins and losses of the player per deck, answered with `duel_results`.
-  | { type: "duel_results" };
+  | { type: "duel_results" }
+  // Tower mode: `tower` asks for the floors and progression, `tower_duel` starts the next floor against the bot. After a
+  // tower duel, `rematch` starts the next one: the next floor after a win, floor 1 after a loss.
+  | { type: "tower" }
+  | { type: "tower_duel" };
 
 export type DuelMode = "online" | "bot" | "story";
 // Wins and losses of a player with a deck in a mode; `deck` is null for a deck deleted since.
@@ -71,11 +75,12 @@ export type DuelEvent = OcgMessage | StatsEvent;
 // `joined` replays every message the player was allowed to see, which rebuilds the board after a reconnection,
 // from the starting LP (`lp` for the player, `opponentLp` when the opponent's differs), main deck and extra deck sizes (the engine never sends them).
 // `opponent` is the name of the other seat once someone (a player, the bot or a story character) sits there.
+// `floor`: the floor of a tower duel.
 // `profile` answers `auth`, `pseudo` and `starter`: a null pseudo means the player has to choose one before playing,
 // `needsStarter` means the player has a pseudo but no active deck yet and must pick a starter deck.
 export type ServerMessage =
   | { type: "profile"; pseudo: string | null; needsStarter: boolean; admin?: true }
-  | { type: "joined"; room: string; seat: Seat; lp: number; opponentLp?: number; decks: [number, number]; extras: [number, number]; opponent?: string; log: DuelEvent[] }
+  | { type: "joined"; room: string; seat: Seat; lp: number; opponentLp?: number; decks: [number, number]; extras: [number, number]; opponent?: string; log: DuelEvent[]; floor?: number }
   | { type: "messages"; messages: DuelEvent[] }
   // `announce`: for ANNOUNCE_CARD, the pool cards the engine accepts.
   | { type: "question"; question: OcgMessage; retry: boolean; announce?: number[] }
@@ -102,7 +107,17 @@ export type ServerMessage =
   | { type: "story"; arcs: StoryArcView[] }
   // A won story duel, recorded.
   | ({ type: "story_won"; duel: string; outro: string } & StoryResult)
-  | { type: "duel_results"; results: DeckResult[] };
+  | { type: "duel_results"; results: DeckResult[] }
+  | ({ type: "tower" } & TowerView)
+  // A won tower duel, recorded: `boosters` earned by the first win of a reward floor, 0 otherwise.
+  | { type: "tower_won"; floor: number; best: number; boosters: number };
+
+export const TOWER_FLOORS = 10;
+// `lp`: starting LP of the opponent; `boosters`: reward of the first win of the floor, 0 for none.
+export type TowerFloorView = { opponent: string; level: BotLevel; lp: number; boosters: number };
+// `floor`: floors won in the current attempt, the next duel is floor + 1. `best`: most floors won in one attempt.
+// `claimed`: the floors whose reward was taken.
+export type TowerView = { floors: TowerFloorView[]; floor: number; best: number; claimed: number[] };
 
 export type Rewards = { boosters?: number; cards?: number[] };
 // A booster for every REPLAY_WINS wins of story duels already won.
