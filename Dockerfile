@@ -15,7 +15,8 @@ RUN pnpm vendor && rm -rf server/vendor/YGOJSON server/vendor/*/.git
 FROM base AS client
 RUN pnpm install --frozen-lockfile --ignore-scripts
 COPY server/src server/src
-COPY server/data/suggested-decks.json server/data/
+# Données JSON importées par le client (decks suggérés, cartes clés du constructeur).
+COPY server/data server/data
 COPY client client
 ARG VITE_SUPABASE_URL
 ARG VITE_SUPABASE_ANON_KEY
