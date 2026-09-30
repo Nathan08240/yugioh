@@ -8,7 +8,7 @@ import { Collection } from "./Collection.tsx";
 import { PseudoForm, StarterChoice } from "./Depart.tsx";
 import { Duel } from "./Duel.tsx";
 import { Fin } from "./Fin.tsx";
-import { initialLobby, reduce, type Action, type LobbyState } from "./lobby.ts";
+import { initialLobby, reduce, roomFromUrl, type Action, type LobbyState } from "./lobby.ts";
 import { Parametres } from "./Parametres.tsx";
 import { autoAnswer } from "./question.ts";
 import { Regles, specialRules } from "./regles.tsx";
@@ -20,6 +20,9 @@ import { supabase } from "./supabase.ts";
 const SERVER_URL = `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws`;
 
 type Send = (msg: ClientMessage) => void;
+
+// Room of an invitation link, kept until the player can join (after login, pseudo and starter).
+let invite = roomFromUrl(location.href);
 
 export function Lobby() {
   const [state, dispatch] = useReducer(reduce, initialLobby);
@@ -55,6 +58,14 @@ export function Lobby() {
       ws.close();
     };
   }, [attempt]);
+
+  const ready = state.pseudo != null && !state.needsStarter;
+  useEffect(() => {
+    if (!ready || !invite || state.room) return;
+    socket.current?.send(JSON.stringify({ type: "join", room: invite } satisfies ClientMessage));
+    invite = undefined;
+    history.replaceState(null, "", location.pathname);
+  }, [ready]);
 
   const send: Send = (msg) => {
     if (msg.type === "bot" || msg.type === "story_duel") vsBot.current = true;
