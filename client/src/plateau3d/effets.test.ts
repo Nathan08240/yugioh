@@ -16,7 +16,7 @@ const OBELISK = 10000000;
 
 const info = (type: number, attribute: number = OcgAttribute.DARK) => ({ type, attribute }) as CardInfo;
 const cards = new Map([
-  [KURIBOH, info(OcgType.MONSTER | OcgType.EFFECT)],
+  [KURIBOH, { ...info(OcgType.MONSTER | OcgType.EFFECT), atk: 300, def: 200 }],
   [SUMMONED_SKULL, info(OcgType.MONSTER | OcgType.NORMAL)],
   [FLAME_SWORDSMAN, info(OcgType.MONSTER | OcgType.FUSION)],
   [OBELISK, info(OcgType.MONSTER | OcgType.EFFECT, OcgAttribute.DIVINE)],
@@ -29,6 +29,8 @@ const draw = (player: 0 | 1, codes: number[]): Message => ({ type: OcgMessageTyp
 const start = playAll(newBoard(4000, [40, 40], [1, 0]), [draw(0, [KURIBOH, SUMMONED_SKULL, OBELISK, KURIBOH]), draw(1, [0, 0, 0])]);
 const onField = playAll(start, [move(KURIBOH, at(0, HAND, 0), at(0, MZONE, 0)), summon(OcgMessageType.SUMMONING, KURIBOH, 0)]);
 const effects = (board = start, messages: Message[] = []) => etapes(board, messages, cards).map(({ avant, apres }) => [...avant, ...apres]);
+// Only the steps that play something (the others just apply their messages).
+const played = (board: typeof start, messages: Message[]) => effects(board, messages).filter((list) => list.length > 0);
 
 it("pioche, puis invocation : la carte arrive sur sa zone et son hologramme se lève", () => {
   expect(effects(start, [draw(0, [1]), move(KURIBOH, at(0, HAND, 0), at(0, MZONE, 2)), summon(OcgMessageType.SUMMONING, KURIBOH, 2)])).toEqual([
@@ -49,6 +51,42 @@ it("distingue un sacrifice, un matériau de fusion et une destruction d'après l
 
   const battle: Message[] = [move(KURIBOH, at(0, MZONE, 0), at(0, GRAVE, 0)), { type: OcgMessageType.DAMAGE, player: 0, amount: 300 }];
   expect(effects(onField, battle)[0]).toEqual([{ type: "depart", cle: `0:${MZONE}:0`, genre: "destruction" }]);
+});
+
+it("distingue un bannissement et un retour en main, au Deck ou à l'Extra Deck d'une destruction", () => {
+  const leaves = (to: ReturnType<typeof at>) => played(onField, [move(KURIBOH, at(0, MZONE, 0), to)]);
+  expect(leaves(at(0, OcgLocation.REMOVED, 0))).toEqual([[{ type: "depart", cle: `0:${MZONE}:0`, genre: "bannissement" }]]);
+  expect(leaves(at(0, HAND, 0))).toEqual([[{ type: "depart", cle: `0:${MZONE}:0`, genre: "main" }]]);
+  expect(leaves(at(0, OcgLocation.DECK, 0))).toEqual([[{ type: "depart", cle: `0:${MZONE}:0`, genre: "deck" }]]);
+  expect(leaves(at(0, EXTRA, 0))).toEqual([[{ type: "depart", cle: `0:${MZONE}:0`, genre: "extra" }]]);
+  // A card banished from the Graveyard leaves no zone of the field.
+  const grave = playAll(onField, [move(KURIBOH, at(0, MZONE, 0), at(0, GRAVE, 0))]);
+  expect(played(grave, [move(KURIBOH, at(0, GRAVE, 0), at(0, OcgLocation.REMOVED, 0))])).toEqual([]);
+});
+
+it("annonce un gain, un paiement et une mise à jour des LP pour le joueur concerné", () => {
+  const messages: Message[] = [
+    { type: OcgMessageType.RECOVER, player: 1, amount: 500 },
+    { type: OcgMessageType.PAY_LPCOST, player: 0, amount: 1000 },
+    { type: OcgMessageType.LPUPDATE, player: 0, lp: 2500 },
+    { type: OcgMessageType.LPUPDATE, player: 1, lp: 4500 },
+  ];
+  expect(played(start, messages)).toEqual([
+    [{ type: "lp", joueur: 1, delta: 500, directe: false }],
+    [{ type: "lp", joueur: 0, delta: -1000, directe: false }],
+    [{ type: "lp", joueur: 0, delta: -500, directe: false }],
+  ]);
+});
+
+it("signale les monstres dont l'ATK ou la DEF ont changé, contre la valeur affichée ou imprimée", () => {
+  const stats = (atk: number, def: number): Message => ({ type: "stats", monsters: [[{ atk, def }, null, null, null, null], [null, null, null, null, null]] });
+  const key = `0:${MZONE}:0`;
+  // Nothing shown yet: compared with the printed 300/200.
+  expect(played(onField, [stats(300, 200)])).toEqual([]);
+  expect(played(onField, [stats(800, 200)])).toEqual([[{ type: "stats", cartes: [{ cle: key, atk: 500, def: 0 }] }]]);
+  const boosted = playAll(onField, [stats(800, 200)]);
+  expect(played(boosted, [stats(800, 200)])).toEqual([]);
+  expect(played(boosted, [stats(300, 100)])).toEqual([[{ type: "stats", cartes: [{ cle: key, atk: -500, def: -100 }] }]]);
 });
 
 it("joue l'attaque avant les dégâts, directe quand elle n'a pas de cible", () => {

@@ -397,7 +397,7 @@ async function pioche(jeu: Jeu, main: HTMLElement | null, nombre: number, dy: nu
   await Promise.all(cartes.map((carte, i) => jeu.anim(carte, arrivee, { delay: i * 60, easing: RESSORT, fill: "backwards" })));
 }
 
-// LP roll down (or up), the -X badge pops, the plate glows; a direct attack reddens the edges of the screen.
+// LP roll down (or up), the -X / +X badge pops, the plate glows red or green; a direct attack reddens the edges of the screen.
 async function pointsDeVie(jeu: Jeu, refs: Refs, effet: Extract<Effet, { type: "lp" }>) {
   const valeur = refs.valeurs[effet.joueur].current;
   const delta = refs.deltas[effet.joueur].current;
@@ -410,7 +410,7 @@ async function pointsDeVie(jeu: Jeu, refs: Refs, effet: Extract<Effet, { type: "
   const bords = refs.bords.current;
   await Promise.all([
     jeu.anim(delta, [{ opacity: 0, scale: "0.6" }, { opacity: 1, scale: "1" }], { duration: D2, easing: RESSORT }),
-    effet.delta < 0 && jeu.anim(plaque, [{ filter: "drop-shadow(0 0 16px rgb(255 77 109 / 0.9))" }, { filter: "drop-shadow(0 0 0 transparent)" }], { duration: D4 }),
+    jeu.anim(plaque, [{ filter: `drop-shadow(0 0 16px rgb(${effet.delta < 0 ? "255 77 109" : "61 220 151"} / 0.9))` }, { filter: "drop-shadow(0 0 0 transparent)" }], { duration: D4 }),
     effet.directe && bords && jeu.anim(bords, [{ opacity: 0 }, { opacity: 1, offset: 0.12 }, { opacity: 0 }], { duration: D1 + D4, easing: "linear" }),
     effet.directe && jeu.anim(plaque, [{ translate: "0 0" }, { translate: "-6px 0" }, { translate: "6px 0" }, { translate: "0 0" }], { duration: D2, easing: "linear" }),
     jeu.tween(D4, (k) => {
