@@ -32,7 +32,7 @@
 
 .profil__grille {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
   gap: var(--e-5);
 }
 
@@ -45,18 +45,25 @@
   border-collapse: collapse;
 }
 
+/* .titre-bloc is a flex box: the caption has to stay a table caption, above the rows. */
 .profil__bilan caption {
+  display: table-caption;
   padding-block-end: var(--e-3);
   text-align: start;
 }
 
 .profil__bilan th,
 .profil__bilan td {
-  padding: var(--e-1) var(--e-2);
+  padding: var(--e-1);
   text-align: start;
 }
 
+.profil__bilan td {
+  white-space: nowrap;
+}
+
 .profil__bilan thead th {
+  font-size: var(--taille-s);
   font-weight: 600;
   color: var(--texte-2);
 }

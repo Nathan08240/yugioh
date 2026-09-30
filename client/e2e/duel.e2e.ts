@@ -2,6 +2,9 @@ import { OcgLocation, OcgMessageType, OcgResponseType, SelectIdleCMDAction } fro
 import { expect, test, type Page } from "@playwright/test";
 import { lancer } from "./harnais.ts";
 
+// The 3D board renders in software in headless Edge: under load it takes longer than the default 5 s.
+const BOARD_READY = 15_000;
+
 // The duel is waiting for the player: every animation has played, the first question is shown.
 async function aLaMain(page: Page) {
   await expect(page.getByText("À vous de répondre")).toBeVisible();
@@ -11,7 +14,7 @@ async function aLaMain(page: Page) {
 test("un duel s'affiche avec le plateau, la main et les plaques", async ({ page }) => {
   await lancer(page, { duel: true });
   const main = await aLaMain(page);
-  await expect(page.locator(".plateau-3d.est-pret").or(page.getByText("le duel se joue sur le plateau 2D"))).toBeVisible();
+  await expect(page.locator(".plateau-3d.est-pret").or(page.getByText("le duel se joue sur le plateau 2D"))).toBeVisible({ timeout: BOARD_READY });
   await expect(main.getByRole("button")).toHaveCount(6);
   await expect(main.getByRole("button", { name: "Monstre invocable, jouable" })).toBeVisible();
   await expect(page.getByText("Vos points de vie : 4000 sur 4000")).toBeAttached();
@@ -34,7 +37,7 @@ test("glisser une carte sur une zone envoie l'action puis la zone au serveur", a
   const { envoyes, envoyer } = await lancer(page, { duel: true });
   const main = await aLaMain(page);
   // The 2D board has no drag and drop (Duel.tsx).
-  await expect(page.locator(".plateau-3d.est-pret").or(page.getByText("le duel se joue sur le plateau 2D"))).toBeVisible();
+  await expect(page.locator(".plateau-3d.est-pret").or(page.getByText("le duel se joue sur le plateau 2D"))).toBeVisible({ timeout: BOARD_READY });
   test.skip(!(await page.locator(".plateau-3d").isVisible()), "WebGL 2 indisponible dans ce navigateur : pas de plateau 3D");
 
   const carte = await main.getByRole("button", { name: "Piège à poser, jouable" }).boundingBox();
