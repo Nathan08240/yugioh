@@ -5,7 +5,8 @@ import { DeckRecord, tally } from "./DeckRecord.tsx";
 
 const results: DeckResult[] = [
   { deck: 1, mode: "online", wins: 2, losses: 1 },
-  { deck: 1, mode: "bot", wins: 1, losses: 0 },
+  { deck: 1, mode: "bot", level: "expert", wins: 1, losses: 0 },
+  { deck: 2, mode: "bot", level: "debutant", wins: 1, losses: 1 },
   { deck: 2, mode: "story", wins: 0, losses: 3 },
   { deck: null, mode: "online", wins: 1, losses: 0 },
 ];
@@ -13,8 +14,10 @@ const results: DeckResult[] = [
 it("totalise par deck, par mode et pour le joueur", () => {
   expect(tally(results, 1)).toEqual({ wins: 3, losses: 1, percent: 75 });
   expect(tally(results, 1, "bot")).toEqual({ wins: 1, losses: 0, percent: 100 });
-  expect(tally(results, 2)).toEqual({ wins: 0, losses: 3, percent: 0 });
-  expect(tally(results)).toEqual({ wins: 4, losses: 4, percent: 50 });
+  expect(tally(results, 2)).toEqual({ wins: 1, losses: 4, percent: 20 });
+  expect(tally(results)).toEqual({ wins: 5, losses: 5, percent: 50 });
+  expect(tally(results, undefined, "bot", "debutant")).toEqual({ wins: 1, losses: 1, percent: 50 });
+  expect(tally(results, undefined, "bot", "normal")).toEqual({ wins: 0, losses: 0, percent: undefined });
   expect(tally(results, 3)).toEqual({ wins: 0, losses: 0, percent: undefined });
 });
 

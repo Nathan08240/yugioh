@@ -42,6 +42,8 @@ const accounts: Accounts = {
   saveDeck: async () => ({ error: "non simulé" }),
   deleteDeck: async () => false,
   activateDeck: async () => false,
+  profileCards: async () => ({ avatar: null, favorite: null }),
+  setProfileCard: async () => false,
   // Souhaits en mémoire, par joueur.
   wishlist: async (userId) => [...(wishes.get(userId) ?? [])],
   addWish: async (userId, code) => {

@@ -7,9 +7,9 @@ const MODES: [DuelMode, string][] = [
 ];
 const plural = (count: number, word: string) => `${count} ${word}${count > 1 ? "s" : ""}`;
 
-// Wins and losses of a deck, or of every deck when `deck` is undefined (the player's totals), optionally in one mode.
-export function tally(results: readonly DeckResult[], deck?: number, mode?: DuelMode) {
-  const rows = results.filter((row) => (deck === undefined || row.deck === deck) && (mode === undefined || row.mode === mode));
+// Wins and losses of a deck, or of every deck when `deck` is undefined (the player's totals), optionally in one mode and level.
+export function tally(results: readonly DeckResult[], deck?: number, mode?: DuelMode, level?: string) {
+  const rows = results.filter((row) => (deck === undefined || row.deck === deck) && (mode === undefined || row.mode === mode) && (level === undefined || row.level === level));
   const wins = rows.reduce((sum, row) => sum + row.wins, 0);
   const losses = rows.reduce((sum, row) => sum + row.losses, 0);
   const played = wins + losses;

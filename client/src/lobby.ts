@@ -31,8 +31,9 @@ export type LobbyState = {
   admin?: boolean;
   room?: string;
   seat?: Seat;
-  // Name of the other seat, once known.
+  // Name of the other seat, once known, and the avatar of a human opponent.
   opponent?: string;
+  opponentAvatar?: number;
   board?: Board;
   // Starting LP of the player and of the opponent, and the last batch of engine messages: the duel screen animates them (id tells batches apart).
   lp?: number;
@@ -56,6 +57,8 @@ export type LobbyState = {
   decks?: DeckList;
   // Wins and losses per deck and mode, loaded with the decks.
   results?: DeckResult[];
+  // Avatar and favorite card of the player (passcodes), loaded with the lobby and by the profile screen.
+  profile?: { avatar: number | null; favorite: number | null };
   // Wished passcodes, loaded by the collection and boosters screens.
   wishlist?: number[];
   // Booster timer and pending count, loaded by the boosters screen.
@@ -91,6 +94,7 @@ export function reduce(state: LobbyState, action: Action): LobbyState {
         room: action.room,
         seat: action.seat,
         opponent: action.opponent,
+        opponentAvatar: action.opponentAvatar,
         lp: action.lp,
         opponentLp: action.opponentLp,
         board: playAll(newBoard(action.seat === 0 ? [action.lp, action.opponentLp ?? action.lp] : [action.opponentLp ?? action.lp, action.lp], action.decks, action.extras), action.log),
@@ -127,6 +131,8 @@ export function reduce(state: LobbyState, action: Action): LobbyState {
       return { ...state, decks: action, error: undefined };
     case "duel_results":
       return { ...state, results: action.results };
+    case "player_profile":
+      return { ...state, profile: { avatar: action.avatar, favorite: action.favorite }, error: undefined };
     case "wishlist":
       return { ...state, wishlist: action.cards, error: undefined };
     case "error":

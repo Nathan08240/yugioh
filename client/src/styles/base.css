@@ -343,6 +343,12 @@ a {
   color: var(--nuit-0);
 }
 
+.avatar__art {
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+}
+
 .avatar--grand {
   inline-size: 72px;
   font-size: var(--taille-2xl);

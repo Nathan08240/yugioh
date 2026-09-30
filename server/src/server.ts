@@ -18,6 +18,7 @@ import { KAIBA } from "./decks.ts";
 import { agreeToRules, fieldStats, lpLeft, lpOf, openDuel, STANDARD_RULES, type Rules, type Seed } from "./duel.ts";
 import { EMOTE_DELAY, EMOTE_IDS, type EmoteId } from "./emotes.ts";
 import { isAllowed, POOL, SETS, type Printing } from "./pool.ts";
+import { dbProfileStore, isProfileMessage, profileReply, validProfileMessage, type ProfileMessage, type ProfileStore } from "./profile.ts";
 import { REPORT_MAX, type BotLevel, type CardInfo, type ClientMessage, type DeckResult, type DuelEvent, type Seat, type ServerMessage, type StoryLevel, type StoryResult } from "./protocol.ts";
 import { REPORT_BYTES, RESPONSE_BYTES, saveReport, type Report } from "./report.ts";
 import { respond } from "./respond.ts";
@@ -32,7 +33,7 @@ import { dbWishStore, isWishMessage, validWishMessage, wishReply, type WishMessa
 type Question = Extract<OcgMessage, { player: number }>;
 // `stats`: the last stats event sent, as JSON.
 // `gone`: the player lost their connection during an online duel and loses it at `at` unless they come back.
-type Player = { id: string; name?: string; socket?: WebSocket; log: DuelEvent[]; deck: readonly number[]; deckId?: number; extra?: readonly number[]; bot?: Bot; stats?: string; gone?: { at: number; timer: NodeJS.Timeout } };
+type Player = { id: string; name?: string; avatar?: number; socket?: WebSocket; log: DuelEvent[]; deck: readonly number[]; deckId?: number; extra?: readonly number[]; bot?: Bot; stats?: string; gone?: { at: number; timer: NodeJS.Timeout } };
 // Time `left` to the asked seat of an online duel, counting down from `since` while `timer` runs (paused while they are disconnected).
 type Clock = { seat: Seat; left: number; since: number; timer?: NodeJS.Timeout };
 export type Room = {
@@ -68,7 +69,7 @@ const deckSizes = (room: Room): [number, number] => [
 const extraSizes = (room: Room): [number, number] => [room.players[0]?.extra?.length ?? 0, room.players[1]?.extra?.length ?? 0];
 
 // Identity, profile, deck, booster and Story mode storage, faked in tests.
-export type Accounts = DeckStore & WishStore & {
+export type Accounts = DeckStore & WishStore & ProfileStore & {
   verify: (token: string) => Promise<string | null>;
   findProfile: (userId: string) => Promise<Profile | undefined>;
   // Resolves to undefined when the pseudo is already taken.
@@ -112,6 +113,7 @@ export function dbAccounts(db: Db): Accounts {
     saveReport: (userId, message, report) => saveReport(db, userId, message, report),
     ...dbDeckStore(db),
     ...dbWishStore(db),
+    ...dbProfileStore(db),
   };
 }
 
@@ -243,7 +245,8 @@ function parse(data: string): ClientMessage | undefined {
     (msg.type === "open_booster" && typeof msg.set === "string") ||
     (msg.type === "admin_boosters" && typeof msg.count === "number" && Number.isInteger(msg.count) && msg.count >= 1 && msg.count <= ADMIN_BOOSTERS_MAX) ||
     validDeckMessage(msg) ||
-    validWishMessage(msg);
+    validWishMessage(msg) ||
+    validProfileMessage(msg);
   return valid ? (msg as ClientMessage) : undefined;
 }
 
@@ -420,7 +423,7 @@ function sendJoined(room: Room, seat: Seat) {
   const player = room.players[seat];
   if (!player) return;
   const [lp, opponentLp] = [lpOf(rulesOf(room), seat), lpOf(rulesOf(room), 1 - seat)];
-  send(player.socket, { type: "joined", room: room.code, seat, lp, opponentLp: opponentLp === lp ? undefined : opponentLp, decks: deckSizes(room), extras: extraSizes(room), opponent: room.players[1 - seat]?.name, log: player.log });
+  send(player.socket, { type: "joined", room: room.code, seat, lp, opponentLp: opponentLp === lp ? undefined : opponentLp, decks: deckSizes(room), extras: extraSizes(room), opponent: room.players[1 - seat]?.name, opponentAvatar: room.players[1 - seat]?.avatar, log: player.log });
 }
 
 // Runs the engine until it asks a question or the duel ends. A crash inside the engine closes only this room.
@@ -524,11 +527,11 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
   wss.on("close", () => http.close());
   http.listen(port);
 
-  function sit(room: Room, id: string, socket: WebSocket, deck: ActiveDeck, name?: string): Seat | undefined {
+  function sit(room: Room, id: string, socket: WebSocket, deck: ActiveDeck, name?: string, avatar?: number): Seat | undefined {
     const known = room.players.findIndex((player) => player.id === id);
     if (known === -1 && room.players.length === 2) return undefined;
     const isNew = known === -1;
-    const seat = (isNew ? room.players.push({ id, name, log: [], deck: deck.main, deckId: deck.id, extra: deck.extra }) - 1 : known) as Seat;
+    const seat = (isNew ? room.players.push({ id, name, avatar, log: [], deck: deck.main, deckId: deck.id, extra: deck.extra }) - 1 : known) as Seat;
     const player = room.players[seat];
     if (player.socket !== socket) player.socket?.close();
     player.socket = socket;
@@ -583,7 +586,7 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
   }
 
   wss.on("connection", (socket) => {
-    let user: { id: string; pseudo?: string } | undefined;
+    let user: { id: string; pseudo?: string; avatar?: number } | undefined;
     let seat: { room: Room; index: Seat } | undefined;
     // Messages are handled one at a time, so an action sent right after `auth` waits for its verification.
     let queue = Promise.resolve();
@@ -593,7 +596,7 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
       const id = await accounts.verify(token);
       if (!id) return "jeton invalide";
       const profile = await accounts.findProfile(id);
-      user = { id, pseudo: profile?.pseudo };
+      user = { id, pseudo: profile?.pseudo, avatar: profile && ((await accounts.profileCards(id)).avatar ?? undefined) };
       send(socket, { type: "profile", pseudo: user.pseudo ?? null, needsStarter: profile !== undefined && profile.activeDeckId === null, ...adminFlag(id) });
       return undefined;
     }
@@ -625,6 +628,14 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
     async function manageWishes(player: { id: string }, msg: WishMessage): Promise<string | undefined> {
       const reply = await wishReply(accounts, player.id, msg);
       if (typeof reply === "string") return reply;
+      send(socket, reply);
+      return undefined;
+    }
+
+    async function manageProfile(player: { id: string; avatar?: number }, msg: ProfileMessage): Promise<string | undefined> {
+      const reply = await profileReply(accounts, player.id, msg);
+      if (typeof reply === "string") return reply;
+      if (reply.type === "player_profile") player.avatar = reply.avatar ?? undefined;
       send(socket, reply);
       return undefined;
     }
@@ -670,7 +681,7 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
     function enter(userId: string, room: Room, deck: ActiveDeck, bot?: { deck: ActiveDeck; name: string; level?: BotLevel }): string | undefined {
       room.onEnd = (winner, reason) => recordResults(room, winner, reason);
       rooms.set(room.code, room);
-      const index = sit(room, userId, socket, deck, user?.pseudo);
+      const index = sit(room, userId, socket, deck, user?.pseudo, user?.avatar);
       if (index === undefined) return "salle complète";
       seat = { room, index };
       if (bot) addBot(room, bot.deck, bot.name, bot.level);
@@ -802,6 +813,7 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
       if (msg.type === "starter") return pickStarter(user, msg.starter);
       if (isDeckMessage(msg)) return manageDecks(user, msg);
       if (isWishMessage(msg)) return manageWishes(user, msg);
+      if (isProfileMessage(msg)) return manageProfile(user, msg);
       if (msg.type === "booster_state") return sendBoosterState(user);
       if (msg.type === "open_booster") return openBoosterFor(user, msg.set);
       if (msg.type === "admin_boosters") return grantBoosters(user, msg.count);
