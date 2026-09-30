@@ -35,7 +35,7 @@ const accounts: Accounts = {
     decks.set(userId, starter === "yugi" ? YUGI : KAIBA);
     return true;
   },
-  collection: async () => [],
+  collection: async () => ({ cards: [], rarities: [] }),
   decks: async () => ({ decks: [], active: null }),
   saveDeck: async () => ({ error: "non simulé" }),
   deleteDeck: async () => false,

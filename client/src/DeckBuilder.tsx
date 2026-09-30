@@ -5,15 +5,15 @@ import type { ClientMessage, Deck } from "../../server/src/protocol.ts";
 import { CardDetail, CardView } from "./Card.tsx";
 import { attributeKey, cardName, DuelView, frame, useCards, useDuelView } from "./cards.ts";
 import { drawHand, fitSuggestion, formatYdk, importDeck, parseYdk, type Skipped, type Suggestion } from "./deckTools.ts";
-import { filterCollection, kindCounts, noFilters, type Filters, type Kind } from "./collection.ts";
+import { bestRarity, copiesByRarity, filterCollection, kindCounts, noFilters, type Copies, type Filters, type Kind } from "./collection.ts";
 import type { DeckList } from "./lobby.ts";
 import { D2, D3, duree, ELAN, FONDU, prefersReduced, RESSORT, SORTIE, type AnimOptions } from "./motion.ts";
 import "./styles/collection.css";
-import { Icon } from "./ui.tsx";
+import { BestRarity, Icon } from "./ui.tsx";
 
 type Send = (msg: ClientMessage) => void;
 type SetDraft = Dispatch<SetStateAction<DeckDraft | undefined>>;
-type Props = { collection?: [number, number][]; decks?: DeckList; send: Send };
+type Props = { collection?: [number, number][]; rarities?: [number, string, number][]; decks?: DeckList; send: Send };
 
 const LEVELS = Array.from({ length: 12 }, (_, i) => i + 1);
 const KINDS: [Kind, string][] = [
@@ -30,11 +30,12 @@ const same = (a: DeckDraft, b: Deck) => a.name === b.name && a.main.join() === b
 const plural = (count: number, word: string) => `${count} ${word}${count > 1 ? "s" : ""}`;
 
 // Collection on the left, card detail in the middle, the edited deck on the right. The server checks every save.
-export function DeckBuilder({ collection, decks, send }: Readonly<Props>) {
+export function DeckBuilder({ collection, rarities, decks, send }: Readonly<Props>) {
   const cards = useCards();
   const [shown, setShown] = useState<number>();
   const view = useMemo(() => ({ cards, show: setShown, seat: 0 }), [cards]);
   const [draft, setDraft] = useState<DeckDraft>();
+  const copies = useMemo(() => copiesByRarity(collection ?? [], rarities ?? []), [collection, rarities]);
 
   // Once per visit of the screen: `send` changes on every render of the lobby.
   useEffect(() => {
@@ -56,9 +57,9 @@ export function DeckBuilder({ collection, decks, send }: Readonly<Props>) {
   return (
     <DuelView value={view}>
       <div className="atelier">
-        <CollectionPanel collection={collection} draft={draft} onAdd={(code) => draft && setDraft(add(draft, code, cards.get(code)))} onCreate={setDraft} />
+        <CollectionPanel collection={collection} copies={copies} draft={draft} onAdd={(code) => draft && setDraft(add(draft, code, cards.get(code)))} onCreate={setDraft} />
         <aside className="panneau atelier__detail" aria-label="Détail de la carte" data-entree>
-          <CardDetail code={shown} />
+          <CardDetail code={shown} copies={shown === undefined ? undefined : copies.get(shown)} />
         </aside>
         <DeckPanel decks={decks} draft={draft} owned={collection} setDraft={setDraft} send={send} />
       </div>
@@ -99,9 +100,9 @@ const LEAVE: Keyframe[] = [
   { opacity: 0, translate: "24px 0" },
 ];
 
-type CollectionProps = { collection: [number, number][]; draft?: DeckDraft; onAdd: (code: number) => void; onCreate: (draft: DeckDraft) => void };
+type CollectionProps = { collection: [number, number][]; copies: ReadonlyMap<number, Copies>; draft?: DeckDraft; onAdd: (code: number) => void; onCreate: (draft: DeckDraft) => void };
 
-function CollectionPanel({ collection, draft, onAdd, onCreate }: Readonly<CollectionProps>) {
+function CollectionPanel({ collection, copies, draft, onAdd, onCreate }: Readonly<CollectionProps>) {
   const { cards, show } = useDuelView();
   const [filters, setFilters] = useState<Filters>(noFilters);
   const shownCards = useMemo(() => filterCollection(collection, cards, filters), [collection, cards, filters]);
@@ -140,8 +141,9 @@ function CollectionPanel({ collection, draft, onAdd, onCreate }: Readonly<Collec
                   if (!spent) onAdd(code);
                 }}
               >
-                <CardView code={code} />
+                <CardView code={code} rarity={bestRarity(copies.get(code))} />
               </button>
+              <BestRarity copies={copies.get(code)} />
               <span className="qte" aria-hidden="true">
                 ×{quantity}
               </span>

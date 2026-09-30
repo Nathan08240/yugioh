@@ -71,8 +71,9 @@ export type ServerMessage =
   // Online: `from` asked for a rematch. `rematch_declined`: refused or left, no rematch in this room. A new duel starts with `joined`.
   | { type: "rematch"; from: Seat }
   | { type: "rematch_declined" }
-  // Owned cards as [passcode, quantity].
-  | { type: "collection"; cards: [number, number][] }
+  // Owned cards as [passcode, quantity]. `rarities`: copies of known rarity as [passcode, rarity, quantity], the rest of
+  // a card's quantity (copies obtained before rarities were kept) has an unknown rarity.
+  | { type: "collection"; cards: [number, number][]; rarities: [number, string, number][] }
   // `saved` is the deck a `save_deck` just stored.
   | { type: "decks"; decks: Deck[]; active: number | null; saved?: number }
   | { type: "duel_error"; error: string }

@@ -1,7 +1,8 @@
 import { OcgLocation, OcgPosition, OcgType } from "@n1xx1/ocgcore-wasm";
 import type { PointerEvent } from "react";
 import type { CardInfo } from "../../server/src/protocol.ts";
-import { attributeKey, frame, has, ICONS, rarityKey, stat, statChange, useDuelView } from "./cards.ts";
+import { attributeKey, frame, has, ICONS, rarityKey, rarityLabel, stat, statChange, useDuelView } from "./cards.ts";
+import { bestRarity, type Copies } from "./collection.ts";
 import { prefersReduced } from "./motion.ts";
 import { KeywordChips } from "./motscles.tsx";
 
@@ -110,15 +111,16 @@ function gem(type: number, monster: boolean, attribute: string | undefined): str
   return `attr-${attribute ?? "lumiere"}`;
 }
 
-// The glare of the shiny rarities follows the pointer and the card tilts, without the tilt when motion is reduced.
+// The glare of the shiny rarities follows the pointer and the card tilts; both stay still when motion is reduced.
 function follow(event: PointerEvent<HTMLDivElement>) {
+  if (prefersReduced()) return;
   const card = event.currentTarget;
   const box = card.getBoundingClientRect();
   const x = (event.clientX - box.left) / box.width;
   const y = (event.clientY - box.top) / box.height;
   card.style.setProperty("--reflet-x", `${x * 100}%`);
   card.style.setProperty("--reflet-y", `${y * 100}%`);
-  card.style.transform = prefersReduced() ? "" : `perspective(700px) rotateY(${(x - 0.5) * 18}deg) rotateX(${(0.5 - y) * 14}deg)`;
+  card.style.transform = `perspective(700px) rotateY(${(x - 0.5) * 18}deg) rotateX(${(0.5 - y) * 14}deg)`;
 }
 
 function rest(event: PointerEvent<HTMLDivElement>) {
@@ -160,7 +162,22 @@ function DetailStat({ label, current, printed }: Readonly<{ label: string; curre
 }
 
 // `atk` and `def`: current stats of a monster on the field, the printed ones otherwise.
-export function CardDetail({ code, atk, def }: Readonly<{ code?: number; atk?: number; def?: number }>) {
+// `copies`: the player's copies by rarity, listed below the card, which takes the rarest treatment.
+export function CardDetail({ code, atk, def, copies }: Readonly<{ code?: number; atk?: number; def?: number; copies?: Copies }>) {
   if (code === undefined) return <p className="detail-vide">Survolez une carte pour la voir en détail.</p>;
-  return <CardView code={code} full atk={atk} def={def} />;
+  return (
+    <>
+      <CardView code={code} full atk={atk} def={def} rarity={bestRarity(copies)} />
+      {copies && (
+        <ul className="exemplaires" aria-label="Exemplaires par rareté">
+          {copies.map(([rarity, count]) => (
+            <li key={rarity}>
+              <span className={`rarete rarete--${rarityKey(rarity)}`}>{rarityLabel(rarity)}</span>
+              <b className="chiffres">×{count}</b>
+            </li>
+          ))}
+        </ul>
+      )}
+    </>
+  );
 }

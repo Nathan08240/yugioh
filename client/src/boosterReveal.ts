@@ -3,10 +3,10 @@
 // Printing rarities of the server (server/src/pool.ts), from the least to the most rare.
 export const RARITY_ORDER = ["common", "shortprint", "rare", "super", "ultra", "ultimate", "secret"];
 
-const rank = (rarity: string) => Math.max(0, RARITY_ORDER.indexOf(rarity));
+export const rarityRank = (rarity: string) => Math.max(0, RARITY_ORDER.indexOf(rarity));
 
 // The cards in reveal order: stable, so the server order stays within a rarity; an unknown rarity counts as common.
-export const revealOrder = <T extends { rarity: string }>(cards: readonly T[]): T[] => [...cards].sort((a, b) => rank(a.rarity) - rank(b.rarity));
+export const revealOrder = <T extends { rarity: string }>(cards: readonly T[]): T[] => [...cards].sort((a, b) => rarityRank(a.rarity) - rarityRank(b.rarity));
 
 // `revealed` cards are off the pile, the last one being shown; `playing` while an animation runs (the pack first).
 export type RevealState = { total: number; revealed: number; playing: boolean };

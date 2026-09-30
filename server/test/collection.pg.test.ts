@@ -2,7 +2,9 @@ import { once } from "node:events";
 import type { AddressInfo } from "node:net";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { WebSocket, type WebSocketServer } from "ws";
+import { addCards } from "../src/collection.ts";
 import { createProfile, type Db } from "../src/db.ts";
+import { SETS } from "../src/pool.ts";
 import type { ClientMessage, ServerMessage } from "../src/protocol.ts";
 import { dbAccounts, startServer } from "../src/server.ts";
 import { chooseStarter, starterCards } from "../src/starter.ts";
@@ -52,7 +54,12 @@ describe("collection et decks sur Postgres jetable", () => {
     const codes = starterCards("yugi");
     try {
       const collection = await yugi.ask({ type: "collection" });
-      expect(collection).toEqual({ type: "collection", cards: [...new Set(codes)].sort((a, b) => a - b).map((code) => [code, 1]) });
+      const printings = SETS.find((set) => set.code === "SDY")?.cards ?? [];
+      expect(collection).toEqual({
+        type: "collection",
+        cards: [...new Set(codes)].sort((a, b) => a - b).map((code) => [code, 1]),
+        rarities: printings.toSorted((a, b) => a.code - b.code).map(({ code, rarity }) => [code, rarity, 1]),
+      });
 
       const listed = await yugi.ask({ type: "decks" });
       expect(listed).toEqual({ type: "decks", decks: [{ id: expect.any(Number), name: "Starter Yugi", main: codes, extra: [] }], active: expect.any(Number) });
@@ -70,6 +77,21 @@ describe("collection et decks sur Postgres jetable", () => {
       expect(await admin`select id from yugioh.decks where user_id = ${yugi.id}`).toHaveLength(2);
     } finally {
       yugi.close();
+    }
+  });
+
+  it("laisse en rareté inconnue les exemplaires obtenus avant que la rareté soit gardée", async () => {
+    const tea = await player("Tea");
+    const exodia = 33396948;
+    try {
+      await admin`insert into yugioh.collection (user_id, card_code, quantity) values (${tea.id}, ${exodia}, 2)`;
+      await pg.server.begin((sql) => addCards(sql, tea.id, [{ code: exodia, rarity: "secret" }]));
+      const collection = await tea.ask({ type: "collection" });
+      if (collection.type !== "collection") throw new Error(JSON.stringify(collection));
+      expect(collection.cards).toContainEqual([exodia, 3]);
+      expect(collection.rarities.filter(([code]) => code === exodia)).toEqual([[exodia, "secret", 1]]);
+    } finally {
+      tea.close();
     }
   });
 

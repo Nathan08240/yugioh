@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { activeDeck, createProfile, type Db } from "../src/db.ts";
+import { SETS } from "../src/pool.ts";
 import { chooseStarter, starterCards } from "../src/starter.ts";
 import { type Pg, startPostgres } from "./pg.ts";
 
@@ -30,6 +31,15 @@ describe("choix du starter sur Postgres jetable", () => {
     const collection = await admin<{ card_code: number; quantity: number }[]>`
       select card_code, quantity from yugioh.collection where user_id = ${id} order by card_code`;
     expect(collection).toEqual([...codes].sort((a, b) => a - b).map((code) => ({ card_code: code, quantity: 1 })));
+    const rarities = await admin<{ rarity: string; copies: number }[]>`
+      select rarity, sum(quantity)::int as copies from yugioh.collection_rarities where user_id = ${id} group by rarity order by rarity`;
+    const ultra = SETS.find((set) => set.code === "SDY")?.cards.find((card) => card.rarity === "ultra");
+    expect(rarities).toEqual([
+      { rarity: "common", copies: 47 },
+      { rarity: "super", copies: 2 },
+      { rarity: "ultra", copies: 1 },
+    ]);
+    expect(await admin`select rarity from yugioh.collection_rarities where user_id = ${id} and card_code = ${ultra?.code ?? 0}`).toEqual([{ rarity: "ultra" }]);
 
     const [deck] = await admin<{ name: string; main_deck: number[] }[]>`
       select name, main_deck from yugioh.decks where user_id = ${id}`;
