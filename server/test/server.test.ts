@@ -140,8 +140,8 @@ afterAll(() => wss.close());
 
 // A client logged in as `user` (if any) that records everything and answers its questions with `answer`
 // (undefined keeps the question pending).
-async function connect(user?: string, answer: Answer = (question) => respond(question)) {
-  const socket = new WebSocket(url);
+async function connect(user?: string, answer: Answer = (question) => respond(question), to = url) {
+  const socket = new WebSocket(to);
   const received: Received[] = [];
   socket.on("message", (data) => {
     const msg: Received = JSON.parse(String(data));
@@ -908,5 +908,55 @@ describe("mode classé", () => {
     expect(joined(b.received)?.room).toBe(joined(c.received)?.room);
     expect(joins(annule)).toEqual([]);
     for (const client of [annule, b, c]) client.socket.close();
+  });
+});
+
+describe("arrêt pour une mise à jour", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  // A server of its own, stopped by the test, with `user` in a duel against the bot that waits on their answer.
+  async function inDuel(user: string) {
+    const server = startServer(0, accounts, () => [1n, 2n, 3n, 4n]);
+    await once(server, "listening");
+    const to = `ws://localhost:${(server.address() as AddressInfo).port}`;
+    decks.set(user, YUGI);
+    const player = await connect(user, () => undefined, to);
+    player.send({ type: "bot" });
+    await vi.waitFor(() => expect(player.received.some((msg) => msg.type === "question")).toBe(true), { timeout: 20_000 });
+    return { server, to, player };
+  }
+
+  it("refuse les nouveaux duels, laisse finir celui en cours puis s'arrête", { timeout: 30_000 }, async () => {
+    const { server, to, player } = await inDuel("arret-a");
+    let stopped = false;
+    const stop = server.shutdown(60_000).then(() => {
+      stopped = true;
+    });
+    await vi.waitFor(() => expect(player.received).toContainEqual({ type: "maintenance" }));
+    const late = await connect("arret-b", undefined, to);
+    await vi.waitFor(() => expect(late.received).toContainEqual({ type: "maintenance" }));
+    late.send({ type: "create" });
+    await vi.waitFor(() => expect(late.received).toContainEqual({ type: "error", error: "mise à jour en cours : les nouveaux duels reprennent dans quelques minutes" }));
+    // A check went by: the duel in progress keeps the server up.
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+    expect(stopped).toBe(false);
+    player.send({ type: "surrender" });
+    await stop;
+    expect(player.messages()).toContainEqual(expect.objectContaining({ type: OcgMessageType.WIN, player: 1 }));
+    player.send({ type: "rematch" });
+    await vi.waitFor(() => expect(player.received.at(-1)).toEqual({ type: "error", error: "mise à jour en cours : les nouveaux duels reprennent dans quelques minutes" }));
+    for (const client of [player, late]) client.socket.close();
+    server.close();
+  });
+
+  it("au bout du délai maximum, termine les duels restants sans vainqueur ni résultat enregistré", { timeout: 30_000 }, async () => {
+    const { server, player } = await inDuel("arret-c");
+    vi.spyOn(accounts, "recordResult");
+    await server.shutdown(0);
+    await vi.waitFor(() => expect(player.received).toContainEqual({ type: "duel_error", error: "mise à jour du serveur : duel interrompu, sans victoire ni défaite" }));
+    expect(player.messages().some((msg) => msg.type === OcgMessageType.WIN)).toBe(false);
+    expect(accounts.recordResult).not.toHaveBeenCalled();
+    player.socket.close();
+    server.close();
   });
 });

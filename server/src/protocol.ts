@@ -175,6 +175,8 @@ export type ServerMessage =
   // `saved` is the deck a `save_deck` just stored.
   | { type: "decks"; decks: Deck[]; active: number | null; saved?: number }
   | { type: "duel_error"; error: string }
+  // The server stops for an update: no new duel, those in progress go on until their end. Sent to every client.
+  | { type: "maintenance" }
   // Avatar and favorite card of the player, null until chosen.
   | { type: "player_profile"; avatar: number | null; favorite: number | null }
   // The friends of the player, by pseudo. `friend_status`: the presence of a friend changed. `friend_notice`: a text to show

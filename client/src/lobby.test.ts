@@ -1,6 +1,6 @@
 import { OcgMessageType } from "@n1xx1/ocgcore-wasm";
 import { expect, it, vi } from "vitest";
-import { initialLobby, inviteFromUrl, inviteLink, minutes, reduce, roomFromUrl, type Action } from "./lobby.ts";
+import { initialLobby, inviteFromUrl, inviteLink, minutes, reduce, ROOM_GONE, roomFromUrl, type Action } from "./lobby.ts";
 
 it("passe du pseudo à l'attente puis au plateau quand le duel démarre", () => {
   let state = reduce(initialLobby, { type: "profile", pseudo: null, needsStarter: false });
@@ -26,6 +26,22 @@ it("passe du pseudo à l'attente puis au plateau quand le duel démarre", () => 
   state = reduce(reduce(state, { type: "closed" }), { type: "connecting" });
   expect(state).toMatchObject({ pseudo: undefined, room: "ABCDE", closed: false });
   expect(reduce(state, { type: "left" })).toMatchObject({ room: undefined, board: undefined, started: false });
+});
+
+it("annonce une mise à jour du serveur, et quitte un duel que le nouveau serveur ne connaît pas", () => {
+  let state = reduce(initialLobby, { type: "profile", pseudo: "Yugi", needsStarter: false });
+  state = reduce(state, { type: "joined", room: "ABCDE", seat: 0, lp: 4000, decks: [40, 40], extras: [0, 0], log: [] });
+  state = reduce(state, { type: "maintenance" });
+  expect(state.maintenance).toBe(true);
+  // The error of an action is shown as usual.
+  expect(reduce(state, { type: "error", error: "aucun duel terminé" })).toMatchObject({ room: "ABCDE", error: "aucun duel terminé" });
+
+  // Reconnected, the room is joined again: `joined` replays it, an error means it is gone.
+  state = reduce(reduce(state, { type: "closed" }), { type: "connecting" });
+  expect(state).toMatchObject({ maintenance: undefined, room: "ABCDE" });
+  expect(reduce(state, { type: "joined", room: "ABCDE", seat: 0, lp: 4000, decks: [40, 40], extras: [0, 0], log: [] })).toMatchObject({ room: "ABCDE", rejoining: undefined });
+  state = reduce(state, { type: "error", error: "salle introuvable" });
+  expect(state).toMatchObject({ room: undefined, board: undefined, rejoining: undefined, error: ROOM_GONE });
 });
 
 it("garde le mode Histoire ouvert pendant ses duels et oublie la conclusion en quittant le duel", () => {

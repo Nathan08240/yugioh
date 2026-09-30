@@ -113,14 +113,20 @@ export type LobbyState = {
   ranked?: RankedView;
   rankedSince?: number;
   rankedResult?: { delta: number; rating: number };
+  // The server stops for an update: no new duel until the next one runs.
+  maintenance?: boolean;
+  // Connecting again to the room on screen: an error instead of `joined` means the room is gone.
+  rejoining?: boolean;
 };
+
+export const ROOM_GONE = "Ce duel n'est plus disponible : le serveur a été mis à jour ou la salle a expiré.";
 
 export const initialLobby: LobbyState = { started: false, spectators: 0, asked: 0, emotes: {}, closed: false, needsStarter: false, openedCount: 0, storyOpen: false, reported: 0, challenges: [] };
 
 export function reduce(state: LobbyState, action: Action): LobbyState {
   switch (action.type) {
     case "connecting":
-      return { ...state, pseudo: undefined, error: undefined, closed: false, rankedSince: undefined };
+      return { ...state, pseudo: undefined, error: undefined, closed: false, rankedSince: undefined, maintenance: undefined, rejoining: state.room !== undefined };
     case "closed":
       return { ...state, closed: true };
     case "left":
@@ -154,6 +160,7 @@ export function reduce(state: LobbyState, action: Action): LobbyState {
         eventWon: action.log.length === 0 ? undefined : state.eventWon,
         rankedResult: action.log.length === 0 ? undefined : state.rankedResult,
         rankedSince: undefined,
+        rejoining: undefined,
       };
     case "messages":
       return {
@@ -187,7 +194,11 @@ export function reduce(state: LobbyState, action: Action): LobbyState {
     case "wishlist":
       return { ...state, wishlist: action.cards, error: undefined };
     case "error":
+      // The room is gone (a new server after an update, or expired): back to the menus rather than a frozen duel.
+      if (state.rejoining) return { ...reduce(state, { type: "left" }), rejoining: undefined, error: ROOM_GONE };
       return { ...state, error: action.error };
+    case "maintenance":
+      return { ...state, maintenance: true };
     case "duel_error":
       return { ...state, error: action.error, question: undefined, answerBy: undefined, away: undefined };
     case "booster_state":

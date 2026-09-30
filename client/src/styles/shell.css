@@ -181,6 +181,13 @@ button.marque {
   translate: -50% 0;
 }
 
+/* Serveur en cours de mise à jour : rien à cliquer, le bandeau ne bloque pas le plateau */
+.alerte-globale--info {
+  pointer-events: none;
+  background: var(--nuit-1);
+  box-shadow: inset 3px 0 0 var(--or), var(--ombre-2);
+}
+
 /* Les huit entrées du menu tiennent sur la barre d'un écran de 1280 px */
 @media (max-width: 1400px) {
   .barre {
