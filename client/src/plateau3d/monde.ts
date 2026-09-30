@@ -10,6 +10,7 @@ import type { Board } from "../board.ts";
 import type { Cards } from "../cards.ts";
 import { D2, D3, D4, prefersReduced } from "../motion.ts";
 import { placeKey } from "../question.ts";
+import { surveillant } from "./cadence.ts";
 import { CARTE, pileId, PLATEAU, ZONE, zones, type CarteScene, type EtatScene, type PileScene, type Zone } from "./disposition.ts";
 import type { Depart, Effet, Variation } from "./effets.ts";
 import { FS_BALAYAGE, FS_CONE, FS_FAISCEAU, FS_HOLOGRAMME, FS_SOL, FS_SURBRILLANCE, VS_MONDE, VS_UV } from "./shaders.ts";
@@ -35,12 +36,16 @@ const STYLES: Record<Etat, { couleur?: string; force: number; fond: number; puls
   cible: { couleur: "--holo", force: 2, fond: 0.06, pulse: 1 },
 };
 const TERRAIN = { l: 2 * PLATEAU.l - 0.1, p: PLATEAU.p - 0.05, opacite: 0.72, gain: 1.2 };
+// Below this gap a card or fade has arrived; at rest, shaders driven by time redraw at 20 frames per second.
+const SEUIL = 1e-3;
+const PAUSE_AMBIANT = 50;
 const FIELD: ReadonlySet<string> = new Set(["terrain", "monstre", "magie"]);
 const DEPARTS: Record<Depart, string> = { destruction: "--danger", sacrifice: "--or", materiau: "--type-fusion", bannissement: "--ombre-violet", main: "--holo-2", deck: "--holo", extra: "--holo" };
 
 const sortie = (k: number) => 1 - (1 - k) ** 4;
 const elan = (k: number) => k ** 3;
 const uni = <T>(value: T) => ({ value });
+const bouge = (...ecarts: number[]) => ecarts.some((ecart) => Math.abs(ecart) > SEUIL);
 
 function geoCarte(epaisseur: number) {
   const g = new THREE.BoxGeometry(CARTE.l, epaisseur, CARTE.h);
@@ -93,6 +98,12 @@ export class Monde {
   private etatsQuestion = { cibles: new Set<string>(), choisies: new Set<string>() };
   // Everything the world adds to the scene of react-three-fiber, removed as a whole.
   private readonly racine = new THREE.Group();
+  // On-demand rendering: the world asks for a frame (`invalider`) whenever something changes or moves, and none at rest.
+  private readonly invalider: () => void;
+  private readonly mesure: (dt: number) => void;
+  private enchaine = false;
+  private tweens = 0;
+  private minuteur: ReturnType<typeof setTimeout> | undefined;
 
   private readonly gl: THREE.WebGLRenderer;
   private readonly scene: THREE.Scene;
@@ -101,13 +112,15 @@ export class Monde {
   private readonly cards: Cards;
   private readonly seat: number;
 
-  constructor(gl: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.PerspectiveCamera, res: Ressources, cards: Cards, seat: number) {
+  constructor(gl: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.PerspectiveCamera, res: Ressources, cards: Cards, seat: number, rappels: { invalider: () => void; lent: () => void }) {
     this.gl = gl;
     this.scene = scene;
     this.camera = camera;
     this.res = res;
     this.cards = cards;
     this.seat = seat;
+    this.invalider = rappels.invalider;
+    this.mesure = surveillant(rappels.lent);
     gl.toneMapping = THREE.NeutralToneMapping;
     // As in production builds: no reading of the compile logs (ANGLE warns about the FXAA shader).
     gl.debug.checkShaderErrors = false;
@@ -130,6 +143,12 @@ export class Monde {
     this.construireDecor(liste);
     this.holo = this.construireHolo();
     this.fx = this.construireEffets();
+    this.reveiller();
+  }
+
+  // Asks for one more frame: anything that changes the picture outside `frame` calls it.
+  reveiller() {
+    this.invalider();
   }
 
   private creerZone(zone: Zone) {
@@ -218,6 +237,7 @@ export class Monde {
         if (!img) return;
         dessinerFace(c, this.res, info, img, voile, atk, def);
         made.needsUpdate = true;
+        this.reveiller();
       });
       this.faces.set(cle, made);
       tex = made;
@@ -280,6 +300,7 @@ export class Monde {
 
   // Brings the scene to the board shown: cards placed or removed, faces, poses, piles, chain links.
   sync(etat: EtatScene, chain: Board["chain"]) {
+    this.reveiller();
     for (const zone of this.zones.values()) {
       if (!FIELD.has(zone.type)) {
         this.poserPile(zone, etat.piles.get(zone.id));
@@ -311,6 +332,7 @@ export class Monde {
     const img = code ? await art(code, this.cards.get(code)) : undefined;
     if (terrain.code !== code) return;
     terrain.vise = img ? TERRAIN.opacite : 0;
+    this.reveiller();
     if (!img) return;
     // Cover-crop the artwork to the half mat, anchored low: dark artworks (Yami) keep their light part at the bottom.
     const map = this.texArt(code, img);
@@ -359,6 +381,7 @@ export class Monde {
   }
 
   private majZone(zone: ZoneM) {
+    this.reveiller();
     const etat = PRIORITE.find((e) => zone.etats.has(e));
     zone.overlay.visible = Boolean(etat);
     if (!etat) return;
@@ -394,6 +417,25 @@ export class Monde {
   // Effects ---------------------------------------------------------------------------------
 
   jouer(effet: Effet, jeu: Jeu): Promise<void> {
+    this.reveiller();
+    // A tween redraws at each of its steps and counts as motion; the effect may leave the scene changed at its end.
+    const tween: Jeu["tween"] = (duree, update, fondu) => {
+      this.tweens++;
+      return jeu
+        .tween(
+          duree,
+          (k) => {
+            update(k);
+            this.reveiller();
+          },
+          fondu,
+        )
+        .finally(() => this.tweens--);
+    };
+    return this.lancer(effet, { ...jeu, tween }).finally(() => this.reveiller());
+  }
+
+  private lancer(effet: Effet, jeu: Jeu): Promise<void> {
     switch (effet.type) {
       case "entree":
         return this.entree(this.zones.get(effet.cle), jeu);
@@ -765,9 +807,10 @@ export class Monde {
     return { rotY: c.defense ? Math.PI / 2 : 0, rotZ: c.cachee && !c.voile ? Math.PI : 0, echelle: c.defense ? DEFENSE : 1, y: CARTE.e / 2 + 0.003 };
   }
 
+  // True while the card is still moving towards its pose.
   private majCarte(zone: ZoneM, k: number, retombe: number) {
     const c = zone.carte;
-    if (!c || c.libre) return;
+    if (!c || c.libre) return false;
     const cible = this.pose(c);
     const leve = zone.etats.has("survol") || zone.etats.has("choisie") ? 0.08 : 0;
     c.levee += (leve - c.levee) * k;
@@ -782,6 +825,7 @@ export class Monde {
     c.groupe.rotation.set(0, c.rotY, c.rotZ);
     c.groupe.scale.setScalar(c.echelle);
     c.face.emissiveIntensity = zone.etats.has("survol") ? 0.5 : 0.3;
+    return bouge(leve - c.levee, cible.rotY - c.rotY, cible.rotZ - c.rotZ, cible.echelle - c.echelle, c.saut, c.secousse);
   }
 
   private poserCamera(d: number, lacet = 0, tangage = 0) {
@@ -791,20 +835,34 @@ export class Monde {
     this.camera.updateMatrixWorld();
   }
 
+  // Shaders driven by time (pulse of the targets, hologram) are the only thing moving.
+  private ambiant() {
+    if (this.holoZone) return true;
+    return [...this.zones.values()].some((zone) => zone.overlay.visible && zone.overlay.material.uniforms.uPulse.value > 0);
+  }
+
+  // Called by react-three-fiber on each frame it renders (`frameloop="demand"`); asks for the next one only while something moves.
+  // `dt`: the real time since the last frame, which a frame after a rest does not follow (one 60th of a second then).
   frame(dt: number, t: number) {
+    const suite = this.enchaine;
+    const pas = suite ? Math.min(dt, 0.1) : 1 / 60;
     const reduit = prefersReduced();
     temps.value = reduit ? 0 : t;
-    const k = reduit ? 1 : 1 - Math.exp(-dt * 12);
-    const retombe = reduit ? 0 : Math.exp(-dt * 6);
-    for (const zone of this.zones.values()) this.majCarte(zone, k, retombe);
-    for (const { mesh, vise } of this.terrains) {
-      mesh.material.opacity += (vise - mesh.material.opacity) * (reduit ? 1 : 1 - Math.exp(-dt * 3));
+    const k = reduit ? 1 : 1 - Math.exp(-pas * 12);
+    const retombe = reduit ? 0 : Math.exp(-pas * 6);
+    let mouvement = false;
+    for (const zone of this.zones.values()) mouvement = this.majCarte(zone, k, retombe) || mouvement;
+    for (const terrain of this.terrains) {
+      const { mesh, vise } = terrain;
+      mesh.material.opacity += (vise - mesh.material.opacity) * (reduit ? 1 : 1 - Math.exp(-pas * 3));
       mesh.visible = mesh.material.opacity > 0.005;
+      mouvement = bouge(vise - mesh.material.opacity) || mouvement;
     }
     const { lacet, tangage, recul } = this.decalage;
     this.poserCamera(this.distance * (1 + recul), lacet, tangage);
     this.decalage.secousse *= retombe;
     if (this.decalage.secousse > 0.001) {
+      mouvement = true;
       this.camera.position.x += Math.sin(t * 91) * this.decalage.secousse;
       this.camera.position.y += Math.cos(t * 73) * this.decalage.secousse;
       this.camera.updateMatrixWorld();
@@ -815,13 +873,25 @@ export class Monde {
       plan.lookAt(this.camera.position.x, monde.y, this.camera.position.z);
       plan.rotateX(-0.28);
     }
-    if (this.composer) this.composer.render(dt);
+    if (this.composer) this.composer.render(pas);
     else this.gl.render(this.scene, this.camera);
+    // A tween asks for its own frames; the ones that follow each other are the ones that tell the speed of the device.
+    const rapide = mouvement || this.tweens > 0;
+    if (suite && rapide) this.mesure(dt);
+    this.enchaine = rapide;
+    if (mouvement) this.invalider();
+    else if (!reduit && this.ambiant()) {
+      this.minuteur ??= setTimeout(() => {
+        this.minuteur = undefined;
+        this.reveiller();
+      }, PAUSE_AMBIANT);
+    }
   }
 
   // Framing: the whole board fits in the frame the HUD leaves (rect, in canvas pixels), centered on it (setViewOffset).
   cadrer(l: number, h: number, rect: { left: number; top: number; width: number; height: number }) {
     if (l <= 0 || h <= 0) return;
+    this.reveiller();
     this.composer?.setPixelRatio(this.gl.getPixelRatio());
     this.composer?.setSize(l, h);
     this.camera.aspect = l / h;
@@ -862,6 +932,7 @@ export class Monde {
 
   // High: bloom and FXAA (MSAA 4x cost 12 ms a frame on an integrated GPU); low: no post-processing.
   qualite(q: Qualite, l: number, h: number) {
+    this.reveiller();
     this.composer?.dispose();
     this.composer = null;
     if (q === "haute") {
@@ -877,6 +948,7 @@ export class Monde {
   }
 
   dispose() {
+    clearTimeout(this.minuteur);
     this.composer?.dispose();
     for (const tex of [...this.faces.values(), ...this.arts.values()]) tex.dispose();
     this.scene.remove(this.racine);
