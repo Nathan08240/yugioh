@@ -15,10 +15,11 @@ import { dbDeckStore, deckReply, isDeckMessage, poolCard, validDeckMessage, type
 import { activeDeck, createProfile, findProfile, openDb, type ActiveDeck, type Db, type Profile } from "./db.ts";
 import { EXTRA_MAX, isFusion, MAIN_MAX, MAIN_MIN } from "./deckcheck.ts";
 import { KAIBA } from "./decks.ts";
-import { agreeToRules, fieldStats, lpLeft, lpOf, openDuel, STANDARD_RULES, type Rules, type Seed } from "./duel.ts";
+import { agreeToRules, fieldMoves, fieldStats, lpLeft, lpOf, openDuel, STANDARD_RULES, type Placed, type Rules, type Seed } from "./duel.ts";
 import { EMOTE_DELAY, EMOTE_IDS, type EmoteId } from "./emotes.ts";
 import { isAllowed, POOL, SETS, type Printing } from "./pool.ts";
-import { REPORT_MAX, type BotLevel, type CardInfo, type ClientMessage, type DeckResult, type DuelEvent, type Seat, type ServerMessage, type StoryLevel, type StoryResult } from "./protocol.ts";
+import { PUZZLE_FAILED, REPORT_MAX, type BotLevel, type CardInfo, type ClientMessage, type DeckResult, type DuelEvent, type Seat, type ServerMessage, type StoryLevel, type StoryResult } from "./protocol.ts";
+import { PUZZLE_IDS, PUZZLE_TURNS, puzzleField, puzzleRules, puzzleView, solvedPuzzles, solvePuzzle } from "./puzzles.ts";
 import { REPORT_BYTES, RESPONSE_BYTES, saveReport, type Report } from "./report.ts";
 import { respond } from "./respond.ts";
 import { type DuelResult, readResults, recordResult } from "./results.ts";
@@ -40,6 +41,9 @@ export type Room = {
   players: Player[];
   // STANDARD_RULES when absent.
   rules?: Rules;
+  // A puzzle: the cards placed before the start, and the last turn before the duel is lost by seat 0.
+  field?: Placed[];
+  turnLimit?: number;
   duel?: Awaited<ReturnType<typeof openDuel>>;
   question?: Question;
   decision?: Clock;
@@ -87,6 +91,9 @@ export type Accounts = DeckStore & WishStore & {
   // Stores the result of a finished duel for a human player, and reads their wins and losses per deck and mode.
   recordResult: (result: DuelResult) => Promise<void>;
   duelResults: (userId: string) => Promise<DeckResult[]>;
+  // Ids of the puzzles solved; recording a solved puzzle resolves to true the first time, which earns a booster.
+  solvedPuzzles: (userId: string) => Promise<ReadonlySet<string>>;
+  solvePuzzle: (userId: string, id: string) => Promise<boolean>;
   // Resolves to false when the player already sent too many reports this hour.
   saveReport: (userId: string, message: string, report: Report) => Promise<boolean>;
 };
@@ -109,6 +116,8 @@ export function dbAccounts(db: Db): Accounts {
     completeStory: (userId, duel, stars) => completeDuel(db, userId, duel, stars),
     recordResult: (result) => recordResult(db, result),
     duelResults: (userId) => readResults(db, userId),
+    solvedPuzzles: (userId) => solvedPuzzles(db, userId),
+    solvePuzzle: (userId, id) => solvePuzzle(db, userId, id),
     saveReport: (userId, message, report) => saveReport(db, userId, message, report),
     ...dbDeckStore(db),
     ...dbWishStore(db),
@@ -232,6 +241,8 @@ function parse(data: string): ClientMessage | undefined {
     (msg.type === "bot" && (msg.level === undefined || BOT_LEVELS.has(msg.level))) ||
     msg.type === "story" ||
     msg.type === "duel_results" ||
+    msg.type === "puzzles" ||
+    (msg.type === "puzzle" && typeof msg.id === "string") ||
     (msg.type === "story_duel" && typeof msg.duel === "string" && (msg.level === undefined || STORY_LEVELS.has(msg.level))) ||
     (msg.type === "emote" && EMOTE_IDS.has(msg.id)) ||
     (msg.type === "join" && typeof msg.room === "string") ||
@@ -330,8 +341,9 @@ function reportOf(room: Room): Report | undefined {
   if (!record) return undefined;
   let mode: Report["mode"] = "bot";
   if (online(room)) mode = "online";
+  else if (room.field) mode = "puzzle";
   else if (room.rules) mode = "histoire";
-  return { mode, room: room.code, turn: record.turn, date: new Date().toISOString(), level: room.level, seed: record.seed.map(String), rules: rulesOf(room), decks: record.decks, responses: record.responses };
+  return { mode, room: room.code, turn: record.turn, date: new Date().toISOString(), level: room.level, seed: record.seed.map(String), rules: rulesOf(room), decks: record.decks, field: room.field, responses: record.responses };
 }
 
 // When each player last sent an emote, in ms since the epoch.
@@ -423,6 +435,18 @@ function sendJoined(room: Room, seat: Seat) {
   send(player.socket, { type: "joined", room: room.code, seat, lp, opponentLp: opponentLp === lp ? undefined : opponentLp, decks: deckSizes(room), extras: extraSizes(room), opponent: room.players[1 - seat]?.name, log: player.log });
 }
 
+// The events up to the start of the turn after room.turnLimit, replaced by a win of seat 1: the puzzle is failed.
+function limitTurns(room: Room, events: OcgMessage[]): OcgMessage[] {
+  if (room.turnLimit === undefined) return events;
+  let turns = room.turns ?? 0;
+  for (const [index, msg] of events.entries()) {
+    if (msg.type !== OcgMessageType.NEW_TURN) continue;
+    turns++;
+    if (turns > room.turnLimit) return [...events.slice(0, index), { type: OcgMessageType.WIN, player: 1, reason: PUZZLE_FAILED }];
+  }
+  return events;
+}
+
 // Runs the engine until it asks a question or the duel ends. A crash inside the engine closes only this room.
 export function advance(room: Room) {
   if (!room.duel) return;
@@ -444,7 +468,7 @@ export function advance(room: Room) {
       ask(room, true);
       return;
     }
-    const events = messages.filter((msg) => !ANSWERS.has(msg.type));
+    const events = limitTurns(room, messages.filter((msg) => !ANSWERS.has(msg.type)));
     room.turns = (room.turns ?? 0) + events.filter((msg) => msg.type === OcgMessageType.NEW_TURN).length;
     if (room.record) room.record.turn += events.filter((msg) => msg.type === OcgMessageType.NEW_TURN).length;
     // The engine keeps sending WIN without ever reaching END: the first one closes the duel.
@@ -493,7 +517,8 @@ async function start(room: Room, seed: Seed) {
   const extras = room.players.map((player) => player.extra ?? []);
   room.turns = 0;
   room.record = { seed, decks: decks.map((main, seat) => ({ main: [...main], extra: [...extras[seat]] })), turn: 0, responses: [] };
-  room.duel = await openDuel(seed, decks, (text) => console.error(`[salle ${room.code}] ${text}`), undefined, rulesOf(room), extras);
+  room.duel = await openDuel(seed, decks, (text) => console.error(`[salle ${room.code}] ${text}`), undefined, rulesOf(room), extras, room.field);
+  if (room.field) broadcast(room, room.duel, fieldMoves(room.field));
   advance(room);
 }
 
@@ -788,6 +813,30 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
       return undefined;
     }
 
+    async function showPuzzles(userId: string): Promise<undefined> {
+      send(socket, { type: "puzzles", puzzles: puzzleView(await accounts.solvedPuzzles(userId)) });
+      return undefined;
+    }
+
+    // The player keeps seat 0 against the Normal bot, from the state of the puzzle, without their deck; only their win counts.
+    function playPuzzle(userId: string, id: string): string | undefined {
+      const puzzle = PUZZLE_IDS.get(id);
+      if (!puzzle) return "puzzle inconnu";
+      const room: Room = { code: newCode(rooms), players: [], rules: puzzleRules(puzzle), field: puzzleField(puzzle), turnLimit: PUZZLE_TURNS };
+      room.onWin = (winner) => {
+        if (winner !== 0) return;
+        accounts.solvePuzzle(userId, id).then(
+          (booster) => send(room.players[0]?.socket, { type: "puzzle_won", id, booster }),
+          (error: unknown) => {
+            console.error(error);
+            send(room.players[0]?.socket, { type: "error", error: "réussite non enregistrée, rejouez le puzzle plus tard" });
+          },
+        );
+      };
+      const empty = { main: [], extra: [] };
+      return enter(userId, room, empty, { deck: empty, name: "Bot", level: "normal" });
+    }
+
     async function sendResults(userId: string): Promise<undefined> {
       send(socket, { type: "duel_results", results: await accounts.duelResults(userId) });
       return undefined;
@@ -807,6 +856,7 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
       if (msg.type === "admin_boosters") return grantBoosters(user, msg.count);
       if (msg.type === "story") return showStory(user.id);
       if (msg.type === "duel_results") return sendResults(user.id);
+      if (msg.type === "puzzles") return showPuzzles(user.id);
       if (msg.type === "respond") return seat ? answer(seat.room, seat.index, msg.response) : "pas dans une salle";
       if (msg.type === "surrender") return seat ? surrender(seat.room, seat.index) : "pas dans une salle";
       if (msg.type === "emote") return seat ? emote(seat.room, seat.index, msg.id) : "pas dans une salle";
@@ -814,6 +864,7 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
       if (msg.type === "rematch") return seat ? rematch(seat.room, seat.index, msg.accept !== false) : "pas dans une salle";
       if (seat) return "déjà dans une salle";
       if (msg.type === "story_duel") return playStory(user.id, msg.duel, msg.level);
+      if (msg.type === "puzzle") return playPuzzle(user.id, msg.id);
       return enterRoom(user.id, msg);
     }
 

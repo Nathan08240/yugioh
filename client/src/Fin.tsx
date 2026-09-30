@@ -8,7 +8,7 @@ import type { Page } from "./Shell.tsx";
 import { Signaler, type Report } from "./Signaler.tsx";
 import { jouer as jouerSon } from "./son.ts";
 import "./styles/fin.css";
-import { REPLAY_WINS } from "../../server/src/protocol.ts";
+import { PUZZLE_FAILED, REPLAY_WINS } from "../../server/src/protocol.ts";
 import { nextStar, Rewards, Stars } from "./ui.tsx";
 
 type Props = {
@@ -21,6 +21,8 @@ type Props = {
   // A story duel ("Battle City · Duel 4 sur 5"), its special rules, its starting LP as written, and its conclusion once the
   // server has recorded the win.
   story?: { title?: string; won?: StoryWon; special?: readonly string[]; easy?: boolean; lp?: number };
+  // A puzzle, and once the server has recorded its success, whether it earned a booster (the first time only).
+  puzzle?: { title: string; booster?: boolean };
   // Online rematch state; against the bot, asking starts a new duel at once.
   rematch?: LobbyState["rematch"];
   onRematch: (accept: boolean) => void;
@@ -79,7 +81,7 @@ const defeat =
   };
 
 // Victory or defeat screen over the board, once the engine has named the winner.
-export function Fin({ board, seat, room, vsBot, opponent, story, rematch, onRematch, report, leave, go }: Readonly<Props>) {
+export function Fin({ board, seat, room, vsBot, opponent, story, puzzle, rematch, onRematch, report, leave, go }: Readonly<Props>) {
   const root = useRef<HTMLDivElement>(null);
   const won = board.winner === seat;
   const lost = board.winner === 1 - seat;
@@ -93,9 +95,12 @@ export function Fin({ board, seat, room, vsBot, opponent, story, rematch, onRema
 
   let context = `Duel en ligne · salle ${room}`;
   if (story) context = `${story.title ?? "Mode Histoire"}${story.easy ? " · Facile" : ""}`;
+  else if (puzzle) context = `Puzzle · ${puzzle.title}`;
   else if (vsBot) context = "Duel contre le bot";
-  const back = story ? "Retour à l'histoire" : "Retour à l'accueil";
-  const boosters = won && !vsBot && !story ? 1 : storyBoosters(story?.won);
+  let back = story ? "Retour à l'histoire" : "Retour à l'accueil";
+  if (puzzle) back = "Retour aux puzzles";
+  let boosters = won && !vsBot && !story ? 1 : storyBoosters(story?.won);
+  if (puzzle) boosters = won && puzzle.booster ? 1 : 0;
 
   return (
     <section className={won ? "ecran ecran--scene fin-duel" : "ecran ecran--scene fin-duel ecran--defaite"} aria-labelledby="fin-titre">
@@ -103,10 +108,11 @@ export function Fin({ board, seat, room, vsBot, opponent, story, rematch, onRema
       <div ref={root} className="fin">
         <p className={won ? "surtitre surtitre--or" : "surtitre"}>{context}</p>
         <h1 id="fin-titre" className="fin__titre">
-          {title(won, lost)}
+          {puzzle ? puzzleTitle(won) : title(won, lost)}
         </h1>
         <Score board={board} seat={seat} won={won} lost={lost} opponent={opponent} />
         {won && <Gains story={story} boosters={boosters} />}
+        {won && puzzle?.booster === false && <p className="texte-2 fin__recit">Puzzle déjà réussi : la récompense a été obtenue.</p>}
         {(won || lost) && <Cause board={board} seat={seat} won={won} kingdom={story?.special?.includes("duelist-kingdom") ?? false} opponent={opponent} />}
         {lost && !story && !vsBot && <p className="texte-2 fin__note">Le vainqueur d'un duel en ligne reçoit un booster. Retentez votre chance avec un deck ajusté.</p>}
         <div className="fin__actions">
@@ -124,8 +130,8 @@ export function Fin({ board, seat, room, vsBot, opponent, story, rematch, onRema
               {back}
             </button>
           )}
-          <Rematch online={!vsBot} seat={seat} rematch={rematch} opponent={opponent} onRematch={onRematch} />
-          {lost && (
+          <Rematch online={!vsBot} seat={seat} rematch={rematch} opponent={opponent} onRematch={onRematch} label={puzzle ? "Réessayer" : "Revanche"} />
+          {lost && !puzzle && (
             <button type="button" className="btn btn--fantome" onClick={() => go("collection")}>
               Modifier mon deck
             </button>
@@ -137,9 +143,9 @@ export function Fin({ board, seat, room, vsBot, opponent, story, rematch, onRema
   );
 }
 
-type RematchProps = Readonly<{ online: boolean; seat: number; rematch?: LobbyState["rematch"]; opponent?: string; onRematch: (accept: boolean) => void }>;
+type RematchProps = Readonly<{ online: boolean; seat: number; rematch?: LobbyState["rematch"]; opponent?: string; onRematch: (accept: boolean) => void; label: string }>;
 
-function Rematch({ online, seat, rematch, opponent, onRematch }: RematchProps) {
+function Rematch({ online, seat, rematch, opponent, onRematch, label }: RematchProps) {
   if (rematch === "declined") {
     return (
       <button type="button" className="btn btn--fantome" disabled>
@@ -169,10 +175,12 @@ function Rematch({ online, seat, rematch, opponent, onRematch }: RematchProps) {
   }
   return (
     <button type="button" className="btn btn--fantome" onClick={() => onRematch(true)}>
-      Revanche
+      {label}
     </button>
   );
 }
+
+const puzzleTitle = (won: boolean) => (won ? "Puzzle réussi" : "Puzzle échoué");
 
 function title(won: boolean, lost: boolean): string {
   if (won) return "Victoire";
@@ -255,6 +263,7 @@ const CAUSES = new Map<number, [string, string]>([
   [4, ["La connexion de l'adversaire a été perdue.", "Votre connexion a été perdue."]],
   [NO_MONSTER, ["L'adversaire a fini son tour sans monstre et sans en avoir invoqué (règle du Royaume des Duellistes).", "Vous avez fini votre tour sans monstre et sans en avoir invoqué (règle du Royaume des Duellistes)."]],
   [0x56, ["L'adversaire n'a plus de Deck Master (règle du Monde virtuel).", "Vous n'avez plus de Deck Master (règle du Monde virtuel)."]],
+  [PUZZLE_FAILED, ["", "Votre tour s'est terminé avant que les LP adverses tombent à 0."]],
 ]);
 const OTHER_CAUSE = "Le duel s'est terminé par l'effet d'une carte ou d'une règle spéciale.";
 

@@ -53,6 +53,9 @@ export type ClientMessage =
   // Story mode: `story` asks for the arcs and progression, `story_duel` starts a duel against the bot, at "normal" without `level`.
   | { type: "story" }
   | { type: "story_duel"; duel: string; level?: StoryLevel }
+  // Puzzles: `puzzles` asks for the list, answered with `puzzles`; `puzzle` starts one against the bot.
+  | { type: "puzzles" }
+  | { type: "puzzle"; id: string }
   // Wins and losses of the player per deck, answered with `duel_results`.
   | { type: "duel_results" };
 
@@ -102,7 +105,14 @@ export type ServerMessage =
   | { type: "story"; arcs: StoryArcView[] }
   // A won story duel, recorded.
   | ({ type: "story_won"; duel: string; outro: string } & StoryResult)
-  | { type: "duel_results"; results: DeckResult[] };
+  | { type: "duel_results"; results: DeckResult[] }
+  | { type: "puzzles"; puzzles: PuzzleView[] }
+  // A solved puzzle, recorded: `booster` the first time only.
+  | { type: "puzzle_won"; id: string; booster: boolean };
+
+export type PuzzleView = { id: string; title: string; goal: string; done: boolean };
+// WIN reason of a failed puzzle: the player's turn ended with the opponent still standing.
+export const PUZZLE_FAILED = 0x60;
 
 export type Rewards = { boosters?: number; cards?: number[] };
 // A booster for every REPLAY_WINS wins of story duels already won.

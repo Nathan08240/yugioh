@@ -3,7 +3,7 @@ import { createQueue, entrance, exit } from "./motion.ts";
 import "./styles/shell.css";
 import { Icon } from "./ui.tsx";
 
-export type Page = "accueil" | "collection" | "boosters" | "histoire" | "regles" | "parametres";
+export type Page = "accueil" | "collection" | "boosters" | "histoire" | "puzzles" | "regles" | "parametres";
 
 const NAV: [Page, string][] = [
   ["accueil", "Accueil"],
