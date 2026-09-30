@@ -1167,7 +1167,7 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
     }
 
     async function showRanked(userId: string): Promise<undefined> {
-      send(socket, { type: "ranked", ...(await accounts.rating(userId)), leaderboard: await accounts.leaderboard() });
+      send(socket, { type: "ranked", ...(await accounts.ranked(userId)) });
       return undefined;
     }
 

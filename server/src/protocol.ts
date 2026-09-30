@@ -199,8 +199,7 @@ export type ServerMessage =
   | { type: "tower_won"; floor: number; best: number; boosters: number }
   // null before the first session.
   | { type: "sealed"; run: SealedRun | null }
-  // Rating and ranked duels played of the player, and the best LEADERBOARD_SIZE players.
-  | { type: "ranked"; rating: number; games: number; leaderboard: RankedPlayer[] }
+  | ({ type: "ranked" } & RankedView)
   | { type: "ranked_queue"; waiting: boolean }
   // End of a ranked duel: the change of the player's rating, and the new one.
   | { type: "ranked_result"; delta: number; rating: number };
@@ -214,6 +213,29 @@ export type Friend = { pseudo: string; avatar: number | null; status: Presence |
 
 // A player of the ranked leaderboard; `avatar` is null until chosen.
 export type RankedPlayer = { pseudo: string; avatar: number | null; rating: number; games: number };
+
+// Ranked seasons (ranked.ts): a calendar month in France, "2026-10". A player with SEASON_MIN_GAMES duels or more in a season
+// gets, at its end, the boosters of the first tier whose rating the final rating reaches.
+export const SEASON_MIN_GAMES = 5;
+export const SEASON_REWARDS: readonly (readonly [rating: number, boosters: number])[] = [
+  [1400, 5],
+  [1200, 3],
+  [1000, 1],
+];
+export type SeasonResult = { season: string; rating: number; games: number; boosters: number };
+// `games`: ranked duels of all seasons. `daysLeft` counts today. Leaderboards list the season duels as `games`: the best
+// LEADERBOARD_SIZE players of the season, the best 10 of the previous one. `lastResult`: the last season the player played.
+export type RankedView = {
+  rating: number;
+  games: number;
+  season: string;
+  daysLeft: number;
+  seasonGames: number;
+  leaderboard: RankedPlayer[];
+  previousSeason: string;
+  previousLeaderboard: RankedPlayer[];
+  lastResult: SeasonResult | null;
+};
 
 // Wonder pick of the day. `cards` are shown face up in this order, then shuffled: face-down card `i` is `cards[shuffle[i]]`.
 // The server keeps `shuffle` to itself until the player picks `picked`, a face-down index.

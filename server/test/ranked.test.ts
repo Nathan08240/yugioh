@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { elo, K_FACTOR, pairUp, RANGE_EVERY, REMATCH_DELAY, type Waiting } from "../src/ranked.ts";
+import { currentSeason, daysLeft, elo, K_FACTOR, pairUp, previousSeason, RANGE_EVERY, recenter, REMATCH_DELAY, seasonReward, type Waiting } from "../src/ranked.ts";
 
 const player = (id: string, rating: number, since = 0): Waiting => ({ id, rating, since });
 const ids = (pairs: [Waiting, Waiting][]) => pairs.map((pair) => pair.map((one) => one.id));
@@ -41,4 +41,21 @@ it("n'apparie pas deux fois de suite les mêmes joueurs en moins de 10 minutes",
   expect(ids(pairUp(waiting, REMATCH_DELAY, last))).toEqual([["a", "b"]]);
   // Another opponent is fine at once.
   expect(ids(pairUp([...waiting, player("c", 1050)], 5, last))).toEqual([["a", "c"]]);
+});
+
+it("prend pour saison le mois civil en France et compte les jours restants, aujourd'hui compris", () => {
+  expect(currentSeason(new Date("2026-09-30T21:59:00Z"))).toBe("2026-09");
+  expect(currentSeason(new Date("2026-09-30T22:00:00Z"))).toBe("2026-10");
+  expect(currentSeason(new Date("2026-12-31T23:00:00Z"))).toBe("2027-01");
+  expect(daysLeft(new Date("2026-09-30T22:30:00Z"))).toBe(31);
+  expect(daysLeft(new Date("2026-10-31T10:00:00Z"))).toBe(1);
+  expect(daysLeft(new Date("2028-02-10T12:00:00Z"))).toBe(20);
+  expect(previousSeason("2026-10")).toBe("2026-09");
+  expect(previousSeason("2027-01")).toBe("2026-12");
+});
+
+it("récompense une saison d'au moins 5 duels selon le palier du classement final, puis rapproche le classement de 1000 de moitié", () => {
+  expect([1400, 1399, 1200, 1199, 1000, 999].map((rating) => seasonReward(rating, 5))).toEqual([5, 3, 3, 1, 1, 0]);
+  expect(seasonReward(2000, 4)).toBe(0);
+  expect([1400, 1399, 1001, 1000, 800].map(recenter)).toEqual([1200, 1200, 1001, 1000, 900]);
 });
