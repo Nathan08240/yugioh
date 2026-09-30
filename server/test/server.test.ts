@@ -5,6 +5,7 @@ import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
 import { WebSocket } from "ws";
 import type { Bot } from "../src/bot.ts";
 import { KAIBA, YUGI } from "../src/decks.ts";
+import { EMOTE_DELAY } from "../src/emotes.ts";
 import { POOL, SETS } from "../src/pool.ts";
 import type { CardInfo, ClientMessage, ServerMessage, Wire } from "../src/protocol.ts";
 import { respond } from "../src/respond.ts";
@@ -461,6 +462,39 @@ describe("fins de duel décidées par le serveur", () => {
     expect(wins(other)).toEqual([]);
     vi.advanceTimersByTime(DECISION_TIME);
     await vi.waitFor(() => expect(wins(other)).toEqual(win(1 - asked, 3)));
+  });
+
+  it("relaie une émote aux deux joueurs, refuse un id inconnu et ignore une émote avant 3 s", { timeout: 30_000 }, async () => {
+    const { players } = await hold("emote-a", "emote-b");
+    fakeTimers();
+    const emotes = (client: (typeof players)[number]) => client.received.filter((msg) => msg.type === "emote");
+    const from = (seat: number, id: string) => ({ type: "emote", seat, id });
+    players[0].send({ type: "emote", id: "bonjour" });
+    await vi.waitFor(() => expect(emotes(players[1])).toEqual([from(0, "bonjour")]));
+    expect(emotes(players[0])).toEqual([from(0, "bonjour")]);
+    // Too soon for the same player, not for the other one.
+    players[0].send({ type: "emote", id: "merci" });
+    players[1].send({ type: "emote", id: "oups" });
+    await vi.waitFor(() => expect(emotes(players[0])).toHaveLength(2));
+    expect(emotes(players[0])).toEqual([from(0, "bonjour"), from(1, "oups")]);
+    vi.advanceTimersByTime(EMOTE_DELAY);
+    players[0].send({ type: "emote", id: "merci" });
+    await vi.waitFor(() => expect(emotes(players[1]).at(-1)).toEqual(from(0, "merci")));
+    // Only the ids of the list go through, never text.
+    players[0].send({ type: "emote", id: "Salut !" } as unknown as ClientMessage);
+    await vi.waitFor(() => expect(players[0].received).toContainEqual({ type: "error", error: "message invalide" }));
+    expect(emotes(players[1])).toHaveLength(3);
+  });
+
+  it("refuse une émote hors d'une salle ou d'un duel", async () => {
+    const alone = await connect("emote-seul");
+    alone.send({ type: "auth", token: "jeton-emote-seul" });
+    alone.send({ type: "emote", id: "hmm" });
+    await vi.waitFor(() => expect(alone.received).toContainEqual({ type: "error", error: "pas dans une salle" }));
+    decks.set("emote-seul", YUGI);
+    alone.send({ type: "create" });
+    alone.send({ type: "emote", id: "hmm" });
+    await vi.waitFor(() => expect(alone.received).toContainEqual({ type: "error", error: "aucun duel en cours" }));
   });
 
   it("aucune minuterie contre le bot", { timeout: 30_000 }, async () => {

@@ -16,6 +16,7 @@ import { activeDeck, createProfile, findProfile, openDb, type ActiveDeck, type D
 import { EXTRA_MAX, isFusion, MAIN_MAX, MAIN_MIN } from "./deckcheck.ts";
 import { KAIBA } from "./decks.ts";
 import { agreeToRules, fieldStats, openDuel, STANDARD_RULES, type Rules, type Seed } from "./duel.ts";
+import { EMOTE_DELAY, EMOTE_IDS, type EmoteId } from "./emotes.ts";
 import { isAllowed, POOL, SETS, type Printing } from "./pool.ts";
 import type { BotLevel, CardInfo, ClientMessage, DuelEvent, Rewards, Seat, ServerMessage } from "./protocol.ts";
 import { respond } from "./respond.ts";
@@ -100,6 +101,8 @@ const BOT_DELAY = 700;
 // In an online duel between two players: time to answer a question of the engine, and to come back after a lost connection.
 export const DECISION_TIME = 2 * 60_000;
 export const RECONNECT_TIME = 2 * 60_000;
+// The bot greets this long after the room opens, once the client has the duel on screen.
+const BOT_GREETING_DELAY = 1500;
 // WIN reasons of the ends decided by the server, as EDOPro numbers them.
 const SURRENDER = 0;
 const TIME_LIMIT = 3;
@@ -201,6 +204,7 @@ function parse(data: string): ClientMessage | undefined {
     (msg.type === "bot" && (msg.level === undefined || BOT_LEVELS.has(msg.level))) ||
     msg.type === "story" ||
     (msg.type === "story_duel" && typeof msg.duel === "string") ||
+    (msg.type === "emote" && EMOTE_IDS.has(msg.id)) ||
     (msg.type === "join" && typeof msg.room === "string") ||
     (msg.type === "respond" && typeof msg.response === "object" && msg.response !== null) ||
     msg.type === "surrender" ||
@@ -281,6 +285,20 @@ function surrender(room: Room, seat: Seat): string | undefined {
 
 const online = (room: Room) => room.players.length === 2 && !room.players.some((player) => player.bot);
 const sendAll = (room: Room, data: ServerMessage) => room.players.forEach((player) => send(player.socket, data));
+
+// When each player last sent an emote, in ms since the epoch.
+const lastEmote = new WeakMap<Player, number>();
+
+// Relays an emote to both seats; one sent less than EMOTE_DELAY after the previous one is dropped.
+function emote(room: Room, seat: Seat, id: EmoteId): string | undefined {
+  const player = room.players[seat];
+  if (!room.duel) return "aucun duel en cours";
+  const now = Date.now();
+  if (now - (lastEmote.get(player) ?? -Infinity) < EMOTE_DELAY) return undefined;
+  lastEmote.set(player, now);
+  sendAll(room, { type: "emote", seat, id });
+  return undefined;
+}
 
 // Starts or resumes the clock of the asked seat, while they are connected.
 function runClock(room: Room) {
@@ -542,6 +560,17 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
       return undefined;
     }
 
+    // The bot of a quick duel sometimes greets and compliments its winner, as a player would.
+    function enterBotRoom(userId: string, room: Room, deck: ActiveDeck, level?: BotLevel): string | undefined {
+      const botSays = (id: EmoteId) => sendAll(room, { type: "emote", seat: 1, id });
+      room.onWin = (winner) => {
+        if (winner === 0) botSays("bienjoue");
+      };
+      const error = enter(userId, room, deck, { deck: { main: KAIBA, extra: [] }, name: "Bot", level });
+      if (!error && randomInt(2) === 0) setTimeout(() => botSays("bonduel"), BOT_GREETING_DELAY).unref();
+      return error;
+    }
+
     // An online room rewards its winner with a booster, a quick duel against the bot rewards nothing.
     async function enterRoom(userId: string, msg: Extract<ClientMessage, { type: "create" | "join" | "bot" }>): Promise<string | undefined> {
       const deck = await duelDeck(userId);
@@ -551,7 +580,7 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
         return joined ? enter(userId, joined, deck) : "salle introuvable";
       }
       const room: Room = { code: newCode(rooms), players: [] };
-      if (msg.type === "bot") return enter(userId, room, deck, { deck: { main: KAIBA, extra: [] }, name: "Bot", level: msg.level });
+      if (msg.type === "bot") return enterBotRoom(userId, room, deck, msg.level);
       room.onWin = (winner) => creditWinner(room, winner as Seat, accounts);
       return enter(userId, room, deck);
     }
@@ -598,6 +627,7 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
       if (msg.type === "story") return showStory(user.id);
       if (msg.type === "respond") return seat ? answer(seat.room, seat.index, msg.response) : "pas dans une salle";
       if (msg.type === "surrender") return seat ? surrender(seat.room, seat.index) : "pas dans une salle";
+      if (msg.type === "emote") return seat ? emote(seat.room, seat.index, msg.id) : "pas dans une salle";
       if (seat) return "déjà dans une salle";
       if (msg.type === "story_duel") return playStory(user.id, msg.duel);
       return enterRoom(user.id, msg);

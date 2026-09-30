@@ -4,13 +4,14 @@ import type { Qualite } from "./plateau3d/monde.ts";
 
 export type Vitesse = "normale" | "rapide" | "instantanee";
 export type Mouvement = "auto" | "toujours" | "jamais";
-export type Reglages = { vitesse: Vitesse; mouvement: Mouvement; qualite: Qualite };
+export type Reglages = { vitesse: Vitesse; mouvement: Mouvement; qualite: Qualite; emotes: "oui" | "non" };
 
-export const DEFAUTS: Reglages = { vitesse: "normale", mouvement: "auto", qualite: "haute" };
+export const DEFAUTS: Reglages = { vitesse: "normale", mouvement: "auto", qualite: "haute", emotes: "oui" };
 const VALEURS: { [K in keyof Reglages]: readonly Reglages[K][] } = {
   vitesse: ["normale", "rapide", "instantanee"],
   mouvement: ["auto", "toujours", "jamais"],
   qualite: ["haute", "basse"],
+  emotes: ["oui", "non"],
 };
 // Divisor of the animation durations; Infinity plays everything at once.
 export const FACTEUR: Record<Vitesse, number> = { normale: 1, rapide: 2, instantanee: Infinity };
@@ -28,7 +29,7 @@ export function lire(): Reglages {
     brut = null;
   }
   const saisi = (brut && typeof brut === "object" ? brut : {}) as Record<string, unknown>;
-  return { vitesse: valide("vitesse", saisi.vitesse), mouvement: valide("mouvement", saisi.mouvement), qualite: valide("qualite", saisi.qualite) };
+  return { vitesse: valide("vitesse", saisi.vitesse), mouvement: valide("mouvement", saisi.mouvement), qualite: valide("qualite", saisi.qualite), emotes: valide("emotes", saisi.emotes) };
 }
 
 // The stylesheets follow the choice too: "reduit" forces reduced motion, "libre" lifts the system one.

@@ -61,6 +61,15 @@ export function Parametres() {
           ["basse", "Basse"],
         ]}
       />
+      <Groupe
+        cle="emotes"
+        titre="Afficher les émotes de l'adversaire"
+        aide="Les phrases que votre adversaire envoie pendant un duel s'affichent près de son nom. Les vôtres restent toujours visibles."
+        choix={[
+          ["oui", "Oui"],
+          ["non", "Non"],
+        ]}
+      />
     </div>
   );
 }

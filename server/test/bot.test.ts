@@ -64,6 +64,11 @@ describe("bot", () => {
     send({ type: "bot" });
     const messages = () => received.flatMap((msg) => (msg.type === "messages" ? msg.messages : []));
     await vi.waitFor(() => expect(messages()).toContainEqual(expect.objectContaining({ type: OcgMessageType.WIN })), { timeout: 25_000 });
+    // The bot compliments the human who beat it, and only then.
+    const won = messages().find((msg) => msg.type === OcgMessageType.WIN);
+    const compliment = { type: "emote", seat: 1, id: "bienjoue" };
+    if (won?.type === OcgMessageType.WIN && won.player === 0) await vi.waitFor(() => expect(received).toContainEqual(compliment));
+    else expect(received).not.toContainEqual(compliment);
     socket.close();
 
     // The player's active deck against the bot's, and no booster for a duel against the bot.

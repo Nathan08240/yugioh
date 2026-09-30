@@ -26,9 +26,9 @@ it("donne les valeurs par défaut quand localStorage lève", async () => {
 });
 
 it("ignore le contenu illisible ou inconnu, réglage par réglage", async () => {
-  vi.stubGlobal("localStorage", store({ "yugioh.reglages": '{"vitesse":"rapide","mouvement":"x","qualite":3}' }));
+  vi.stubGlobal("localStorage", store({ "yugioh.reglages": '{"vitesse":"rapide","mouvement":"x","qualite":3,"emotes":"peut-être"}' }));
   const { reglages } = await charger();
-  expect(reglages()).toEqual({ vitesse: "rapide", mouvement: "auto", qualite: "haute" });
+  expect(reglages()).toEqual({ vitesse: "rapide", mouvement: "auto", qualite: "haute", emotes: "oui" });
   vi.resetModules();
   vi.stubGlobal("localStorage", store({ "yugioh.reglages": "pas du json" }));
   expect((await charger()).reglages().vitesse).toBe("normale");
@@ -41,7 +41,7 @@ it("écrit les réglages et les relit", async () => {
   regler({ qualite: "basse" });
   regler({ mouvement: "toujours" });
   vi.resetModules();
-  expect((await charger()).reglages()).toEqual({ vitesse: "normale", mouvement: "toujours", qualite: "basse" });
+  expect((await charger()).reglages()).toEqual({ vitesse: "normale", mouvement: "toujours", qualite: "basse", emotes: "oui" });
 });
 
 it("le réglage Toujours ou Jamais l'emporte sur le système", async () => {
