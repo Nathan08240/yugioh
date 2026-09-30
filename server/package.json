@@ -11,6 +11,7 @@
     "images": "node scripts/images.ts",
     "duel": "node src/duel.ts",
     "load": "node scripts/load.ts",
+    "bot-level": "node scripts/bot-level.ts",
     "record-duel": "node scripts/record-duel.ts",
     "replay": "node scripts/replay.ts",
     "dev": "node --env-file-if-exists=.env --watch src/server.ts",

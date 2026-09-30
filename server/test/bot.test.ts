@@ -7,7 +7,7 @@ import type { Board, Card } from "../../client/src/board.ts";
 import { Bot } from "../src/bot.ts";
 import { KAIBA, YUGI } from "../src/decks.ts";
 import { runDuel, STARTING_LP, type Player, type Seed } from "../src/duel.ts";
-import type { BotLevel, ClientMessage, Seat, ServerMessage, Wire } from "../src/protocol.ts";
+import type { BotLevel, ClientMessage, DuelEvent, Seat, ServerMessage, Wire } from "../src/protocol.ts";
 import { respond } from "../src/respond.ts";
 import { startServer } from "../src/server.ts";
 import { hideCards, visibleTo } from "../src/visibility.ts";
@@ -210,6 +210,101 @@ describe("bot : niveaux", () => {
     };
     expect(summon("normal")).toBe(SelectIdleCMDAction.SELECT_SUMMON);
     expect(summon("expert")).toBe(SelectIdleCMDAction.SELECT_MONSTER_SET);
+  });
+
+  describe("expert plus fort", () => {
+    const GIANT_SOLDIER = 13039848; // 1300 / 2000
+    const MYSTICAL_SPACE_TYPHOON = 5318639;
+    const DARK_HOLE = 53129443;
+    const WABOKU = 12607053;
+    const DRAGON_CAPTURE_JAR = 50045299;
+    const TORRENTIAL_TRIBUTE = 53582587;
+    const faceUpDefense = (code: number): Card => ({ code, position: OcgPosition.FACEUP_DEFENSE });
+    const boardOf = (player: Bot) => (player as unknown as { board: Board }).board;
+
+    // The bot at seat 0 with `size` cards in hand and `backrow` traps set.
+    function stocked(level: BotLevel, size: number, backrow: number) {
+      const player = make(level);
+      const { players } = boardOf(player);
+      players[0].hand = Array.from({ length: size }, () => ({ code: DARK_HOLE, position: OcgPosition.FACEDOWN_DEFENSE }));
+      for (let i = 0; i < backrow; i++) players[0].spells[i] = { code: TRAP_HOLE, position: OcgPosition.FACEDOWN_DEFENSE };
+      return player;
+    }
+
+    // The opponent's monster at `sequence` attacks the bot's monster `target`, or the bot directly; the bot answers a chain of `codes`.
+    function responds(player: Bot, codes: number[], sequence: number, target: number | null): number | null {
+      const place = (seq: number, controller: 0 | 1) => ({ ...at(0, seq), controller, position: OcgPosition.FACEUP_ATTACK });
+      const attack = { type: OcgMessageType.ATTACK, card: place(sequence, 1), target: target === null ? null : place(target, 0) } as unknown as DuelEvent;
+      const selects = codes.map((code, i) => ({ ...at(code, i), location: OcgLocation.SZONE, position: OcgPosition.FACEDOWN_DEFENSE, description: 0n, client_mode: 0 }));
+      const question = { type: OcgMessageType.SELECT_CHAIN, player: 0, spe_count: 0, forced: false, hint_timing: 0, hint_timing_other: 0, selects } as unknown as OcgMessage;
+      return (player.answer(question, [attack]) as { index: number | null }).index;
+    }
+
+    it("choisit l'attaque qui finit le duel, même sur un monstre moins précieux", () => {
+      const pick = (level: BotLevel) => {
+        const player = make(level, never, [faceUp(SUMMONED_SKULL), faceUp(GAIA)], [faceUpDefense(GIANT_SOLDIER), faceUp(CELTIC_GUARDIAN)]);
+        boardOf(player).players[1].lp = 1100;
+        return attackPick(player, [0, 1], 2);
+      };
+      expect(pick("normal")).toEqual({ attacker: 0, target: 0 });
+      expect(pick("expert")).toEqual({ attacker: 0, target: 1 });
+    });
+
+    it("répartit ses attaquants pour détruire le plus, sans perdre de monstre", () => {
+      const pick = (level: BotLevel) => attackPick(make(level, never, [faceUp(GAIA), faceUp(CELTIC_GUARDIAN)], [faceUp(CELTIC_GUARDIAN), faceUp(BEAVER_WARRIOR), faceUp(KURIBOH)]), [0, 1], 3);
+      expect(pick("normal")).toEqual({ attacker: 0, target: 1 });
+      expect(pick("expert")).toEqual({ attacker: 1, target: 1 });
+    });
+
+    it("ne se croit pas menacé quand ses monstres bloquent les attaquants adverses", () => {
+      const summon = (own: Card[]) => {
+        const player = make("expert", never, own, [faceUp(CELTIC_GUARDIAN), faceUp(CELTIC_GUARDIAN)]);
+        boardOf(player).players[0].lp = 2000;
+        return idle(player, { summons: [at(GAIA, 0)], monster_sets: [at(BEAVER_WARRIOR, 1)] });
+      };
+      expect(summon([])).toBe(SelectIdleCMDAction.SELECT_MONSTER_SET);
+      expect(summon([faceUp(BEAVER_WARRIOR), faceUp(KURIBOH)])).toBe(SelectIdleCMDAction.SELECT_SUMMON);
+    });
+
+    it("pose face cachée une magie jeu-rapide", () => {
+      const sets = { spell_sets: [hand(MYSTICAL_SPACE_TYPHOON)] };
+      expect(idle(stocked("normal", 3, 0), sets)).toBe(SelectIdleCMDAction.TO_BP);
+      expect(idle(stocked("expert", 3, 0), sets)).toBe(SelectIdleCMDAction.SELECT_SPELL_SET);
+    });
+
+    it("pose une magie qu'il ne peut pas utiliser, sans vider sa main ni bloquer ses zones", () => {
+      const sets = { spell_sets: [hand(DARK_HOLE)] };
+      expect(idle(stocked("normal", 3, 0), sets)).toBe(SelectIdleCMDAction.TO_BP);
+      expect(idle(stocked("expert", 3, 0), sets)).toBe(SelectIdleCMDAction.SELECT_SPELL_SET);
+      expect(idle(stocked("expert", 1, 0), sets)).toBe(SelectIdleCMDAction.TO_BP);
+      expect(idle(stocked("expert", 3, 3), sets)).toBe(SelectIdleCMDAction.TO_BP);
+    });
+
+    it("répond à une attaque par le piège qui l'arrête, pas par le premier utilisable", () => {
+      const answer = (level: BotLevel) => responds(make(level, never, [faceUp(CELTIC_GUARDIAN)], [faceUp(SUMMONED_SKULL)]), [DRAGON_CAPTURE_JAR, WABOKU], 0, 0);
+      expect(answer("normal")).toBe(0);
+      expect(answer("expert")).toBe(1);
+    });
+
+    it("garde une destruction de masse qui coûte plus qu'elle ne rapporte, la joue sinon", () => {
+      const costly = (level: BotLevel, codes: number[]) => responds(make(level, never, [faceUp(GAIA), faceUp(CELTIC_GUARDIAN)], [faceUp(SUMMONED_SKULL)]), codes, 0, 0);
+      expect(costly("normal", [TORRENTIAL_TRIBUTE, WABOKU])).toBe(0);
+      expect(costly("expert", [TORRENTIAL_TRIBUTE, WABOKU])).toBe(1);
+      expect(costly("expert", [TORRENTIAL_TRIBUTE])).toBeNull();
+      const pays = responds(make("expert", never, [], [faceUp(SUMMONED_SKULL), faceUp(GAIA)]), [WABOKU, TORRENTIAL_TRIBUTE], 0, null);
+      expect(pays).toBe(1);
+    });
+
+    it("joue contre lui-même jusqu'à la victoire, sans réponse refusée ni repli", { timeout: 120_000 }, async () => {
+      const errors = vi.spyOn(console, "error");
+      onTestFinished(() => errors.mockRestore());
+      for (const seed of seeds) {
+        const state = await runDuel(seed, 500, [bot(0, "expert"), bot(1, "expert")]);
+        expect(state.winner, `seed ${seed[0]}`).not.toBeNull();
+        expect(state.errors).toEqual([]);
+      }
+      expect(errors).not.toHaveBeenCalled();
+    });
   });
 
   it.each(["debutant", "expert"] as const)("niveau %s : mène un duel contre le niveau normal jusqu'au bout, sans réponse refusée", { timeout: 60_000 }, async (level) => {
