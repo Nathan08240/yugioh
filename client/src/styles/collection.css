@@ -141,6 +141,46 @@
   color: var(--texte-2);
 }
 
+/* Decks suggérés ---------------------------------------------------------- */
+
+.suggestions > summary {
+  cursor: pointer;
+  font-family: var(--police-titre);
+}
+
+.suggestions__liste {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--e-3);
+  max-block-size: 40dvh;
+  margin: var(--e-2) 0 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.suggestions__deck {
+  display: flex;
+  flex-direction: column;
+  gap: var(--e-2);
+  padding: var(--e-3);
+  border: 1px solid var(--trait);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.suggestions__deck p {
+  margin: 0;
+}
+
+.suggestions__deck .btn {
+  margin-block-start: auto;
+}
+
+.suggestions__compte {
+  font-family: var(--police-chiffres);
+}
+
 /* Grille de la collection --------------------------------------------------- */
 
 .grille-collection {
