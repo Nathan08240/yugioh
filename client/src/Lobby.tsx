@@ -170,10 +170,11 @@ function Screen({ state, page, send, reconnect, leave, respond, go, vsBot, story
       leave();
       go(next);
     };
+    const report = { send: (message: string) => send({ type: "report", message: message || undefined }), sent: state.reported };
     return (
       <>
-        <Duel board={state.board} seat={state.seat ?? 0} asked={state.question} respond={respond} leave={leave} surrender={() => send({ type: "surrender" })} emotes={state.emotes} sendEmote={(id) => send({ type: "emote", id })} answerBy={state.answerBy} away={state.away} feed={state.feed} lp={state.lp} opponentLp={state.opponentLp} pseudo={state.pseudo} opponent={state.opponent} rules={specialRules(special)} easy={state.storyOpen && easy} kingdom={special.includes("duelist-kingdom")} />
-        {state.board.winner !== undefined && <Fin board={state.board} seat={state.seat ?? 0} room={state.room} vsBot={vsBot} opponent={state.opponent} story={story} rematch={state.rematch} onRematch={(accept) => send({ type: "rematch", accept })} leave={leave} go={leaveFor} />}
+        <Duel board={state.board} seat={state.seat ?? 0} asked={state.question} respond={respond} leave={leave} surrender={() => send({ type: "surrender" })} emotes={state.emotes} sendEmote={(id) => send({ type: "emote", id })} report={report} answerBy={state.answerBy} away={state.away} feed={state.feed} lp={state.lp} opponentLp={state.opponentLp} pseudo={state.pseudo} opponent={state.opponent} rules={specialRules(special)} easy={state.storyOpen && easy} kingdom={special.includes("duelist-kingdom")} />
+        {state.board.winner !== undefined && <Fin board={state.board} seat={state.seat ?? 0} room={state.room} vsBot={vsBot} opponent={state.opponent} story={story} rematch={state.rematch} onRematch={(accept) => send({ type: "rematch", accept })} report={report} leave={leave} go={leaveFor} />}
       </>
     );
   }

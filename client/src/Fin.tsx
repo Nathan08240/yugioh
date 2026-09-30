@@ -5,6 +5,7 @@ import { cardName, useDuelView } from "./cards.ts";
 import type { LobbyState, StoryWon } from "./lobby.ts";
 import { D1, D2, D3, D4, RESSORT, sequences, type AnimOptions, type Sequence, type Step } from "./motion.ts";
 import type { Page } from "./Shell.tsx";
+import { Signaler, type Report } from "./Signaler.tsx";
 import { jouer as jouerSon } from "./son.ts";
 import "./styles/fin.css";
 import { REPLAY_WINS } from "../../server/src/protocol.ts";
@@ -23,6 +24,8 @@ type Props = {
   // Online rematch state; against the bot, asking starts a new duel at once.
   rematch?: LobbyState["rematch"];
   onRematch: (accept: boolean) => void;
+  // Bug report button, hidden without it.
+  report?: Report;
   leave: () => void;
   go: (page: Page) => void;
 };
@@ -76,7 +79,7 @@ const defeat =
   };
 
 // Victory or defeat screen over the board, once the engine has named the winner.
-export function Fin({ board, seat, room, vsBot, opponent, story, rematch, onRematch, leave, go }: Readonly<Props>) {
+export function Fin({ board, seat, room, vsBot, opponent, story, rematch, onRematch, report, leave, go }: Readonly<Props>) {
   const root = useRef<HTMLDivElement>(null);
   const won = board.winner === seat;
   const lost = board.winner === 1 - seat;
@@ -127,6 +130,7 @@ export function Fin({ board, seat, room, vsBot, opponent, story, rematch, onRema
               Modifier mon deck
             </button>
           )}
+          {report && <Signaler report={report} />}
         </div>
       </div>
     </section>

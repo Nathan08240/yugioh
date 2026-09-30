@@ -17,6 +17,7 @@ import { Confirm, interaction, type Choice, type Ui } from "./Question.tsx";
 import { apercuCombat, attaquantChoisi, placeKey, pointDe, reponseVisee, type Appui, type Point } from "./question.ts";
 import { useReglages } from "./reglages.ts";
 import { RulesBadge, type Rule } from "./regles.tsx";
+import { Signaler, type Report } from "./Signaler.tsx";
 import { jouer as jouerSon, sonDe } from "./son.ts";
 import "./styles/duel.css";
 import { Apercu, Icon } from "./ui.tsx";
@@ -52,6 +53,8 @@ type Props = {
   // Last emote of each seat, and how to send one (no emote button without it).
   emotes?: Partial<Record<Seat, ShownEmote>>;
   sendEmote?: (id: EmoteId) => void;
+  // Bug report button, hidden without it.
+  report?: Report;
 };
 
 const { HAND, GRAVE, REMOVED } = OcgLocation;
@@ -107,7 +110,7 @@ function zoneCard(board: Board, id: string): Card | undefined {
 const codeAt = (board: Board, id: string) => zoneCard(board, id)?.code ?? 0;
 
 // The end of the duel (Fin.tsx) is drawn over the board by the lobby.
-export function Duel({ board, seat, asked, respond, leave, surrender, answerBy, away, feed, lp, opponentLp, pseudo, opponent, rules, easy, kingdom, emotes, sendEmote }: Readonly<Props>) {
+export function Duel({ board, seat, asked, respond, leave, surrender, answerBy, away, feed, lp, opponentLp, pseudo, opponent, rules, easy, kingdom, emotes, sendEmote, report }: Readonly<Props>) {
   const cards = useCards();
   const [reglages] = useReglages();
   const strings = useSystemStrings();
@@ -222,7 +225,7 @@ export function Duel({ board, seat, asked, respond, leave, surrender, answerBy, 
               <CardView key={i} code={0} />
             ))}
           </section>
-          <Turn board={shown} seat={seat} leave={leave} surrender={surrender} />
+          <Turn board={shown} seat={seat} leave={leave} surrender={surrender} report={report} />
           <aside className="colonne colonne--gauche">
             <div className="panneau colonne__detail">
               <CardDetail code={detail?.code} atk={stats?.atk} def={stats?.def} />
@@ -606,7 +609,7 @@ const PHASES: [ReadonlySet<number>, string, string][] = [
   [new Set([OcgPhase.END]), "EP", "End Phase"],
 ];
 
-function Turn({ board, seat, leave, surrender }: Readonly<{ board: Board; seat: number; leave: () => void; surrender: () => void }>) {
+function Turn({ board, seat, leave, surrender, report }: Readonly<{ board: Board; seat: number; leave: () => void; surrender: () => void; report?: Report }>) {
   const mine = board.turnPlayer === seat;
   const [confirming, setConfirming] = useState(false);
   return (
@@ -644,6 +647,7 @@ function Turn({ board, seat, leave, surrender }: Readonly<{ board: Board; seat: 
           );
         })}
       </ol>
+      {report && <Signaler report={report} />}
     </div>
   );
 }

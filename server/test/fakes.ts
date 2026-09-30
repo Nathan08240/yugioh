@@ -21,6 +21,7 @@ export function fakeAccounts(overrides: Partial<Accounts> = {}): Accounts {
     completeStory: async (_userId, _duel, stars) => ({ rewards: null, stars, best: stars, starBooster: false, replays: 1 }),
     recordResult: async () => {},
     duelResults: async () => [],
+    saveReport: async () => true,
     ...overrides,
   };
 }

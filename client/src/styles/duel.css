@@ -1021,3 +1021,31 @@ button.slot {
 .emote:not(:empty) {
   animation: bulle var(--duree-2) var(--courbe-sortie);
 }
+
+/* Signalement d'un problème : le bouton, puis un petit formulaire dans le bloc du tour ou sur l'écran de fin */
+.signaler__bouton {
+  min-block-size: 40px;
+  padding-inline: var(--e-3);
+  font-size: var(--taille-s);
+  justify-self: start;
+}
+
+.signaler {
+  display: grid;
+  gap: var(--e-2);
+  padding: var(--e-3);
+  font-size: var(--taille-s);
+}
+
+.signaler textarea {
+  inline-size: 100%;
+  resize: vertical;
+  font: inherit;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+.signaler__actions {
+  display: flex;
+  gap: var(--e-2);
+}
