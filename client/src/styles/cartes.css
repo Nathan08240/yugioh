@@ -316,6 +316,12 @@
   box-shadow: 0 0 0 3px var(--or), 0 0 24px rgb(255 197 61 / 0.6);
 }
 
+/* Tutoriel : la carte que la consigne demande de jouer */
+.carte.est-conseillee {
+  box-shadow: 0 0 0 3px var(--or), 0 0 24px 4px rgb(255 197 61 / 0.65);
+  animation: conseil 1.4s ease-in-out infinite;
+}
+
 .carte.est-inactive {
   filter: grayscale(0.75) brightness(0.65);
 }
@@ -341,6 +347,12 @@
   rotate: -90deg;
 }
 
+@keyframes conseil {
+  50% {
+    box-shadow: 0 0 0 3px var(--or), 0 0 36px 8px rgb(255 197 61 / 0.85);
+  }
+}
+
 @keyframes cible {
   50% {
     box-shadow: 0 0 0 2px var(--holo-2), 0 0 34px 6px rgb(67 240 255 / 0.8);
@@ -348,12 +360,12 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  :root:not([data-mouvement="libre"]) .carte.est-cible {
+  :root:not([data-mouvement="libre"]) :is(.carte.est-cible, .carte.est-conseillee) {
     animation: none;
   }
 }
 
-:root[data-mouvement="reduit"] .carte.est-cible {
+:root[data-mouvement="reduit"] :is(.carte.est-cible, .carte.est-conseillee) {
   animation: none;
 }
 

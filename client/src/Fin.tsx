@@ -27,6 +27,8 @@ type Props = {
   eventBooster?: boolean;
   // A puzzle, and once the server has recorded its success, whether it earned a booster (the first time only).
   puzzle?: { title: string; booster?: boolean };
+  // The tutorial, and once the server has recorded its win, whether it earned a booster (the first time only).
+  tutoriel?: { booster?: boolean };
   // A tower duel: its floor, and its win once the server has recorded it. The rematch starts the next floor.
   tower?: { floor: number; won?: TowerWon };
   // Online rematch state; against the bot, asking starts a new duel at once.
@@ -89,7 +91,7 @@ const defeat =
   };
 
 // Victory or defeat screen over the board, once the engine has named the winner.
-export function Fin({ board, seat, room, vsBot, ranked, opponent, story, eventBooster, puzzle, tower, rematch, onRematch, report, leave, go, sealed }: Readonly<Props>) {
+export function Fin({ board, seat, room, vsBot, ranked, opponent, story, eventBooster, puzzle, tutoriel, tower, rematch, onRematch, report, leave, go, sealed }: Readonly<Props>) {
   const root = useRef<HTMLDivElement>(null);
   const won = board.winner === seat;
   const lost = board.winner === 1 - seat;
@@ -104,6 +106,7 @@ export function Fin({ board, seat, room, vsBot, ranked, opponent, story, eventBo
   let context = `Duel en ligne · salle ${room}`;
   if (story) context = `${story.title ?? "Mode Histoire"}${story.easy ? " · Facile" : ""}`;
   else if (puzzle) context = `Puzzle · ${puzzle.title}`;
+  else if (tutoriel) context = "Tutoriel";
   else if (tower) context = `La Tour · Étage ${tower.floor} sur ${TOWER_FLOORS}`;
   else if (sealed) context = `Mode Scellé · ${sealed.wins}/${SEALED_WINS} victoires · ${sealed.losses}/${SEALED_LOSSES} défaites`;
   else if (vsBot) context = "Duel contre le bot";
@@ -116,6 +119,7 @@ export function Fin({ board, seat, room, vsBot, ranked, opponent, story, eventBo
   const eventGain = won && eventBooster ? 1 : 0;
   let boosters = (won && !vsBot && !story ? 1 : storyBoosters(story?.won)) + eventGain + (tower?.won?.boosters ?? 0);
   if (puzzle) boosters = won && puzzle.booster ? 1 : 0;
+  if (tutoriel) boosters = won && tutoriel.booster ? 1 : 0;
 
   return (
     <section className={won ? "ecran ecran--scene fin-duel" : "ecran ecran--scene fin-duel ecran--defaite"} aria-labelledby="fin-titre">
@@ -130,6 +134,7 @@ export function Fin({ board, seat, room, vsBot, ranked, opponent, story, eventBo
         {won && (tower ? <TowerGains won={tower.won} /> : <Gains story={story} boosters={boosters} />)}
         {won && eventBooster && <p className="texte-2">Première victoire de l'événement de la semaine : 1 booster gagné.</p>}
         {won && puzzle?.booster === false && <p className="texte-2 fin__recit">Puzzle déjà réussi : la récompense a été obtenue.</p>}
+        {won && tutoriel?.booster === false && <p className="texte-2 fin__recit">Tutoriel déjà terminé : la récompense a été obtenue.</p>}
         {(won || lost) && <Cause board={board} seat={seat} won={won} kingdom={story?.special?.includes("duelist-kingdom") ?? false} opponent={opponent} />}
         {lost && tower && <p className="texte-2 fin__note">Une défaite renvoie à l'étage 1 ; votre record est gardé.</p>}
         {lost && !story && !vsBot && <p className="texte-2 fin__note">Le vainqueur d'un duel en ligne reçoit un booster. Retentez votre chance avec un deck ajusté.</p>}
@@ -148,7 +153,7 @@ export function Fin({ board, seat, room, vsBot, ranked, opponent, story, eventBo
               {back}
             </button>
           )}
-          {!sealed && !ranked && <Rematch online={!vsBot} seat={seat} rematch={rematch} opponent={opponent} onRematch={onRematch} label={rematchLabel(Boolean(puzzle), tower, won)} />}
+          {!sealed && !ranked && <Rematch online={!vsBot} seat={seat} rematch={rematch} opponent={opponent} onRematch={onRematch} label={rematchLabel(Boolean(puzzle || tutoriel), tower, won)} />}
           {lost && !puzzle && !sealed && (
             <button type="button" className="btn btn--fantome" onClick={() => go("collection")}>
               Modifier mon deck

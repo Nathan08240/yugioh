@@ -94,6 +94,8 @@ export type ClientMessage =
   // Puzzles: `puzzles` asks for the list, answered with `puzzles`; `puzzle` starts one against the bot.
   | { type: "puzzles" }
   | { type: "puzzle"; id: string }
+  // The guided duel of the tutorial against the bot; its first win is announced as `puzzle_won` with the id "tutorial".
+  | { type: "tutorial" }
   // Wins and losses of the player per deck, answered with `duel_results`.
   | { type: "duel_results" }
   // The event of the week, answered with `event`.
@@ -190,7 +192,7 @@ export type ServerMessage =
   // The first event win of the week was just recorded: 1 booster earned.
   | { type: "event_won" }
   | { type: "puzzles"; puzzles: PuzzleView[] }
-  // A solved puzzle, recorded: `booster` the first time only.
+  // A solved puzzle (or the tutorial won, id "tutorial"), recorded: `booster` the first time only.
   | { type: "puzzle_won"; id: string; booster: boolean }
   | ({ type: "tower" } & TowerView)
   // A won tower duel, recorded: `boosters` earned by the first win of a reward floor, 0 otherwise.

@@ -8,13 +8,15 @@ import { PUZZLE_FAILED, type ClientMessage, type ServerMessage, type Wire } from
 import { PUZZLE_IDS, PUZZLES, type Puzzle } from "../src/puzzles.ts";
 import { startServer } from "../src/server.ts";
 import { fakeAccounts } from "./fakes.ts";
-import { pass, solver } from "./solver.ts";
+import { pass, pupil, solver } from "./solver.ts";
 
 type Received = Wire<ServerMessage>;
 
 // Solved puzzles and boosters earned, per player.
 const solved = new Map<string, Set<string>>();
 const boosters = new Map<string, number>();
+// Players who won the tutorial.
+const tutorials = new Set<string>();
 const accounts = fakeAccounts({
   solvedPuzzles: async (userId) => solved.get(userId) ?? new Set(),
   solvePuzzle: async (userId, id) => {
@@ -22,6 +24,12 @@ const accounts = fakeAccounts({
     solved.set(userId, done);
     const first = !done.has(id);
     done.add(id);
+    if (first) boosters.set(userId, (boosters.get(userId) ?? 0) + 1);
+    return first;
+  },
+  finishTutorial: async (userId) => {
+    const first = !tutorials.has(userId);
+    tutorials.add(userId);
     if (first) boosters.set(userId, (boosters.get(userId) ?? 0) + 1);
     return first;
   },
@@ -42,8 +50,9 @@ async function connect(user: string, player: Player) {
     const msg: Received = JSON.parse(String(data));
     received.push(msg);
     if (msg.type !== "question") return;
-    // The wire form of a question works as is: the solver reads no bigint field.
-    socket.send(JSON.stringify({ type: "respond", response: answer(msg.question as unknown as OcgMessage, []) } satisfies ClientMessage));
+    // The wire form of a question and of the messages of this duel works as is: the solver reads no bigint field.
+    const log = received.slice(received.findLastIndex((seen) => seen.type === "joined") + 1).flatMap((seen) => (seen.type === "messages" ? seen.messages : [])) as unknown as OcgMessage[];
+    socket.send(JSON.stringify({ type: "respond", response: answer(msg.question as unknown as OcgMessage, log) } satisfies ClientMessage));
   });
   await once(socket, "open");
   const send = (msg: ClientMessage) => socket.send(JSON.stringify(msg));
@@ -57,6 +66,8 @@ async function connect(user: string, player: Player) {
 }
 
 const puzzle = (id: string) => PUZZLE_IDS.get(id) as Puzzle;
+// The tutorial lasts three turns: longer than the default second of waitFor on a busy machine.
+const DUEL_WAIT = { timeout: 10_000 };
 const won = (received: Received[]) => received.filter((msg) => msg.type === "puzzle_won");
 
 describe("puzzles sur le serveur", () => {
@@ -103,6 +114,20 @@ describe("puzzles sur le serveur", () => {
     // Retrying after a failure plays the puzzle again, from the same state.
     client.retry(solver(puzzle("coup-de-grace").solution));
     await vi.waitFor(() => expect(won(client.received)).toEqual([{ type: "puzzle_won", id: "coup-de-grace", booster: true }]));
+    client.socket.close();
+  });
+
+  it("le tutoriel suivi jusqu'au bout gagne un booster la première fois, « Réessayer » le rejoue", { timeout: 30_000 }, async () => {
+    const client = await connect("bakura", pupil);
+    client.send({ type: "tutorial" });
+    await vi.waitFor(() => expect(won(client.received)).toEqual([{ type: "puzzle_won", id: "tutorial", booster: true }]), DUEL_WAIT);
+    expect(client.wins()).toEqual([expect.objectContaining({ player: 0, reason: 1 })]);
+    expect(client.received).toContainEqual(expect.objectContaining({ type: "joined", lp: 4000, opponentLp: 3000 }));
+
+    client.retry(pupil);
+    await vi.waitFor(() => expect(won(client.received)).toHaveLength(2), DUEL_WAIT);
+    expect(won(client.received)[1]).toEqual({ type: "puzzle_won", id: "tutorial", booster: false });
+    expect(boosters.get("bakura")).toBe(1);
     client.socket.close();
   });
 

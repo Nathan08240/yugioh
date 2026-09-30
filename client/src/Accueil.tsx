@@ -110,6 +110,9 @@ export function Accueil({ state, send, go }: Readonly<{ state: LobbyState; send:
             Entraînement sans enjeu, à votre rythme.
           </Mode>
         )}
+        <Mode icon="ui-duel" title="Tutoriel" onClick={() => send({ type: "tutorial" })}>
+          Un duel guidé pour apprendre les bases. Première victoire : 1 booster.
+        </Mode>
         <Mode icon="ui-booster" title="Mode Scellé" onClick={() => go("scelle")}>
           Six boosters rien que pour la session, un deck, jusqu'à 3 victoires ou 2 défaites.
         </Mode>

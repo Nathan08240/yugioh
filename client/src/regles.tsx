@@ -173,13 +173,19 @@ export function RulesBadge({ rules }: Readonly<{ rules: Rule[] }>) {
 }
 
 // The Rules page: basics open, story arc rules folded.
-export function Regles() {
+export function Regles({ jouerTutoriel }: Readonly<{ jouerTutoriel: () => void }>) {
   return (
     <div className="regles-page">
       <div data-entree>
         <p className="surtitre">Aide</p>
         <h1 className="titre">Règles</h1>
       </div>
+      <p className="regles-tutoriel" data-entree>
+        <span className="texte-2">Les bases en pratique, pas à pas, contre le bot.</span>
+        <button type="button" className="btn" onClick={jouerTutoriel}>
+          Jouer le tutoriel
+        </button>
+      </p>
       {allRules().map((rule) => (
         <RuleBlock key={rule.title} rule={rule} open={BASICS.includes(rule)} />
       ))}
