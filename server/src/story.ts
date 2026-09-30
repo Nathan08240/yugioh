@@ -7,8 +7,9 @@ import { addCards } from "./collection.ts";
 import type { Db, Sql } from "./db.ts";
 import { EXTRA_MAX } from "./deckcheck.ts";
 import type { Rules } from "./duel.ts";
+import { parisDay } from "./economy.ts";
 import { isAllowed } from "./pool.ts";
-import { REPLAY_WINS, type Rewards, type StoryArcView, type StoryLevel, type StoryResult, type StoryStatus } from "./protocol.ts";
+import { REPLAY_BOOSTERS_MAX, REPLAY_WINS, type Rewards, type StoryArcView, type StoryLevel, type StoryResult, type StoryStatus } from "./protocol.ts";
 
 // Format of each data/story/*.json file, version STORY_VERSION. Texts are short summaries written by us, never anime dialogue.
 export type StoryDuel = {
@@ -222,12 +223,22 @@ async function grantRewards(sql: Sql, userId: string, { boosters, cards = [] }: 
   return { boosters, cards: granted };
 }
 
-// One more win of a duel already won, a booster every REPLAY_WINS: resolves to the place of this win in its series.
-async function replayWin(sql: Sql, userId: string): Promise<number> {
-  const [{ replays }] = await sql<{ replays: number }[]>`
-    update yugioh.profiles set story_replays = story_replays + 1 where user_id = ${userId} returning story_replays as replays`;
-  if (replays % REPLAY_WINS === 0) await creditBoosters(sql, userId, 1);
-  return ((replays - 1) % REPLAY_WINS) + 1;
+// One more win of a duel already won, a booster every REPLAY_WINS and REPLAY_BOOSTERS_MAX a day: resolves to the place of
+// this win in its series, or to the daily limit once reached, when the win does not count.
+async function replayWin(sql: Sql, userId: string): Promise<Pick<StoryResult, "replays" | "replayLimit">> {
+  const today = parisDay();
+  const [row] = await sql<{ replays: number }[]>`
+    update yugioh.profiles set story_replays = story_replays + 1
+    where user_id = ${userId} and (replay_on is distinct from ${today}::date or replay_boosters < ${REPLAY_BOOSTERS_MAX})
+    returning story_replays as replays`;
+  if (!row) return { replayLimit: true };
+  if (row.replays % REPLAY_WINS === 0) {
+    await sql`
+      update yugioh.profiles set replay_boosters = case when replay_on = ${today}::date then replay_boosters + 1 else 1 end, replay_on = ${today}::date
+      where user_id = ${userId}`;
+    await creditBoosters(sql, userId, 1);
+  }
+  return { replays: ((row.replays - 1) % REPLAY_WINS) + 1 };
 }
 
 // Records a won duel with its stars (storyStars), keeping the best. The first win grants the duel's rewards, the first
@@ -242,7 +253,7 @@ export async function completeDuel(db: Db, userId: string, duel: StoryDuel, star
           update yugioh.story_duels set stars = greatest(stars, ${stars}) where user_id = ${userId} and duel_id = ${duel.id} returning stars as best`;
     const starBooster = stars === 3 && (await unlock(sql, userId, `stars:${duel.id}`));
     if (starBooster) await creditBoosters(sql, userId, 1);
-    if (!first) return { rewards: null, stars, best, starBooster, replays: await replayWin(sql, userId) };
+    if (!first) return { rewards: null, stars, best, starBooster, ...(await replayWin(sql, userId)) };
     return { rewards: await grantRewards(sql, userId, duel.rewards), stars, best, starBooster };
   });
 }

@@ -101,3 +101,52 @@
 .classeur__detail .detail > .carte {
   --carte-l: min(100%, 220px);
 }
+
+/* Points de collection : barre au-dessus des onglets, aperçu de la conversion, obtention depuis la fiche. */
+.collection__barre {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--e-2) var(--e-5);
+  margin-block-start: var(--e-3);
+}
+
+.collection__barre .onglets-collection {
+  margin-block-start: 0;
+}
+
+.points {
+  display: flex;
+  align-items: center;
+  gap: var(--e-3);
+  color: var(--texte-2);
+}
+
+.conversion {
+  position: fixed;
+  inset-block-start: 50%;
+  inset-inline-start: 50%;
+  z-index: 20;
+  display: grid;
+  gap: var(--e-3);
+  inline-size: min(440px, calc(100vw - 32px));
+  max-block-size: 80dvh;
+  padding: var(--e-4);
+  overflow: auto;
+  transform: translate(-50%, -50%);
+  color: var(--texte);
+}
+
+.conversion ul {
+  display: grid;
+  gap: 4px;
+  color: var(--texte-2);
+}
+
+.conversion__actions,
+.obtenir {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--e-2);
+}

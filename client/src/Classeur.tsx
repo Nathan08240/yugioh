@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
-import type { ClientMessage } from "../../server/src/protocol.ts";
+import { KEEP_COPIES, type ClientMessage } from "../../server/src/protocol.ts";
 import { CardDetail, CardView } from "./Card.tsx";
 import { cardName, DuelView, useCards } from "./cards.ts";
 import { bestRarity, copiesByRarity, ownedCodes, setProgress } from "./collection.ts";
@@ -12,14 +12,16 @@ import { BestRarity } from "./ui.tsx";
 type SetCards = { code: string; name: string; date: string; cards: number[] };
 
 // Binder: one page per booster or starter deck, the cards not owned yet greyed out.
-type Props = { collection?: [number, number][]; rarities?: [number, string, number][]; wishlist?: number[]; send: (msg: ClientMessage) => void };
+type Props = { collection?: [number, number][]; rarities?: [number, string, number][]; wishlist?: number[]; points?: number; send: (msg: ClientMessage) => void };
 
-export function Classeur({ collection, rarities, wishlist, send }: Readonly<Props>) {
+export function Classeur({ collection, rarities, wishlist, points, send }: Readonly<Props>) {
   const cards = useCards();
   const [sets, setSets] = useState<SetCards[]>();
   const [selected, setSelected] = useState(0);
   const [shown, setShown] = useState<number>();
   const [onlyWished, setOnlyWished] = useState(false);
+  // Points to obtain each booster card.
+  const [costs, setCosts] = useState<ReadonlyMap<number, number>>(new Map());
   const view = useMemo(() => ({ cards, show: setShown, seat: 0 }), [cards]);
   const owned = useMemo(() => ownedCodes(collection ?? []), [collection]);
   const quantities = useMemo(() => new Map(collection), [collection]);
@@ -38,6 +40,10 @@ export function Classeur({ collection, rarities, wishlist, send }: Readonly<Prop
     fetch("/api/sets")
       .then((res) => res.json())
       .then((data: SetCards[]) => setSets(data))
+      .catch((error: unknown) => console.error(error));
+    fetch("/api/craft")
+      .then((res) => res.json())
+      .then((data: [number, number][]) => setCosts(new Map(data)))
       .catch((error: unknown) => console.error(error));
   }, []);
 
@@ -106,10 +112,44 @@ export function Classeur({ collection, rarities, wishlist, send }: Readonly<Prop
             <>
               <WishButton code={shown} wished={wished.has(shown)} send={send} label />
               {wished.has(shown) && owned.has(shown) && <p className="puce puce--succes">Possédée : souhait exaucé</p>}
+              <Craft key={shown} code={shown} quantity={quantities.get(shown) ?? 0} cost={costs.get(shown)} points={points ?? 0} send={send} />
             </>
           )}
         </aside>
       </div>
     </DuelView>
+  );
+}
+
+// Obtains a Common copy of a booster card owned fewer than KEEP_COPIES times, once the cost is confirmed.
+function Craft({ code, quantity, cost, points, send }: Readonly<{ code: number; quantity: number; cost?: number; points: number; send: (msg: ClientMessage) => void }>) {
+  const [confirming, setConfirming] = useState(false);
+  if (cost === undefined || quantity >= KEEP_COPIES) return null;
+  if (!confirming) {
+    return (
+      <button type="button" className="btn btn--fantome" disabled={points < cost} onClick={() => setConfirming(true)}>
+        Obtenir en Commune · {cost} points
+      </button>
+    );
+  }
+  return (
+    <div className="obtenir">
+      <p className="texte-2">
+        Dépenser <b className="chiffres">{cost}</b> de vos {points} points pour 1 exemplaire en Commune ?
+      </p>
+      <button
+        type="button"
+        className="btn"
+        onClick={() => {
+          setConfirming(false);
+          send({ type: "craft", code });
+        }}
+      >
+        Confirmer
+      </button>
+      <button type="button" className="btn btn--fantome" onClick={() => setConfirming(false)}>
+        Annuler
+      </button>
+    </div>
   );
 }

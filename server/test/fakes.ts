@@ -9,7 +9,7 @@ export function fakeAccounts(overrides: Partial<Accounts> = {}): Accounts {
     createProfile: async () => undefined,
     activeDeck: async () => ({ main: YUGI, extra: [] }),
     chooseStarter: async () => false,
-    collection: async () => ({ cards: [], rarities: [] }),
+    collection: async () => ({ cards: [], rarities: [], points: 0 }),
     decks: async () => ({ decks: [], active: null }),
     saveDeck: async () => ({ error: "non simulé" }),
     deleteDeck: async () => false,
@@ -17,7 +17,7 @@ export function fakeAccounts(overrides: Partial<Accounts> = {}): Accounts {
     wishlist: async () => [],
     addWish: async () => true,
     removeWish: async () => {},
-    boosterState: async () => ({ nextFreeAt: new Date(0).toISOString(), pending: 0 }),
+    boosterState: async () => ({ nextFreeAt: new Date(0).toISOString(), pending: 0, ultraIn: 21 }),
     openBooster: async () => [],
     creditBoosters: async () => {},
     storyProgress: async () => new Map(),
@@ -25,6 +25,10 @@ export function fakeAccounts(overrides: Partial<Accounts> = {}): Accounts {
     recordResult: async () => {},
     duelResults: async () => [],
     saveReport: async () => true,
+    previewConversion: async () => ({ cards: [], points: 0 }),
+    convertDuplicates: async () => "aucun doublon à convertir",
+    craftCard: async () => "points insuffisants",
+    claimDaily: async () => false,
     ...overrides,
   };
 }

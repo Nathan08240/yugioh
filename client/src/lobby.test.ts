@@ -71,6 +71,17 @@ it("garde le droit admin annoncé par le profil", () => {
   expect(reduce(initialLobby, { type: "profile", pseudo: "dave", needsStarter: false }).admin).toBeUndefined();
 });
 
+it("garde la récompense du jour du profil, les points et l'aperçu de conversion jusqu'à la collection suivante", () => {
+  let state = reduce(initialLobby, { type: "profile", pseudo: "yugi", needsStarter: false, daily: true });
+  state = reduce(state, { type: "profile", pseudo: "yugi", needsStarter: false });
+  expect(state.daily).toBe(true);
+  state = reduce(state, { type: "conversion", cards: [[1, "", 2]], points: 10 });
+  expect(state.conversion?.points).toBe(10);
+  state = reduce(state, { type: "collection", cards: [[1, 3]], rarities: [], points: 10 });
+  expect(state).toMatchObject({ points: 10, conversion: undefined });
+  expect(reduce(state, { type: "booster_state", nextFreeAt: "", pending: 0, ultraIn: 4 }).boosters?.ultraIn).toBe(4);
+});
+
 it("suit la revanche en ligne jusqu'au nouveau duel, qui l'efface avec la conclusion de l'histoire", () => {
   const joined: Extract<Action, { type: "joined" }> = { type: "joined", room: "ABCDE", seat: 0, lp: 4000, decks: [40, 40], extras: [0, 0], log: [] };
   let state = reduce(reduce(initialLobby, joined), { type: "story_won", duel: "d", outro: "Fin.", rewards: null, stars: 1, best: 1, starBooster: false });

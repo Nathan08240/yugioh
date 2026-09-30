@@ -63,8 +63,8 @@ describe("progression et récompenses sur Postgres jetable", () => {
     await completeDuel(server, id, weevil, 1);
     await completeDuel(server, id, mako, 1);
     const replays = [];
-    for (const duel of [weevil, mako, weevil, weevil, mako, mako, weevil]) replays.push((await completeDuel(server, id, duel, 1)).replays);
-    expect(replays).toEqual([1, 2, 3, 1, 2, 3, 1]);
+    for (const duel of [weevil, mako, weevil, weevil, mako, mako]) replays.push((await completeDuel(server, id, duel, 1)).replays);
+    expect(replays).toEqual([1, 2, 3, 1, 2, 3]);
     expect((await holdings(id)).pending).toBe(2 + 2);
   });
 
@@ -81,7 +81,7 @@ describe("progression et récompenses sur Postgres jetable", () => {
     const results: StoryResult[] = await Promise.all(Array.from({ length: 10 }, () => completeDuel(server, id, mai, 3)));
     expect(results.filter((result) => result.rewards)).toEqual([{ rewards: { boosters: 2, cards: [12206212] }, stars: 3, best: 3, starBooster: true }]);
     expect(results.filter((result) => result.starBooster)).toHaveLength(1);
-    // The 9 others are replays: 3 boosters.
-    expect(await holdings(id)).toEqual({ pending: 2 + 1 + 3, cards: [{ card_code: 12206212, quantity: 1 }], unlocks: ["card:12206212", "stars:dk-mai"] });
+    // The 9 others are replays: 2 boosters, the daily limit.
+    expect(await holdings(id)).toEqual({ pending: 2 + 1 + 2, cards: [{ card_code: 12206212, quantity: 1 }], unlocks: ["card:12206212", "stars:dk-mai"] });
   });
 });
