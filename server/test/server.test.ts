@@ -87,6 +87,7 @@ const accounts: Accounts = {
   duelResults: async () => [],
   solvedPuzzles: async () => new Set(),
   solvePuzzle: async () => true,
+  finishTutorial: async () => true,
   saveReport: async () => true,
   previewConversion: async () => ({ cards: [[1, "", 2]], points: 10 }),
   convertDuplicates: async (_userId, expected) => (expected === 10 ? undefined : "la collection a changé, relancez l'aperçu"),

@@ -348,6 +348,14 @@
   padding: var(--e-4) var(--marge-ecran) var(--e-6);
 }
 
+.regles-tutoriel {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--e-3);
+  align-items: center;
+  justify-content: space-between;
+}
+
 .regles {
   inline-size: 100%;
   padding: var(--e-3) var(--e-4);

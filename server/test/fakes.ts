@@ -43,6 +43,7 @@ export function fakeAccounts(overrides: Partial<Accounts> = {}): Accounts {
     duelResults: async () => [],
     solvedPuzzles: async () => new Set(),
     solvePuzzle: async () => true,
+    finishTutorial: async () => true,
     saveReport: async () => true,
     previewConversion: async () => ({ cards: [], points: 0 }),
     convertDuplicates: async () => "aucun doublon à convertir",

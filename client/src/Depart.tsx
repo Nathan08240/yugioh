@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import type { ClientMessage } from "../../server/src/protocol.ts";
 import { CardView } from "./Card.tsx";
 import { cardName, strongest, useDuelView } from "./cards.ts";
+import type { Page } from "./Shell.tsx";
 import "./styles/depart.css";
 import { Icon } from "./ui.tsx";
 
@@ -66,6 +67,31 @@ export function StarterChoice({ send }: Readonly<{ send: Send }>) {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+// Right after the starter, once: the guided duel of the tutorial, which the player may decline.
+export function OffreTutoriel({ send, go }: Readonly<{ send: Send; go: (page: Page) => void }>) {
+  const jouer = () => {
+    go("accueil");
+    send({ type: "tutorial" });
+  };
+  return (
+    <div className="depart">
+      <section className="panneau panneau--holo depart__form" aria-labelledby="offre-tutoriel" data-entree>
+        <p className="surtitre">Deck choisi</p>
+        <h1 id="offre-tutoriel" className="titre-panneau">
+          Apprendre les bases ?
+        </h1>
+        <p className="texte-2">Un duel guidé de quelques minutes : invoquer, attaquer, poser un Piège, l'enchaîner. Première victoire : 1 booster. Il reste disponible depuis l'accueil et la page Règles.</p>
+        <button type="button" className="btn btn--grand" onClick={jouer}>
+          Jouer le tutoriel
+        </button>
+        <button type="button" className="btn btn--fantome" onClick={() => go("accueil")}>
+          Plus tard
+        </button>
+      </section>
     </div>
   );
 }

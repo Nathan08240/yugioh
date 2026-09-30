@@ -32,6 +32,7 @@ import { chooseStarter, starterCards, type Starter } from "./starter.ts";
 import { completeDuel, completedDuels, isUnlocked, STORY, STORY_DUELS, storyDeck, storyExtra, storyRules, storyStars, storyView, type StoryDuel } from "./story.ts";
 import { systemStrings } from "./strings.ts";
 import { startTower, TOWER, towerLevel, towerRules, towerView, winTower, type TowerWin } from "./tower.ts";
+import { finishTutorial, TUTORIAL_FIELD, TUTORIAL_RULES } from "./tutorial.ts";
 import { hideCards, visibleTo } from "./visibility.ts";
 import { dbWishStore, isWishMessage, validWishMessage, wishReply, type WishMessage, type WishStore } from "./wishlist.ts";
 import { dbWonderStore, isWonderMessage, validWonderMessage, wonderReply, type WonderMessage, type WonderStore } from "./wonder.ts";
@@ -106,6 +107,8 @@ export type Accounts = DeckStore & WishStore & EconomyStore & WonderStore & Prof
   // Ids of the puzzles solved; recording a solved puzzle resolves to true the first time, which earns a booster.
   solvedPuzzles: (userId: string) => Promise<ReadonlySet<string>>;
   solvePuzzle: (userId: string, id: string) => Promise<boolean>;
+  // Records a win of the tutorial: true the first time, which earns a booster.
+  finishTutorial: (userId: string) => Promise<boolean>;
   // Resolves to false when the player already sent too many reports this hour.
   saveReport: (userId: string, message: string, report: Report) => Promise<boolean>;
   // Event of the week (event.ts): whether its booster was taken, and taking it (resolves to false when it already was).
@@ -137,6 +140,7 @@ export function dbAccounts(db: Db): Accounts {
     duelResults: (userId) => readResults(db, userId),
     solvedPuzzles: (userId) => solvedPuzzles(db, userId),
     solvePuzzle: (userId, id) => solvePuzzle(db, userId, id),
+    finishTutorial: (userId) => finishTutorial(db, userId),
     saveReport: (userId, message, report) => saveReport(db, userId, message, report),
     eventWon: (userId, eventId) => eventWon(db, userId, eventId),
     claimEvent: (userId, eventId) => claimEvent(db, userId, eventId),
@@ -280,6 +284,7 @@ function parse(data: string): ClientMessage | undefined {
     msg.type === "event" ||
     msg.type === "puzzles" ||
     (msg.type === "puzzle" && typeof msg.id === "string") ||
+    msg.type === "tutorial" ||
     msg.type === "tower" ||
     msg.type === "tower_duel" ||
     (msg.type === "story_duel" && typeof msg.duel === "string" && (msg.level === undefined || STORY_LEVELS.has(msg.level))) ||
@@ -978,23 +983,34 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
       return undefined;
     }
 
-    // The player keeps seat 0 against the Normal bot, from the state of the puzzle, without their deck; only their win counts.
-    function playPuzzle(userId: string, id: string): string | undefined {
-      const puzzle = PUZZLE_IDS.get(id);
-      if (!puzzle) return "puzzle inconnu";
-      const room: Room = { code: newCode(rooms), players: [], rules: puzzleRules(puzzle), field: puzzleField(puzzle), turnLimit: PUZZLE_TURNS };
+    // The player keeps seat 0 against the Normal bot, from a state set up by hand, without their deck; only their win counts,
+    // recorded by `solve` and announced as `puzzle_won` with `id`.
+    function playSetUp(userId: string, room: Room, id: string, solve: () => Promise<boolean>, retry: string): string | undefined {
       room.onWin = (winner) => {
         if (winner !== 0) return;
-        accounts.solvePuzzle(userId, id).then(
+        solve().then(
           (booster) => send(room.players[0]?.socket, { type: "puzzle_won", id, booster }),
           (error: unknown) => {
             console.error(error);
-            send(room.players[0]?.socket, { type: "error", error: "réussite non enregistrée, rejouez le puzzle plus tard" });
+            send(room.players[0]?.socket, { type: "error", error: retry });
           },
         );
       };
       const empty = { main: [], extra: [] };
       return enter(userId, room, empty, { deck: empty, name: "Bot", level: "normal" });
+    }
+
+    function playPuzzle(userId: string, id: string): string | undefined {
+      const puzzle = PUZZLE_IDS.get(id);
+      if (!puzzle) return "puzzle inconnu";
+      const room: Room = { code: newCode(rooms), players: [], rules: puzzleRules(puzzle), field: puzzleField(puzzle), turnLimit: PUZZLE_TURNS };
+      return playSetUp(userId, room, id, () => accounts.solvePuzzle(userId, id), "réussite non enregistrée, rejouez le puzzle plus tard");
+    }
+
+    // The guided duel of client/src/tutoriel.ts, without turn limit.
+    function playTutorial(userId: string): string | undefined {
+      const room: Room = { code: newCode(rooms), players: [], rules: TUTORIAL_RULES, field: TUTORIAL_FIELD };
+      return playSetUp(userId, room, "tutorial", () => accounts.finishTutorial(userId), "victoire non enregistrée, rejouez le tutoriel plus tard");
     }
 
     async function showTower(userId: string): Promise<undefined> {
@@ -1047,6 +1063,7 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
       if (seat) return "déjà dans une salle";
       if (msg.type === "story_duel") return playStory(user.id, msg.duel, msg.level);
       if (msg.type === "puzzle") return playPuzzle(user.id, msg.id);
+      if (msg.type === "tutorial") return playTutorial(user.id);
       if (msg.type === "tower_duel") return playTower(user.id);
       if (msg.type === "sealed_duel") return playSealed(user.id);
       return enterRoom(user.id, msg);

@@ -1,4 +1,6 @@
 import { OcgMessageType, OcgResponseType, SelectBattleCMDAction, SelectIdleCMDAction, type OcgMessage, type OcgResponse } from "@n1xx1/ocgcore-wasm";
+import type { Message } from "../../client/src/board.ts";
+import { avancer, CELTIC, MIRROR_FORCE, POT_OF_GREED, SUMMONED_SKULL } from "../../client/src/tutoriel.ts";
 import { announceCard } from "../src/announce.ts";
 import type { Player } from "../src/duel.ts";
 import type { Step } from "../src/puzzles.ts";
@@ -56,5 +58,43 @@ export function solver(steps: readonly Step[]): Player {
 // The player ends their turn at once.
 export const pass: Player = (question) => {
   if (question.type === OcgMessageType.SELECT_IDLECMD) return { type: OcgResponseType.SELECT_IDLECMD, action: SelectIdleCMDAction.TO_EP, index: null };
+  return respond(question, announceCard);
+};
+
+const index = (list: readonly { code: number }[], code: number) => list.findIndex((card) => card.code === code);
+const idle = (action: SelectIdleCMDAction, at: number | null = null): OcgResponse => ({ type: OcgResponseType.SELECT_IDLECMD, action, index: at });
+const battle = (action: SelectBattleCMDAction, at: number | null = null): OcgResponse => ({ type: OcgResponseType.SELECT_BATTLECMD, action, index: at });
+
+// What the tutorial step `step` asks for, undefined when this question is not for it.
+function lesson(step: number, question: OcgMessage): OcgResponse | undefined {
+  if (question.type === OcgMessageType.SELECT_IDLECMD) {
+    const actions = [
+      idle(SelectIdleCMDAction.SELECT_SUMMON, index(question.summons, CELTIC)),
+      idle(SelectIdleCMDAction.TO_BP),
+      idle(SelectIdleCMDAction.SELECT_SPELL_SET, index(question.spell_sets, MIRROR_FORCE)),
+      idle(SelectIdleCMDAction.TO_EP),
+      undefined,
+      idle(SelectIdleCMDAction.SELECT_ACTIVATE, index(question.activates, POT_OF_GREED)),
+      idle(SelectIdleCMDAction.SELECT_SUMMON, index(question.summons, SUMMONED_SKULL)),
+      idle(SelectIdleCMDAction.TO_BP),
+    ];
+    return actions[step];
+  }
+  if (question.type === OcgMessageType.SELECT_BATTLECMD) {
+    if (step === 1) return battle(SelectBattleCMDAction.SELECT_BATTLE, index(question.attacks, CELTIC));
+    if (step === 7) return battle(SelectBattleCMDAction.SELECT_BATTLE, index(question.attacks, SUMMONED_SKULL));
+    return battle(step === 2 ? SelectBattleCMDAction.TO_M2 : SelectBattleCMDAction.TO_EP);
+  }
+  if (question.type === OcgMessageType.SELECT_CHAIN && step === 4 && index(question.selects, MIRROR_FORCE) !== -1) {
+    return { type: OcgResponseType.SELECT_CHAIN, index: index(question.selects, MIRROR_FORCE) };
+  }
+  return undefined;
+}
+
+// Seat 0 follows the instructions of the tutorial, its step read from the messages so far; passes on chains, first option for anything else.
+export const pupil: Player = (question, log) => {
+  const response = lesson(avancer(0, log as unknown as Message[], 0), question);
+  if (response) return response;
+  if (question.type === OcgMessageType.SELECT_CHAIN && !question.forced) return { type: OcgResponseType.SELECT_CHAIN, index: null };
   return respond(question, announceCard);
 };

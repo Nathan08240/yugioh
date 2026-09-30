@@ -23,6 +23,8 @@ export type PuzzleSide = {
 export type Step = [action: string, ...codes: number[]];
 // Format of data/puzzles.json: situations written by us, cards of the pool only, won in the player's first turn.
 export type Puzzle = { id: string; title: string; goal: string; player: PuzzleSide; opponent: PuzzleSide; solution: Step[] };
+// Both sides of a duel state set up by hand (a puzzle, the tutorial).
+type Sides = Pick<Puzzle, "player" | "opponent">;
 
 // Boosters of the first win of each puzzle.
 export const PUZZLE_BOOSTERS = 1;
@@ -45,7 +47,7 @@ function checkCard(code: number, where: string): string[] {
   return [];
 }
 
-function checkSide(side: PuzzleSide, name: string): string[] {
+export function checkSide(side: PuzzleSide, name: string): string[] {
   const errors: string[] = [];
   if (!Number.isInteger(side.lp) || side.lp <= 0) errors.push(`${name} : LP invalides`);
   const monsters = side.monsters ?? [];
@@ -82,7 +84,7 @@ if (errors.length > 0) throw new Error(`data/puzzles.json invalide :\n${errors.j
 export const PUZZLE_IDS: ReadonlyMap<string, Puzzle> = new Map(PUZZLES.map((puzzle) => [puzzle.id, puzzle]));
 
 // Empty decks and no draw: the duel opens on the Main Phase 1 of the player, who may attack.
-export const puzzleRules = (puzzle: Puzzle): Rules => ({ lp: puzzle.opponent.lp, playerLp: puzzle.player.lp, hand: 0, cards: [], draw: 0, firstTurnAttack: true });
+export const puzzleRules = (puzzle: Sides): Rules => ({ lp: puzzle.opponent.lp, playerLp: puzzle.player.lp, hand: 0, cards: [], draw: 0, firstTurnAttack: true });
 
 function sideField(side: PuzzleSide, controller: 0 | 1): Placed[] {
   const at = (location: OcgLocation, position: OcgPosition) => (code: number, sequence: number): Placed => ({ code, controller, location, sequence, position });
@@ -96,7 +98,7 @@ function sideField(side: PuzzleSide, controller: 0 | 1): Placed[] {
   ];
 }
 
-export const puzzleField = (puzzle: Puzzle): Placed[] => [...sideField(puzzle.player, 0), ...sideField(puzzle.opponent, 1)];
+export const puzzleField = (puzzle: Sides): Placed[] => [...sideField(puzzle.player, 0), ...sideField(puzzle.opponent, 1)];
 
 export const puzzleView = (done: ReadonlySet<string>): PuzzleView[] => PUZZLES.map(({ id, title, goal }) => ({ id, title, goal, done: done.has(id) }));
 

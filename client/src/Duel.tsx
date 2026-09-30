@@ -20,6 +20,7 @@ import { RulesBadge, type Rule } from "./regles.tsx";
 import { Signaler, type Report } from "./Signaler.tsx";
 import { jouer as jouerSon, sonDe } from "./son.ts";
 import "./styles/duel.css";
+import { avancer, ETAPES } from "./tutoriel.ts";
 import { Apercu, Avatar, Icon } from "./ui.tsx";
 
 // The 3D board and three.js are fetched when a duel starts (their own chunk).
@@ -58,6 +59,8 @@ type Props = {
   sendEmote?: (id: EmoteId) => void;
   // Bug report button, hidden without it.
   report?: Report;
+  // The guided duel of the tutorial: its instructions beside the question, leaving it quits the duel.
+  tutoriel?: boolean;
 };
 
 const { HAND, GRAVE, REMOVED } = OcgLocation;
@@ -113,7 +116,7 @@ function zoneCard(board: Board, id: string): Card | undefined {
 const codeAt = (board: Board, id: string) => zoneCard(board, id)?.code ?? 0;
 
 // The end of the duel (Fin.tsx) is drawn over the board by the lobby.
-export function Duel({ board, seat, asked, respond, leave, surrender, answerBy, away, feed, lp, opponentLp, pseudo, opponent, avatar, opponentAvatar, rules, easy, kingdom, emotes, sendEmote, report }: Readonly<Props>) {
+export function Duel({ board, seat, asked, respond, leave, surrender, answerBy, away, feed, lp, opponentLp, pseudo, opponent, avatar, opponentAvatar, rules, easy, kingdom, emotes, sendEmote, report, tutoriel }: Readonly<Props>) {
   const cards = useCards();
   const [reglages] = useReglages();
   const strings = useSystemStrings();
@@ -172,6 +175,8 @@ export function Duel({ board, seat, asked, respond, leave, surrender, answerBy, 
   const cadre = useRef<HTMLDivElement>(null);
   const start = lp ?? Math.max(...board.players.map((side) => side.lp), 1);
   const opponentStart = opponentLp ?? start;
+  const etape = useEtape(feed, seat);
+  const conseil = tutoriel ? ETAPES[etape]?.carte : undefined;
 
   const onZone = (id: string, point: Point) => {
     const location = Number(id.split(":")[1]);
@@ -238,12 +243,13 @@ export function Duel({ board, seat, asked, respond, leave, surrender, answerBy, 
               {sendEmote && <MenuEmotes send={sendEmote} />}
             </div>
           </aside>
-          <Hand hand={shown.players[seat].hand} seat={seat} ui={targets} main={hud.refs.mains[seat]} appui={appui} />
+          <Hand hand={shown.players[seat].hand} seat={seat} ui={targets} main={hud.refs.mains[seat]} appui={appui} conseil={conseil} />
           <aside className="colonne colonne--droite">
             {easy && <p className="puce puce--holo niveau-duel">Facile</p>}
             {rules?.length ? <RulesBadge rules={rules} /> : null}
             {shown.chain.length > 0 && <Chain chain={shown.chain} seat={seat} opponent={opponent} />}
             <Log log={shown.log} opponent={opponent} />
+            {tutoriel && <Consigne etape={etape} passer={leave} />}
             <section className="panneau question" aria-live="polite">
               <p className="surtitre surtitre--or">{asked && idle ? "À vous de répondre" : "Duel en cours"}</p>
               {absent !== undefined && (
@@ -288,6 +294,35 @@ export function Duel({ board, seat, asked, respond, leave, surrender, answerBy, 
 }
 
 const cartes = (n: number) => (n > 1 ? `${n} cartes` : `${n} carte`);
+
+// Step of the tutorial the messages reached, each batch counted once.
+function useEtape(feed: Feed | undefined, seat: number): number {
+  const [suivi, setSuivi] = useState({ id: 0, etape: 0 });
+  if (!feed || feed.id === suivi.id) return suivi.etape;
+  const suivant = { id: feed.id, etape: avancer(suivi.etape, feed.messages, seat) };
+  setSuivi(suivant);
+  return suivant.etape;
+}
+
+// The instruction of the current step of the tutorial, none once it is won.
+function Consigne({ etape, passer }: Readonly<{ etape: number; passer: () => void }>) {
+  const courante = ETAPES.at(etape);
+  if (!courante) return null;
+  return (
+    <section className="panneau consigne" aria-label="Tutoriel">
+      <div aria-live="polite">
+        <p className="surtitre surtitre--or">
+          Tutoriel · étape {etape + 1} sur {ETAPES.length}
+        </p>
+        <h2 className="titre-bloc">{courante.titre}</h2>
+        <p className="consigne__texte">{courante.consigne}</p>
+      </div>
+      <button type="button" className="btn btn--fantome" onClick={passer}>
+        Passer le tutoriel
+      </button>
+    </section>
+  );
+}
 const AUCUN: Picks = { keys: [] };
 
 // What lies under a point of the screen: the opponent's plate, or a zone of the 3D board.
@@ -654,7 +689,8 @@ function Turn({ board, seat, leave, surrender, report }: Readonly<{ board: Board
 }
 
 // Your hand as a fan: a card the question lets you play is highlighted, clickable, and can be dragged to the board.
-function Hand({ hand, seat, ui, main, appui }: Readonly<{ hand: Card[]; seat: number; ui: Targets; main: RefObject<HTMLElement | null>; appui: (key: string, code: number, event: Appui) => void }>) {
+// `conseil`: the card the tutorial asks to play.
+function Hand({ hand, seat, ui, main, appui, conseil }: Readonly<{ hand: Card[]; seat: number; ui: Targets; main: RefObject<HTMLElement | null>; appui: (key: string, code: number, event: Appui) => void; conseil?: number }>) {
   const { cards, show } = useDuelView();
   const middle = (hand.length - 1) / 2;
   return (
@@ -664,7 +700,8 @@ function Hand({ hand, seat, ui, main, appui }: Readonly<{ hand: Card[]; seat: nu
         const { code } = hand[i];
         const key = placeKey({ controller: seat, location: HAND, sequence: i });
         const target = ui.targets.has(key);
-        const classes = [target && "est-cible", ui.picked.includes(key) && "est-choisie"].filter(Boolean).join(" ");
+        const conseillee = code === conseil;
+        const classes = [target && "est-cible", ui.picked.includes(key) && "est-choisie", conseillee && "est-conseillee"].filter(Boolean).join(" ");
         const decal = i - middle;
         return (
           <button
@@ -672,7 +709,7 @@ function Hand({ hand, seat, ui, main, appui }: Readonly<{ hand: Card[]; seat: nu
             type="button"
             className="main__carte"
             style={{ "--rot": `${decal * 4}deg`, "--haut": `${decal * decal * 2}px` } as CSSProperties}
-            aria-label={target ? `${cardName(cards, code)}, jouable` : cardName(cards, code)}
+            aria-label={`${cardName(cards, code)}${target ? ", jouable" : ""}${conseillee ? ", à jouer pour le tutoriel" : ""}`}
             onMouseEnter={() => show(code)}
             onFocus={() => show(code)}
             onClick={(event) => (target ? ui.onPick?.(key, pointDe(event)) : show(code))}

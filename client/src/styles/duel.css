@@ -366,6 +366,11 @@
   box-shadow: var(--ombre-3);
 }
 
+/* Tutoriel : l'anneau doré reste visible entre deux pulsations */
+.main__carte .carte.est-conseillee {
+  box-shadow: 0 0 0 3px var(--or), var(--ombre-3);
+}
+
 /* Glisser une carte au doigt sans faire défiler la page */
 .main__carte,
 .plateau-3d {
@@ -380,8 +385,23 @@
 /* Chaîne, journal, question du moteur */
 .chaine,
 .journal,
-.question {
+.question,
+.consigne {
   padding: var(--e-3) var(--e-4);
+}
+
+.consigne {
+  display: grid;
+  flex: none;
+  gap: var(--e-2);
+  justify-items: start;
+  max-block-size: 30vh;
+  overflow: auto;
+}
+
+.consigne__texte {
+  font-size: var(--taille-s);
+  color: var(--texte-2);
 }
 
 .chaine ol {
