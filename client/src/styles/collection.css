@@ -181,6 +181,14 @@
   font-family: var(--police-chiffres);
 }
 
+.constructeur > :not(summary) {
+  margin-block-start: var(--e-2);
+}
+
+.constructeur p {
+  margin: var(--e-1) 0 0;
+}
+
 /* Grille de la collection --------------------------------------------------- */
 
 .grille-collection {

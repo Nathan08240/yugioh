@@ -3,6 +3,7 @@ import { COPIES_MAX, countBy, deckError, EXTRA_MAX, isFusion, MAIN_MAX, MAIN_MIN
 import suggested from "../../server/data/suggested-decks.json";
 import type { ClientMessage, Deck, DeckResult } from "../../server/src/protocol.ts";
 import { CardDetail, CardView } from "./Card.tsx";
+import { Constructeur } from "./Constructeur.tsx";
 import { DeckRecord } from "./DeckRecord.tsx";
 import { attributeKey, cardName, DuelView, frame, useCards, useDuelView } from "./cards.ts";
 import { drawHand, fitSuggestion, formatYdk, importDeck, parseYdk, type Skipped, type Suggestion } from "./deckTools.ts";
@@ -114,6 +115,7 @@ function CollectionPanel({ collection, copies, draft, onAdd, onCreate }: Readonl
   return (
     <section className="atelier__collection" aria-label="Collection" data-entree>
       <Suggestions collection={collection} onCreate={onCreate} />
+      <Constructeur collection={collection} draft={draft} onCreate={onCreate} />
       <FilterBar filters={filters} onChange={setFilters} />
       <p className="texte-3 atelier__resume">
         {shownCards.length} cartes affichées · {total} possédées · cliquez sur une carte pour l'ajouter au deck
