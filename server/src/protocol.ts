@@ -19,6 +19,14 @@ export const SPECTATORS_MAX = 20;
 // Friends of a player, pending requests included.
 export const FRIENDS_MAX = 100;
 
+// Options of a private room or of a challenge, chosen by the host from closed lists (custom.ts checks them): starting LP, starting
+// hand, whether the Goat list applies to both decks, and an optional story rule (story.ts EXTRA_RULES, without virtual-world:
+// each player would have to pick a Deck Master).
+export const ROOM_LPS = [4000, 8000] as const;
+export const ROOM_HANDS = [4, 5, 6] as const;
+export const ROOM_RULES = ["duelist-kingdom", "battle-city"] as const;
+export type RoomOptions = { lp: (typeof ROOM_LPS)[number]; hand: (typeof ROOM_HANDS)[number]; goat: boolean; rule?: (typeof ROOM_RULES)[number] };
+
 export type BotLevel = "debutant" | "normal" | "expert";
 // Story duel difficulty: "facile" doubles the starting LP of the player.
 export type StoryLevel = "normal" | "facile";
@@ -29,10 +37,13 @@ export type ClientMessage =
   | { type: "pseudo"; pseudo: string }
   | { type: "starter"; starter: "yugi" | "kaiba" }
   // `event`: a room under the special rule of the week (see `event`); absent or false, a normal duel.
-  | { type: "create"; event?: boolean }
+  // `options`: a private room with custom rules, never with `event`; the guest gets `joined` with them.
+  | { type: "create"; event?: boolean; options?: RoomOptions }
   // A room against the bot, which takes seat 1. Without `level`, the bot plays at "normal". `event`: as for `create`.
   | { type: "bot"; level?: BotLevel; event?: boolean }
   | { type: "join"; room: string }
+  // Asks for the custom rules of a room before joining it: answered with `room_rules`.
+  | { type: "room_rules"; room: string }
   // Watches the online duel of a room between two players, without taking a seat: answered with `joined` (`spectating`) then
   // `messages` without any hand or face-down card. The room refuses its responses, surrender, emotes, reports and rematches.
   | { type: "spectate"; room: string }
@@ -75,8 +86,8 @@ export type ClientMessage =
   | { type: "friend_accept"; pseudo: string }
   | { type: "friend_remove"; pseudo: string }
   // Challenges a friend who is online and not in a room: they get `challenged` for CHALLENGE_TIME. Accepted with
-  // `challenge_reply`, both players enter a new online room with their active decks.
-  | { type: "challenge"; pseudo: string }
+  // `challenge_reply`, both players enter a new online room with their active decks, under the custom `options` if any.
+  | { type: "challenge"; pseudo: string; options?: RoomOptions }
   | { type: "challenge_reply"; pseudo: string; accept: boolean }
   // Boosters: `booster_state` is answered with `booster_state`, `open_booster` with `booster_opened` or an error.
   | { type: "booster_state" }
@@ -141,7 +152,8 @@ export type DuelEvent = OcgMessage | StatsEvent;
 // from the starting LP (`lp` for the player, `opponentLp` when the opponent's differs), main deck and extra deck sizes (the engine never sends them).
 // `opponent` is the name of the other seat once someone (a player, the bot or a story character) sits there, `opponentAvatar`
 // the avatar (passcode of a card whose artwork to show) of an opponent who is a player and chose one.
-// `special`: the special rules of an event room (names of story.ts EXTRA_RULES).
+// `special`: the special rules of an event room or of a custom room (names of story.ts EXTRA_RULES).
+// `options`: the custom rules of a private room.
 // `floor`: the floor of a tower duel.
 // `profile` answers `auth`, `pseudo` and `starter`: a null pseudo means the player has to choose one before playing,
 // `needsStarter` means the player has a pseudo but no active deck yet and must pick a starter deck.
@@ -150,7 +162,9 @@ export type DuelEvent = OcgMessage | StatsEvent;
 // `daily`: this connection is the first of the day (Europe/Paris), which earned a booster.
 export type ServerMessage =
   | { type: "profile"; pseudo: string | null; needsStarter: boolean; admin?: true; daily?: true }
-  | { type: "joined"; room: string; seat: Seat; lp: number; opponentLp?: number; decks: [number, number]; extras: [number, number]; opponent?: string; opponentAvatar?: number; spectating?: { name?: string; avatar?: number }; special?: string[]; log: DuelEvent[]; floor?: number }
+  | { type: "joined"; room: string; seat: Seat; lp: number; opponentLp?: number; decks: [number, number]; extras: [number, number]; opponent?: string; opponentAvatar?: number; spectating?: { name?: string; avatar?: number }; special?: string[]; options?: RoomOptions; log: DuelEvent[]; floor?: number }
+  // The custom rules of a room, absent for a standard one.
+  | { type: "room_rules"; room: string; options?: RoomOptions }
   // Spectators of the room, sent to everyone in it when it changes (and to a player who comes back while there are some).
   | { type: "spectators"; count: number }
   | { type: "messages"; messages: DuelEvent[] }
@@ -183,7 +197,7 @@ export type ServerMessage =
   | { type: "friends"; friends: Friend[] }
   | { type: "friend_status"; pseudo: string; status: Presence; watch?: string }
   | { type: "friend_notice"; text: string }
-  | { type: "challenged"; from: string; ms: number }
+  | { type: "challenged"; from: string; ms: number; options?: RoomOptions }
   | { type: "challenge_gone"; from: string }
   // Wished passcodes, oldest first. Owned cards stay in the list until the player removes them.
   | { type: "wishlist"; cards: number[] }

@@ -1,5 +1,5 @@
 import type { EmoteId } from "../../server/src/emotes.ts";
-import type { ClientMessage, DeckResult, DraftRun, Friend, PuzzleView, RankedView, SealedRun, Seat, ServerMessage, StoryArcView, TowerView, Wire } from "../../server/src/protocol.ts";
+import type { ClientMessage, DeckResult, DraftRun, Friend, PuzzleView, RankedView, RoomOptions, SealedRun, Seat, ServerMessage, StoryArcView, TowerView, Wire } from "../../server/src/protocol.ts";
 import { newBoard, playAll, type Board, type EngineMessage, type Message } from "./board.ts";
 
 export type DeckList = Extract<Wire<ServerMessage>, { type: "decks" }>;
@@ -10,7 +10,8 @@ export type Action =
   | { type: "closed" }
   | { type: "answered" }
   | { type: "left" }
-  | { type: "story_menu"; open: boolean };
+  | { type: "story_menu"; open: boolean }
+  | { type: "preview_close" };
 export type StoryWon = Extract<ServerMessage, { type: "story_won" }>;
 export type Wonder = Extract<Wire<ServerMessage>, { type: "wonder" }>;
 export type PuzzleWon = Extract<ServerMessage, { type: "puzzle_won" }>;
@@ -96,6 +97,9 @@ export type LobbyState = {
   reported: number;
   // Special rules of the room (an event room), the event of the week, and its booster just earned in this duel.
   special?: string[];
+  // Custom rules of a private room, and those of a room the player is about to join (asked with room_rules).
+  options?: RoomOptions;
+  preview?: { room: string; options: RoomOptions };
   event?: Extract<Wire<ServerMessage>, { type: "event" }>;
   eventWon?: boolean;
   // Latest Sealed session, null before the first one, loaded by the Sealed screen.
@@ -105,7 +109,7 @@ export type LobbyState = {
   // Friends and requests, loaded by the friends screen and kept up to date by the server.
   friends?: Friend[];
   // Challenges received, shown on every screen until answered or `until` (ms since the epoch).
-  challenges: { from: string; until: number }[];
+  challenges: { from: string; until: number; options?: RoomOptions }[];
   // Last friend notice; `n` tells two successive ones apart.
   notice?: { text: string; n: number };
   // Ranked mode: rating, season and leaderboards, loaded by its screen; when the search for an opponent started (ms since the
@@ -124,7 +128,7 @@ export function reduce(state: LobbyState, action: Action): LobbyState {
     case "closed":
       return { ...state, closed: true };
     case "left":
-      return { ...state, room: undefined, seat: undefined, board: undefined, started: false, question: undefined, error: undefined, won: undefined, rankedResult: undefined, solved: undefined, floor: undefined, towerWon: undefined, rematch: undefined, answerBy: undefined, away: undefined, emotes: {}, spectating: undefined, spectators: 0, special: undefined, eventWon: undefined };
+      return { ...state, room: undefined, seat: undefined, board: undefined, started: false, question: undefined, error: undefined, won: undefined, rankedResult: undefined, solved: undefined, floor: undefined, towerWon: undefined, rematch: undefined, answerBy: undefined, away: undefined, emotes: {}, spectating: undefined, spectators: 0, special: undefined, options: undefined, preview: undefined, eventWon: undefined };
     case "profile":
       return { ...state, pseudo: action.pseudo, needsStarter: action.needsStarter, admin: action.admin, daily: action.daily || state.daily, error: undefined };
     case "joined":
@@ -135,6 +139,8 @@ export function reduce(state: LobbyState, action: Action): LobbyState {
         opponent: action.opponent,
         opponentAvatar: action.opponentAvatar,
         special: action.special,
+        options: action.options,
+        preview: undefined,
         floor: action.floor,
         spectating: action.spectating,
         lp: action.lp,
@@ -187,7 +193,7 @@ export function reduce(state: LobbyState, action: Action): LobbyState {
     case "wishlist":
       return { ...state, wishlist: action.cards, error: undefined };
     case "error":
-      return { ...state, error: action.error };
+      return { ...state, error: action.error, preview: undefined };
     case "duel_error":
       return { ...state, error: action.error, question: undefined, answerBy: undefined, away: undefined };
     case "booster_state":
@@ -230,8 +236,12 @@ export function reduce(state: LobbyState, action: Action): LobbyState {
       return { ...state, friends: state.friends?.map((friend) => (friend.pseudo === action.pseudo ? { ...friend, status: action.status, watch: action.watch } : friend)) };
     case "friend_notice":
       return { ...state, notice: { text: action.text, n: (state.notice?.n ?? 0) + 1 } };
+    case "room_rules":
+      return { ...state, preview: action.options && { room: action.room, options: action.options } };
+    case "preview_close":
+      return { ...state, preview: undefined };
     case "challenged":
-      return { ...state, challenges: [...state.challenges.filter((challenge) => challenge.from !== action.from), { from: action.from, until: Date.now() + action.ms }] };
+      return { ...state, challenges: [...state.challenges.filter((challenge) => challenge.from !== action.from), { from: action.from, until: Date.now() + action.ms, options: action.options }] };
     case "challenge_gone":
       return { ...state, challenges: state.challenges.filter((challenge) => challenge.from !== action.from) };
     case "ranked":

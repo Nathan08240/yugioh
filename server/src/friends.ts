@@ -1,6 +1,7 @@
 import type { WebSocket } from "ws";
+import { validRoomOptions } from "./custom.ts";
 import type { Db, Sql } from "./db.ts";
-import { FRIENDS_MAX, type ClientMessage, type Friend, type Presence, type ServerMessage } from "./protocol.ts";
+import { FRIENDS_MAX, type ClientMessage, type Friend, type Presence, type RoomOptions, type ServerMessage } from "./protocol.ts";
 
 export const FRIEND_REQUESTS_PER_HOUR = 20;
 export const CHALLENGE_TIME = 60_000;
@@ -28,6 +29,7 @@ export const isFriendMessage = (msg: ClientMessage): msg is FriendMessage => FRI
 export function validFriendMessage(msg: Record<string, unknown>): boolean {
   if (msg.type === "friends") return true;
   if (!FRIEND_TYPES.has(msg.type) || typeof msg.pseudo !== "string" || msg.pseudo.length > 40) return false;
+  if (msg.type === "challenge") return msg.options === undefined || validRoomOptions(msg.options);
   return msg.type !== "challenge_reply" || typeof msg.accept === "boolean";
 }
 
@@ -97,13 +99,13 @@ export const dbFriendStore = (db: Db): FriendStore => ({
 
 // An authenticated connection with a pseudo; `entry` is what the server needs to seat it in a room.
 type Session<E> = { id: string; pseudo: string; seated: boolean; room?: string; entry: E };
-type Challenge = { from: string; pseudo: string; to: string; socket: WebSocket; timer: NodeJS.Timeout };
+type Challenge = { from: string; pseudo: string; to: string; socket: WebSocket; timer: NodeJS.Timeout; options?: RoomOptions };
 type Send = (socket: WebSocket | undefined, msg: ServerMessage) => void;
 
 const same = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
 
-// Presence of the connected players and challenges between friends, in memory. `startDuel` seats both players of an accepted challenge.
-export function friendHub<E>(store: FriendStore, send: Send, startDuel: (challenger: E, acceptor: E) => Promise<string | undefined>, watchable: (room: string) => boolean) {
+// Presence of the connected players and challenges between friends, in memory. `startDuel` seats both players of an accepted challenge, under its custom rules if any.
+export function friendHub<E>(store: FriendStore, send: Send, startDuel: (challenger: E, acceptor: E, options?: RoomOptions) => Promise<string | undefined>, watchable: (room: string) => boolean) {
   const sessions = new Map<WebSocket, Session<E>>();
   const challenges = new Set<Challenge>();
 
@@ -154,7 +156,7 @@ export function friendHub<E>(store: FriendStore, send: Send, startDuel: (challen
     announce(session, before).catch((error: unknown) => console.error(error));
   }
 
-  async function challenge(socket: WebSocket, session: Session<E>, pseudo: string): Promise<string | undefined> {
+  async function challenge(socket: WebSocket, session: Session<E>, pseudo: string, options?: RoomOptions): Promise<string | undefined> {
     if (session.seated) return "déjà dans une salle";
     const friend = (await store.friendList(session.id)).find((row) => row.status === "accepted" && same(row.pseudo, pseudo));
     if (!friend) return "ami introuvable";
@@ -164,9 +166,9 @@ export function friendHub<E>(store: FriendStore, send: Send, startDuel: (challen
       close(sent);
       send(socket, { type: "friend_notice", text: `${friend.pseudo} n'a pas répondu au défi.` });
     };
-    const sent: Challenge = { from: session.id, pseudo: session.pseudo, to: friend.id, socket, timer: setTimeout(expire, CHALLENGE_TIME).unref() };
+    const sent: Challenge = { from: session.id, pseudo: session.pseudo, to: friend.id, socket, timer: setTimeout(expire, CHALLENGE_TIME).unref(), options };
     challenges.add(sent);
-    sendTo(friend.id, { type: "challenged", from: session.pseudo, ms: CHALLENGE_TIME });
+    sendTo(friend.id, { type: "challenged", from: session.pseudo, ms: CHALLENGE_TIME, options });
     send(socket, { type: "friend_notice", text: `Défi envoyé à ${friend.pseudo}.` });
     return undefined;
   }
@@ -181,7 +183,7 @@ export function friendHub<E>(store: FriendStore, send: Send, startDuel: (challen
       return undefined;
     }
     const challenger = sessions.get(received.socket);
-    return challenger ? startDuel(challenger.entry, session.entry) : "défi expiré";
+    return challenger ? startDuel(challenger.entry, session.entry, received.options) : "défi expiré";
   }
 
   async function refresh(session: Session<E>, other: string | undefined, notice: string, error: string): Promise<string | undefined> {
@@ -214,7 +216,7 @@ export function friendHub<E>(store: FriendStore, send: Send, startDuel: (challen
       case "friend_remove":
         return refresh(session, await store.removeFriend(session.id, msg.pseudo), "", "joueur absent de vos amis");
       case "challenge":
-        return challenge(socket, session, msg.pseudo);
+        return challenge(socket, session, msg.pseudo, msg.options);
       case "challenge_reply":
         return reply(session, msg.pseudo, msg.accept);
     }

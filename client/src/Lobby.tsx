@@ -17,7 +17,8 @@ import { Profil } from "./Profil.tsx";
 import { puzzleRule, Puzzles } from "./Puzzles.tsx";
 import { autoAnswer } from "./question.ts";
 import { reglages } from "./reglages.ts";
-import { Regles, specialRules } from "./regles.tsx";
+import { duelRules, Regles } from "./regles.tsx";
+import { ApercuSalle } from "./SalleOptions.tsx";
 import { Scelle } from "./Scelle.tsx";
 import { Shell, type Page } from "./Shell.tsx";
 import { duelLabel, duelLp, duelSpecial, Story } from "./Story.tsx";
@@ -33,7 +34,7 @@ type Send = (msg: ClientMessage) => void;
 let invite = inviteFromUrl(location.href);
 
 // Messages that open a room outside the ranked queue.
-const NOT_RANKED: ReadonlySet<string> = new Set(["create", "join", "bot", "story_duel", "puzzle", "tower_duel", "sealed_duel", "draft_duel", "challenge", "challenge_reply"]);
+const NOT_RANKED: ReadonlySet<string> = new Set(["create", "join", "room_rules", "bot", "story_duel", "puzzle", "tower_duel", "sealed_duel", "draft_duel", "challenge", "challenge_reply"]);
 
 export function Lobby() {
   const [state, dispatch] = useReducer(reduce, initialLobby);
@@ -69,6 +70,8 @@ export function Lobby() {
       // The tutorial shows every chain it can answer, whatever the settings.
       const auto = msg.type === "question" ? autoAnswer(msg.question, tutorial.current ? "auto" : reglages().chaines) : undefined;
       if (auto) ws.send(JSON.stringify({ type: "respond", response: auto } satisfies ClientMessage));
+      // A standard room needs no acceptance: joining goes on, a custom one asks the player first.
+      else if (msg.type === "room_rules" && !msg.options) ws.send(JSON.stringify({ type: "join", room: msg.room } satisfies ClientMessage));
       else dispatch(msg);
     };
     ws.onclose = () => dispatch({ type: "closed" });
@@ -81,7 +84,8 @@ export function Lobby() {
   const ready = state.pseudo != null && !state.needsStarter;
   useEffect(() => {
     if (!ready || !invite || state.room) return;
-    socket.current?.send(JSON.stringify(invite));
+    // A room to play in shows its custom rules first (see room_rules).
+    socket.current?.send(JSON.stringify(invite.type === "join" ? ({ type: "room_rules", room: invite.room } satisfies ClientMessage) : invite));
     invite = undefined;
     history.replaceState(null, "", location.pathname);
   }, [ready]);
@@ -104,7 +108,7 @@ export function Lobby() {
       storyDuel.current = msg.duel;
       storyEasy.current = msg.level === "facile";
     }
-    if (msg.type === "create" || msg.type === "join" || msg.type === "challenge" || msg.type === "challenge_reply" || msg.type === "ranked_queue") {
+    if (msg.type === "create" || msg.type === "join" || msg.type === "room_rules" || msg.type === "challenge" || msg.type === "challenge_reply" || msg.type === "ranked_queue") {
       vsBot.current = false;
       sealedDuel.current = false;
       draftDuel.current = false;
@@ -148,6 +152,7 @@ export function Lobby() {
         </p>
       )}
       <AlertesAmis state={state} send={send} />
+      <ApercuSalle preview={state.preview} send={send} close={() => dispatch({ type: "preview_close" })} />
       <Screen state={state} page={shown} send={send} reconnect={reconnect} leave={leave} respond={respond} go={go} vsBot={vsBot.current} ranked={ranked.current} storyDuel={storyDuel.current} easy={storyEasy.current} puzzle={puzzle} sealedDuel={sealedDuel.current} draftDuel={draftDuel.current} tutorial={tutorial.current} />
     </DuelView>
   );
@@ -223,7 +228,7 @@ function Screen({ state, page, send, reconnect, leave, respond, go, vsBot, ranke
     const me = watching ?? { name: state.pseudo, avatar: state.profile?.avatar ?? undefined };
     return (
       <>
-        <Duel board={state.board} seat={state.seat ?? 0} asked={state.question} respond={respond} leave={leave} surrender={() => send({ type: "surrender" })} emotes={state.emotes} sendEmote={watching ? undefined : (id) => send({ type: "emote", id })} report={watching ? undefined : report} answerBy={state.answerBy} away={state.away} feed={state.feed} lp={state.lp} opponentLp={state.opponentLp} pseudo={me.name} opponent={state.opponent} avatar={me.avatar} opponentAvatar={state.opponentAvatar} rules={puzzle ? puzzleRule(puzzle) : specialRules(special)} easy={state.storyOpen && easy} kingdom={special.includes("duelist-kingdom")} spectateur={watching !== undefined} spectators={state.spectators} tutoriel={tutorial} />
+        <Duel board={state.board} seat={state.seat ?? 0} asked={state.question} respond={respond} leave={leave} surrender={() => send({ type: "surrender" })} emotes={state.emotes} sendEmote={watching ? undefined : (id) => send({ type: "emote", id })} report={watching ? undefined : report} answerBy={state.answerBy} away={state.away} feed={state.feed} lp={state.lp} opponentLp={state.opponentLp} pseudo={me.name} opponent={state.opponent} avatar={me.avatar} opponentAvatar={state.opponentAvatar} rules={puzzle ? puzzleRule(puzzle) : duelRules(special, state.options)} easy={state.storyOpen && easy} kingdom={special.includes("duelist-kingdom")} spectateur={watching !== undefined} spectators={state.spectators} tutoriel={tutorial} />
         {watching && state.board.winner !== undefined && <FinSpectateur board={state.board} names={[watching.name ?? "Joueur 1", state.opponent ?? "Joueur 2"]} room={state.room} leave={leave} />}
         {!watching && state.board.winner !== undefined && <Fin board={state.board} seat={state.seat ?? 0} room={state.room} vsBot={vsBot} ranked={ranked ? { result: state.rankedResult } : undefined} opponent={state.opponent} story={story} eventBooster={state.eventWon} puzzle={puzzle && { title: puzzle.title, booster: state.solved?.booster }} tutoriel={tutorial ? { booster: state.solved?.booster } : undefined} tower={tower} rematch={state.rematch} onRematch={(accept) => send({ type: "rematch", accept })} sealed={sealedDuel ? (state.sealed ?? undefined) : undefined} draft={draftDuel ? (state.draft ?? undefined) : undefined} report={report} leave={leave} go={leaveFor} />}
       </>
