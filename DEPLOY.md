@@ -21,3 +21,5 @@ Supabase tourne sur le serveur Coolify `localhost` (93.127.158.88), le jeu sur `
 - **Supabase** : le modèle Coolify utilise `quay.io/minio/mc`, retiré par MinIO ; `minio-createbucket` prend `ghcr.io/coollabsio/minio:RELEASE.2025-10-15T17-29-55Z`, qui contient `/usr/bin/mc`.
 
 Test local : `docker build -t yugioh --build-arg VITE_SUPABASE_URL=… --build-arg VITE_SUPABASE_ANON_KEY=… .` puis `docker run -p 3001:3001 -v yugioh-art:/app/server/vendor/art -e YUGIOH_DATABASE_URL=… -e SUPABASE_URL=… -e SUPABASE_ANON_KEY=… yugioh`.
+
+Test de charge : `pnpm --filter server load [--ws] [--delay ms] [paliers]` (hors `pnpm test`). Sur un poste de dev (8 coeurs, non chargé à vide), 100 duels bot contre bot simultanés : environ 500 Mo de rss (100 Mo au départ, 4 Mo par duel), 0,4 à 1 ms par décision, 0 erreur ; au rythme réel du bot (700 ms) le CPU reste à 4 % d'un coeur. Le facteur limitant est la mémoire, pas le CPU.

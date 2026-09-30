@@ -9,6 +9,7 @@
     "import-sets": "node scripts/import-sets.ts",
     "images": "node scripts/images.ts",
     "duel": "node src/duel.ts",
+    "load": "node scripts/load.ts",
     "record-duel": "node scripts/record-duel.ts",
     "dev": "node --env-file-if-exists=.env --watch src/server.ts",
     "start": "node --env-file-if-exists=.env src/server.ts",
