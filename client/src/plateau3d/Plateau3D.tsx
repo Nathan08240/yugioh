@@ -1,6 +1,6 @@
 // The 3D board (react-three-fiber), loaded on its own chunk when a duel starts: the other screens pay nothing for it.
 import { OcgLocation } from "@n1xx1/ocgcore-wasm";
-import { Html, PerformanceMonitor } from "@react-three/drei";
+import { Html } from "@react-three/drei";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
 import type { PerspectiveCamera } from "three";
@@ -56,22 +56,22 @@ export default function Plateau3D(props: Readonly<Props>) {
       className={pret ? "plateau-3d est-pret" : "plateau-3d"}
       style={{ position: "absolute", inset: 0 }}
       dpr={qualite === "haute" ? [1, 2] : 1}
+      frameloop="demand"
       gl={{ antialias: false, powerPreference: "high-performance" }}
       camera={{ fov: 32, near: 0.1, far: 100 }}
       onCreated={({ gl }) => gl.domElement.setAttribute("aria-hidden", "true")}
     >
-      {/* Under 45 frames per second for 3 s: low quality, for good. */}
-      <PerformanceMonitor ms={300} iterations={10} bounds={() => [45, 1000]} flipflops={1} onDecline={() => setDegradee(true)} />
-      <Scene {...props} monde={monde} qualite={qualite} pret={pret} onPret={() => setPret(true)} />
+      {/* The canvas draws on demand; under 45 frames per second for 3 s of motion (cadence.ts): low quality, for good. */}
+      <Scene {...props} monde={monde} qualite={qualite} pret={pret} onPret={() => setPret(true)} onLent={() => setDegradee(true)} />
       {pret && <Etiquettes etat={etat} seat={seat} cibles={cibles} onZone={props.onZone} onSurvol={props.onSurvol} onAppui={props.onAppui} />}
     </Canvas>
   );
 }
 
-type SceneProps = Props & { monde: Monté; qualite: Qualite; pret: boolean; onPret: () => void };
+type SceneProps = Props & { monde: Monté; qualite: Qualite; pret: boolean; onPret: () => void; onLent: () => void };
 
-function Scene({ seat, cards, monde, qualite, pret, onPret, cadre, regie, onZone, onSurvol, onAppui, sonde, onPerdu }: Readonly<SceneProps>) {
-  const { gl, scene, camera, size } = useThree();
+function Scene({ seat, cards, monde, qualite, pret, onPret, onLent, cadre, regie, onZone, onSurvol, onAppui, sonde, onPerdu }: Readonly<SceneProps>) {
+  const { gl, scene, camera, size, invalidate } = useThree();
 
   useEffect(() => {
     let vivant = true;
@@ -79,7 +79,7 @@ function Scene({ seat, cards, monde, qualite, pret, onPret, cadre, regie, onZone
     charger()
       .then((res) => {
         if (!vivant) return;
-        cree = new Monde(gl, scene, camera as PerspectiveCamera, res, cards, seat);
+        cree = new Monde(gl, scene, camera as PerspectiveCamera, res, cards, seat, { invalider: invalidate, lent: onLent });
         monde.current = cree;
         onPret();
       })
@@ -92,8 +92,8 @@ function Scene({ seat, cards, monde, qualite, pret, onPret, cadre, regie, onZone
       cree?.dispose();
       monde.current = null;
     };
-    // onPret only sets a flag: the world is built once per renderer and seat.
-  }, [gl, scene, camera, cards, seat, monde]);
+    // onPret and onLent only set a flag: the world is built once per renderer and seat.
+  }, [gl, scene, camera, cards, seat, monde, invalidate]);
 
   useEffect(() => {
     monde.current?.qualite(qualite, size.width, size.height);
@@ -115,7 +115,7 @@ function Scene({ seat, cards, monde, qualite, pret, onPret, cadre, regie, onZone
   }, [cadre, gl, size, pret, monde]);
 
   // Priority 1: the world renders the frame itself (post-processing).
-  useFrame((state, dt) => monde.current?.frame(Math.min(dt, 0.1), state.clock.elapsedTime), 1);
+  useFrame((state, dt) => monde.current?.frame(dt, state.clock.elapsedTime), 1);
 
   useEffect(() => {
     regie.scene = (effet, jeu) => monde.current?.jouer(effet, jeu) ?? Promise.resolve();
