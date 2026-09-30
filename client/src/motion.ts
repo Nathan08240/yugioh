@@ -1,5 +1,7 @@
 // 2D motion with the Web Animations API, no library (design/motion.md): a queue of sequences played one at a time,
 // skipped by a click, Escape or Space, twice as fast when more than 3 wait, a fade alone when motion is reduced.
+// The settings (reglages.ts) set the speed and can force or lift reduced motion.
+import { FACTEUR, reglages } from "./reglages.ts";
 
 // Durations (ms) and easings of tokens.css.
 export const D1 = 120;
@@ -33,21 +35,31 @@ export type Queue = {
   readonly waiting: number;
 };
 
-export const prefersReduced = () => globalThis.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+let systeme: MediaQueryList | undefined;
+const systemeReduit = () => (systeme ??= globalThis.matchMedia?.("(prefers-reduced-motion: reduce)"))?.matches ?? false;
+const FORCE: Record<string, boolean | undefined> = { toujours: true, jamais: false };
+export const prefersReduced = () => FORCE[reglages().mouvement] ?? systemeReduit();
+
+// Divisor of the durations: 1, 2 (fast) or Infinity (instant).
+const vitesse = () => FACTEUR[reglages().vitesse];
+// A duration set by the speed, for the animations played outside a queue.
+export const duree = (ms: number) => ms / vitesse();
 
 const BACKLOG = 3;
 type Run = { fast: boolean; anims: Set<Animation>; wakers: Set<() => void> };
 
-export function createQueue(reduced: () => boolean = prefersReduced): Queue {
+export function createQueue(reduced: () => boolean = prefersReduced, speed: () => number = vitesse): Queue {
   let tail = Promise.resolve();
   let waiting = 0;
   let current: Run | undefined;
-  const rate = () => (waiting > BACKLOG ? 2 : 1);
+  const rate = () => speed() * (waiting > BACKLOG ? 2 : 1);
 
   function step(run: Run): Step {
+    const instant = speed() === Infinity;
+    const hurried = () => run.fast || instant;
     const start = (el: Element, keyframes: Keyframe[], { duration = D3, delay = 0, easing = SORTIE, fill = "both" }: AnimOptions) => {
-      const speed = run.fast ? Infinity : rate();
-      const animation = el.animate(keyframes, { duration: duration / speed, delay: delay / speed, easing, fill });
+      const divisor = hurried() ? Infinity : rate();
+      const animation = el.animate(keyframes, { duration: duration / divisor, delay: delay / divisor, easing, fill });
       run.anims.add(animation);
       return animation.finished.then(
         () => {},
@@ -61,11 +73,11 @@ export function createQueue(reduced: () => boolean = prefersReduced): Queue {
         if (!isReduced) return start(el, keyframes, options);
         const end = start(el, keyframes, { ...options, duration: 0, delay: 0 });
         const opacity = keyframes.map((frame) => frame.opacity).filter((value) => value !== undefined);
-        if (run.fast || opacity.length < 2 || opacity[0] === opacity.at(-1)) return end;
+        if (hurried() || opacity.length < 2 || opacity[0] === opacity.at(-1)) return end;
         return start(el, [{ opacity: opacity[0] }, { opacity: opacity.at(-1) }], { duration: FONDU, fill: options.fill });
       },
       pause(ms, reading = false) {
-        if (run.fast || (isReduced && !reading)) return Promise.resolve();
+        if (hurried() || (isReduced && !reading)) return Promise.resolve();
         return new Promise((resolve) => {
           const wake = () => {
             clearTimeout(timer);
@@ -78,7 +90,7 @@ export function createQueue(reduced: () => boolean = prefersReduced): Queue {
       },
       tween(duration, update, fade = false) {
         const length = isReduced ? Number(fade) * FONDU : duration;
-        if (run.fast || length <= 0) {
+        if (hurried() || length <= 0) {
           update(1);
           return Promise.resolve();
         }

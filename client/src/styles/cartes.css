@@ -348,9 +348,13 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .carte.est-cible {
+  :root:not([data-mouvement="libre"]) .carte.est-cible {
     animation: none;
   }
+}
+
+:root[data-mouvement="reduit"] .carte.est-cible {
+  animation: none;
 }
 
 /* Intégration (Card.tsx) ------------------------------------------------ */

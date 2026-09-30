@@ -1,0 +1,74 @@
+/* Paramètres (Parametres.tsx) : un groupe de choix par réglage */
+
+.parametres {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--e-5);
+  inline-size: 100%;
+  max-inline-size: 720px;
+  margin-inline: auto;
+  padding: var(--e-5) var(--marge-ecran) var(--e-6);
+}
+
+.reglage {
+  min-inline-size: 0;
+  margin: 0;
+  padding: var(--e-4) var(--e-5) var(--e-5);
+  border: 0;
+}
+
+.reglage legend {
+  padding: 0;
+}
+
+.reglage p {
+  margin-block: var(--e-2) var(--e-3);
+}
+
+.reglage__choix {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--e-2);
+}
+
+/* Le vrai bouton radio reste dans la page (clavier, lecteur d'écran), la pastille en est l'habillage */
+.reglage__choix label {
+  position: relative;
+}
+
+.reglage__choix input {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.reglage__choix span {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 44px;
+  padding: 0 var(--e-5);
+  border-radius: var(--r-3) var(--r-1);
+  background: rgb(6 8 23 / 0.6);
+  box-shadow: inset 0 0 0 1px var(--trait-fort);
+  font: 700 var(--taille-m) / 1 var(--police-etroite);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--texte-2);
+}
+
+.reglage__choix input:hover + span {
+  color: var(--texte);
+}
+
+.reglage__choix input:checked + span {
+  background: var(--holo-fond);
+  box-shadow: inset 0 0 0 1px rgb(67 240 255 / 0.6);
+  color: var(--holo-2);
+}
+
+.reglage__choix input:focus-visible + span {
+  box-shadow: var(--focus);
+}

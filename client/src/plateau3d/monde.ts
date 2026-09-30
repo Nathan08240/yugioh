@@ -8,7 +8,7 @@ import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
 import type { Board } from "../board.ts";
 import type { Cards } from "../cards.ts";
-import { D2, D3, D4 } from "../motion.ts";
+import { D2, D3, D4, prefersReduced } from "../motion.ts";
 import { placeKey } from "../question.ts";
 import { CARTE, pileId, PLATEAU, ZONE, zones, type CarteScene, type EtatScene, type PileScene, type Zone } from "./disposition.ts";
 import type { Depart, Effet } from "./effets.ts";
@@ -86,7 +86,6 @@ export class Monde {
   private readonly holo: { groupe: THREE.Group; plan: THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial>; cone: THREE.Mesh<THREE.CylinderGeometry, THREE.ShaderMaterial>; anneau: THREE.Mesh<THREE.RingGeometry, THREE.MeshBasicMaterial> };
   private readonly fx: { tir: THREE.Mesh<THREE.BufferGeometry, THREE.ShaderMaterial>; tete: THREE.Sprite; eclat: THREE.Sprite; onde: THREE.Mesh<THREE.RingGeometry, THREE.MeshBasicMaterial>; balayage: THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial> };
   private readonly decalage = { lacet: 0, tangage: 0, recul: 0, secousse: 0 };
-  private readonly reduit = globalThis.matchMedia?.("(prefers-reduced-motion: reduce)");
   private composer: EffectComposer | null = null;
   private distance = 12;
   private holoZone: ZoneM | undefined;
@@ -712,7 +711,7 @@ export class Monde {
   }
 
   frame(dt: number, t: number) {
-    const reduit = this.reduit?.matches ?? false;
+    const reduit = prefersReduced();
     temps.value = reduit ? 0 : t;
     const k = reduit ? 1 : 1 - Math.exp(-dt * 12);
     const retombe = reduit ? 0 : Math.exp(-dt * 6);

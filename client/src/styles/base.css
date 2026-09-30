@@ -682,10 +682,17 @@ a {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
+  :root:not([data-mouvement="libre"]) *,
+  :root:not([data-mouvement="libre"]) *::before,
+  :root:not([data-mouvement="libre"]) *::after {
     animation: none !important;
     transition: none !important;
   }
+}
+
+:root[data-mouvement="reduit"] *,
+:root[data-mouvement="reduit"] *::before,
+:root[data-mouvement="reduit"] *::after {
+  animation: none !important;
+  transition: none !important;
 }

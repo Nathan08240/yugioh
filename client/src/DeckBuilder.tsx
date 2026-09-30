@@ -5,7 +5,7 @@ import { CardDetail, CardView } from "./Card.tsx";
 import { attributeKey, cardName, DuelView, frame, useCards, useDuelView } from "./cards.ts";
 import { filterCollection, kindCounts, noFilters, type Filters, type Kind } from "./collection.ts";
 import type { DeckList } from "./lobby.ts";
-import { D2, D3, ELAN, FONDU, prefersReduced, RESSORT, SORTIE } from "./motion.ts";
+import { D2, D3, duree, ELAN, FONDU, prefersReduced, RESSORT, SORTIE, type AnimOptions } from "./motion.ts";
 import "./styles/collection.css";
 import { Icon } from "./ui.tsx";
 
@@ -74,12 +74,12 @@ function removeOne(codes: number[], code: number): number[] {
 }
 
 // Plays at once, outside the duel queue; with reduced motion only the opacity changes, in a 150 ms fade.
-function play(el: Element | null | undefined, keyframes: Keyframe[], options: KeyframeAnimationOptions): Promise<void> {
+function play(el: Element | null | undefined, keyframes: Keyframe[], options: AnimOptions): Promise<void> {
   if (!el) return Promise.resolve();
   const reduced = prefersReduced();
   const fade = keyframes.map(({ opacity }) => opacity).filter((value) => value !== undefined);
   if (reduced && fade.length < 2) return Promise.resolve();
-  const animation = reduced ? el.animate(fade.map((opacity) => ({ opacity })), { duration: FONDU, fill: options.fill }) : el.animate(keyframes, options);
+  const animation = reduced ? el.animate(fade.map((opacity) => ({ opacity })), { duration: duree(FONDU), fill: options.fill }) : el.animate(keyframes, { ...options, duration: duree(options.duration ?? D3) });
   return animation.finished.then(
     () => {},
     () => {},
