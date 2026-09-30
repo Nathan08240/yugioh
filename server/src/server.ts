@@ -20,7 +20,7 @@ import { EMOTE_DELAY, EMOTE_IDS, type EmoteId } from "./emotes.ts";
 import { isAllowed, POOL, SETS, type Printing } from "./pool.ts";
 import { REPORT_MAX, type BotLevel, type CardInfo, type ClientMessage, type DeckResult, type DuelEvent, type Seat, type ServerMessage, type StoryLevel, type StoryResult } from "./protocol.ts";
 import { REPORT_BYTES, RESPONSE_BYTES, saveReport, type Report } from "./report.ts";
-import { respond } from "./respond.ts";
+import { engineForm, respond } from "./respond.ts";
 import { type DuelResult, readResults, recordResult } from "./results.ts";
 import { serveClient } from "./site.ts";
 import { chooseStarter, starterCards, type Starter } from "./starter.ts";
@@ -478,7 +478,7 @@ function answer(room: Room, seat: Seat, response: OcgResponse): string | undefin
   if (JSON.stringify(response).length > RESPONSE_BYTES) return "réponse trop volumineuse";
   try {
     if (response.type !== ANSWERS.get(question.type)) throw new Error("type de réponse inattendu");
-    room.duel.lib.duelSetResponse(room.duel.handle, response);
+    room.duel.lib.duelSetResponse(room.duel.handle, engineForm(response));
   } catch {
     ask(room, true);
     return undefined;

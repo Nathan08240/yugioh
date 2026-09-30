@@ -7,11 +7,13 @@ import {
   SelectBattleCMDAction,
   SelectIdleCMDAction,
   ocgMessageTypeStrings,
+  type OcgAttribute,
   type OcgMessage,
+  type OcgRace,
   type OcgResponse,
 } from "@n1xx1/ocgcore-wasm";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { respond as automatic } from "../../server/src/respond.ts";
+import { respond as automatic, sumTests, sumValid, sumValues } from "../../server/src/respond.ts";
 import { cardAt, losesAtTurnEnd, type Board, type EngineMessage, type Place } from "./board.ts";
 import type { Targets } from "./Board.tsx";
 import { cardName, effectText, has, useDuelView, type Cards, type Strings } from "./cards.ts";
@@ -58,6 +60,7 @@ export function interaction(question: EngineMessage | undefined, ctx: Ctx): Ui {
     case OcgMessageType.SELECT_UNSELECT_CARD:
       return unselect(question, ctx);
     case OcgMessageType.SELECT_PLACE:
+    case OcgMessageType.SELECT_DISFIELD:
       return place(question, ctx);
     case OcgMessageType.SELECT_POSITION:
       return position(question, ctx);
@@ -73,6 +76,20 @@ export function interaction(question: EngineMessage | undefined, ctx: Ctx): Ui {
       return option(question, ctx);
     case OcgMessageType.ANNOUNCE_CARD:
       return ctx.announce?.length ? { targets: NONE, panel: <Declarer codes={ctx.announce} ctx={ctx} /> } : generic(question, ctx);
+    case OcgMessageType.ANNOUNCE_RACE:
+    case OcgMessageType.ANNOUNCE_ATTRIB:
+      return announce(question, ctx);
+    case OcgMessageType.ANNOUNCE_NUMBER:
+      return announceNumber(question, ctx);
+    case OcgMessageType.ROCK_PAPER_SCISSORS:
+      return rockPaperScissors(question, ctx);
+    case OcgMessageType.SELECT_COUNTER:
+      return counters(question, ctx);
+    case OcgMessageType.SELECT_SUM:
+      return sumCards(question, ctx);
+    case OcgMessageType.SORT_CARD:
+    case OcgMessageType.SORT_CHAIN:
+      return sort(question, ctx);
     default:
       return generic(question, ctx);
   }
@@ -319,7 +336,9 @@ function unselect(q: Q<OcgMessageType.SELECT_UNSELECT_CARD>, ctx: Ctx): Ui {
   };
 }
 
-function place(q: Q<OcgMessageType.SELECT_PLACE>, ctx: Ctx): Ui {
+// SELECT_PLACE, or SELECT_DISFIELD: the zones to disable are picked the same way.
+function place(q: Q<OcgMessageType.SELECT_PLACE> | Q<OcgMessageType.SELECT_DISFIELD>, ctx: Ctx): Ui {
+  const disable = q.type === OcgMessageType.SELECT_DISFIELD;
   const free = new Map(freePlaces(q.player, q.field_mask).map((zone) => [placeKey(zone), zone]));
   const pick = (key: string) => {
     const keys = [...ctx.picked, key];
@@ -331,15 +350,19 @@ function place(q: Q<OcgMessageType.SELECT_PLACE>, ctx: Ctx): Ui {
       const zone = free.get(picked);
       return zone ? [{ player: zone.controller, location: zone.location, sequence: zone.sequence }] : [];
     });
-    ctx.respond({ type: OcgResponseType.SELECT_PLACE, places });
+    ctx.respond({ type: disable ? OcgResponseType.SELECT_DISFIELD : OcgResponseType.SELECT_PLACE, places });
   };
   return {
     targets: new Set(free.keys()),
     onPick: pick,
     panel: (
       <>
-        <h3>Choisissez {q.count > 1 ? `${q.count} zones` : "une zone"}</h3>
+        <h3>
+          Choisissez {q.count > 1 ? `${q.count} zones` : "une zone"}
+          {disable && " à désactiver"}
+        </h3>
         <p className="muted">Cliquez sur une zone en surbrillance du plateau.</p>
+        {disable && <Auto question={q} ctx={ctx} />}
       </>
     ),
   };
@@ -395,6 +418,188 @@ function option(q: Q<OcgMessageType.SELECT_OPTION>, ctx: Ctx): Ui {
   return { targets: NONE, panel: <><h3>Choisissez une option</h3><Buttons actions={actions} ctx={ctx} /></> };
 }
 
+// The server's first-valid-option answer, kept as the secondary choice of the dedicated screens.
+function Auto({ question, ctx }: Readonly<{ question: EngineMessage; ctx: Ctx }>) {
+  const response = fallback(question);
+  return response ? <Buttons actions={[{ label: "Laisser le jeu choisir", response }]} ctx={ctx} /> : null;
+}
+
+const toggled = (picked: string[], key: string) => (picked.includes(key) ? picked.filter((other) => other !== key) : [...picked, key]);
+
+// EDOPro system strings: base + bit number.
+const RACES = 1020;
+const ATTRIBUTES = 1010;
+const bitsOf = (mask: bigint) => Array.from({ length: 64 }, (_, bit) => 1n << BigInt(bit)).filter((bit) => (mask & bit) !== 0n);
+
+// Types or Attributes to declare: `count` of the bits of `available`.
+function announce(q: Q<OcgMessageType.ANNOUNCE_RACE> | Q<OcgMessageType.ANNOUNCE_ATTRIB>, ctx: Ctx): Ui {
+  const race = q.type === OcgMessageType.ANNOUNCE_RACE;
+  const options = bitsOf(BigInt(q.available));
+  if (options.length === 0) return generic(q, ctx);
+  const need = Math.min(q.count, options.length);
+  const answer = (keys: string[]) => {
+    const values = keys.map(BigInt);
+    ctx.respond(race ? { type: OcgResponseType.ANNOUNCE_RACE, races: values as OcgRace[] } : { type: OcgResponseType.ANNOUNCE_ATTRIB, attributes: values.map(Number) as OcgAttribute[] });
+  };
+  const pick = (key: string) => {
+    if (need === 1) answer([key]);
+    else if (ctx.picked.includes(key) || ctx.picked.length < need) ctx.setPicked(toggled(ctx.picked, key));
+  };
+  const name = (bit: bigint) => ctx.strings.get((race ? RACES : ATTRIBUTES) + bit.toString(2).length - 1) ?? `#${bit}`;
+  return {
+    targets: NONE,
+    panel: (
+      <>
+        <h3>
+          {race ? "Déclarez" : "Choisissez"} {need > 1 ? need : "un"} {race ? "Type" : "Attribut"}
+          {need > 1 && "s"}
+        </h3>
+        <ul className="chips">
+          {options.map((bit) => (
+            <li key={bit}>
+              <button type="button" className={ctx.picked.includes(String(bit)) ? "chip picked" : "chip"} onClick={() => pick(String(bit))}>
+                {name(bit)}
+              </button>
+            </li>
+          ))}
+        </ul>
+        {need > 1 && (
+          <div className="actions">
+            <button type="button" className="btn" disabled={ctx.picked.length !== need} onClick={() => answer(ctx.picked)}>
+              Valider ({ctx.picked.length}/{need})
+            </button>
+          </div>
+        )}
+        <Auto question={q} ctx={ctx} />
+      </>
+    ),
+  };
+}
+
+// The engine takes the index of the chosen number.
+function announceNumber(q: Q<OcgMessageType.ANNOUNCE_NUMBER>, ctx: Ctx): Ui {
+  const actions = q.options.map((value, index) => ({ label: value, response: { type: OcgResponseType.ANNOUNCE_NUMBER, value: index } as OcgResponse }));
+  return {
+    targets: NONE,
+    panel: (
+      <>
+        <h3>Choisissez un nombre</h3>
+        <Buttons actions={actions} ctx={ctx} />
+        <Auto question={q} ctx={ctx} />
+      </>
+    ),
+  };
+}
+
+// The engine numbers the hands 1 scissors, 2 rock, 3 paper.
+const HANDS: [string, 1 | 2 | 3][] = [
+  ["Pierre", 2],
+  ["Feuille", 3],
+  ["Ciseaux", 1],
+];
+
+function rockPaperScissors(q: Q<OcgMessageType.ROCK_PAPER_SCISSORS>, ctx: Ctx): Ui {
+  const actions = HANDS.map(([label, value]) => ({ label, response: { type: OcgResponseType.ROCK_PAPER_SCISSORS, value } as OcgResponse }));
+  return {
+    targets: NONE,
+    panel: (
+      <>
+        <h3>Pierre, feuille ou ciseaux ?</h3>
+        <Buttons actions={actions} ctx={ctx} />
+        <Auto question={q} ctx={ctx} />
+      </>
+    ),
+  };
+}
+
+// Counters to remove: each click on a card takes one more. `ctx.picked` holds one key per counter taken.
+function counters(q: Q<OcgMessageType.SELECT_COUNTER>, ctx: Ctx): Ui {
+  const keys = q.cards.map(placeKey);
+  const taken = keys.map((key) => ctx.picked.filter((other) => other === key).length);
+  const total = ctx.picked.length;
+  const need = Math.min(q.count, q.cards.reduce((sum, card) => sum + card.count, 0));
+  const add = (key: string) => {
+    const index = keys.indexOf(key);
+    if (total < need && taken[index] < q.cards[index].count) ctx.setPicked([...ctx.picked, key]);
+  };
+  const remove = (key: string) => ctx.setPicked(ctx.picked.filter((_, index) => index !== ctx.picked.lastIndexOf(key)));
+  return {
+    targets: new Set(keys),
+    onPick: add,
+    panel: (
+      <>
+        <h3>Retirez {need} compteur(s), à répartir entre les cartes</h3>
+        <Chips places={q.cards} picked={ctx.picked} onPick={add} badge={(index) => `${taken[index]}/${q.cards[index].count} `} />
+        <div className="actions">
+          {q.cards.map((card, index) =>
+            taken[index] > 0 ? (
+              <button key={keys[index]} type="button" className="btn btn--fantome" onClick={() => remove(keys[index])}>
+                Reprendre un compteur : {cardName(ctx.cards, card.code)}
+              </button>
+            ) : null,
+          )}
+          <button type="button" className="btn" disabled={total !== need} onClick={() => ctx.respond({ type: OcgResponseType.SELECT_COUNTER, counters: taken })}>
+            Valider ({total}/{need})
+          </button>
+        </div>
+        <Auto question={q} ctx={ctx} />
+      </>
+    ),
+  };
+}
+
+// Cards whose levels add up to the amount (a ritual: at least the amount, with no card to spare).
+function sumCards(q: Q<OcgMessageType.SELECT_SUM>, ctx: Ctx): Ui {
+  const keys = q.selects.map(placeKey);
+  const indices = ctx.picked.map((key) => keys.indexOf(key));
+  const toggle = (key: string) => ctx.setPicked(toggled(ctx.picked, key));
+  return {
+    targets: new Set(keys),
+    onPick: toggle,
+    panel: (
+      <>
+        <h3>
+          Choisissez des cartes dont le total {q.select_max ? "atteint au moins" : "fait"} {q.amount}
+        </h3>
+        {q.selects_must.length > 0 && <p className="muted">Déjà incluses : {q.selects_must.map((card) => cardName(ctx.cards, card.code)).join(", ")}</p>}
+        <Chips places={q.selects} picked={ctx.picked} onPick={toggle} badge={(index) => `${sumValues(q.selects[index].amount).join("/")} `} />
+        <p className="muted">
+          Total : {sumTests(q).total(indices).join(" ou ")} sur {q.amount}
+        </p>
+        <div className="actions">
+          <button type="button" className="btn" disabled={!sumValid(q, indices)} onClick={() => ctx.respond({ type: OcgResponseType.SELECT_SUM, indicies: indices })}>
+            Valider ({indices.length})
+          </button>
+        </div>
+        <Auto question={q} ctx={ctx} />
+      </>
+    ),
+  };
+}
+
+// Cards to put in order: clicked in the order wanted. order[i] is the rank of card i.
+function sort(q: Q<OcgMessageType.SORT_CARD> | Q<OcgMessageType.SORT_CHAIN>, ctx: Ctx): Ui {
+  const keys = q.cards.map(placeKey);
+  const toggle = (key: string) => ctx.setPicked(toggled(ctx.picked, key));
+  const rank = (index: number) => ctx.picked.indexOf(keys[index]);
+  return {
+    targets: new Set(keys),
+    onPick: toggle,
+    panel: (
+      <>
+        <h3>Ordonnez les cartes : cliquez-les dans l'ordre voulu</h3>
+        <Chips places={q.cards} picked={ctx.picked} onPick={toggle} badge={(index) => (rank(index) < 0 ? "" : `${rank(index) + 1}. `)} />
+        <div className="actions">
+          <button type="button" className="btn" disabled={ctx.picked.length !== keys.length} onClick={() => ctx.respond({ type: OcgResponseType.SORT_CARD, order: keys.map((_, index) => rank(index)) })}>
+            Valider l'ordre
+          </button>
+        </div>
+        <Auto question={q} ctx={ctx} />
+      </>
+    ),
+  };
+}
+
 const DECLARER_MAX = 30;
 
 // Declaring a card name (Serment de l'Archdémon…): search among the cards the engine accepts.
@@ -433,14 +638,13 @@ function fallback(question: EngineMessage): OcgResponse | undefined {
 }
 
 function generic(question: EngineMessage, ctx: Ctx): Ui {
-  const response = fallback(question);
   return {
     targets: NONE,
     panel: (
       <>
         <h3>Question du jeu : {ocgMessageTypeStrings.get(question.type) ?? question.type}</h3>
         <p className="muted">Ce choix n'a pas encore d'écran dédié.</p>
-        {response ? <Buttons actions={[{ label: "Laisser le jeu choisir", response }]} ctx={ctx} /> : <p className="error">Choix impossible depuis cet écran.</p>}
+        {fallback(question) ? <Auto question={question} ctx={ctx} /> : <p className="error">Choix impossible depuis cet écran.</p>}
       </>
     ),
   };
@@ -462,16 +666,17 @@ function placeLabel(place: Place): string {
 }
 
 // Question cards as a list: hidden opponent cards come with code 0, their place tells them apart.
-function Chips({ places, picked, onPick }: Readonly<{ places: Located[]; picked: readonly string[]; onPick: (key: string, point: Point) => void }>) {
+function Chips({ places, picked, onPick, badge }: Readonly<{ places: Located[]; picked: readonly string[]; onPick: (key: string, point: Point) => void; badge?: (index: number) => string }>) {
   const { cards, show, seat } = useDuelView();
   return (
     <ul className="chips">
-      {places.map((located) => {
+      {places.map((located, index) => {
         const key = placeKey(located);
         const reveal = () => show(located.code, key);
         return (
           <li key={key}>
             <button type="button" className={picked.includes(key) ? "chip picked" : "chip"} onClick={(event) => onPick(key, pointDe(event))} onMouseEnter={reveal} onFocus={reveal}>
+              {badge?.(index)}
               {cardName(cards, located.code)}
               <small>
                 {placeLabel(located)}

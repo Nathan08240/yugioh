@@ -74,7 +74,7 @@ export function tributes(msg: OcgMessageSelectTribute, order = [...msg.selects.k
 }
 
 // A card counts for its low 16 bits or, when set, its high 16 bits (cards with two levels).
-const sumValues = (amount: number) => (amount >>> 16 ? [amount & 0xffff, amount >>> 16] : [amount & 0xffff]);
+export const sumValues = (amount: number) => (amount >>> 16 ? [amount & 0xffff, amount >>> 16] : [amount & 0xffff]);
 
 function totals(cards: readonly OcgCardLocSum[]): number[] {
   let sums = [0];
@@ -90,12 +90,25 @@ function* subsets(n: number, size: number, start = 0): Generator<number[]> {
   for (let i = start; i <= n - size; i++) for (const rest of subsets(n, size - 1, i + 1)) yield [i, ...rest];
 }
 
-// Smallest selection whose total hits the amount exactly, or else reaches it with no card to spare.
-function sum(msg: OcgMessageSelectSum): number[] {
+// What a selection of `selects` (plus the forced ones) adds up to: each card may count for one of two values.
+export function sumTests(msg: OcgMessageSelectSum) {
   const total = (picked: number[]) => totals([...msg.selects_must, ...picked.map((i) => msg.selects[i])]);
   const reaches = (picked: number[]) => total(picked).some((value) => value >= msg.amount);
   const exact = (picked: number[]) => total(picked).includes(msg.amount);
   const tight = (picked: number[]) => reaches(picked) && picked.every((drop) => !reaches(picked.filter((i) => i !== drop)));
+  return { total, exact, tight };
+}
+
+// A selection the engine accepts: the exact sum within min..max cards, or for a ritual ("equal or more", no count limit) no card to spare.
+export function sumValid(msg: OcgMessageSelectSum, picked: number[]): boolean {
+  const { exact, tight } = sumTests(msg);
+  if (msg.select_max) return tight(picked);
+  return picked.length >= msg.min && picked.length <= msg.max && exact(picked);
+}
+
+// Smallest selection whose total hits the amount exactly, or else reaches it with no card to spare.
+function sum(msg: OcgMessageSelectSum): number[] {
+  const { exact, tight } = sumTests(msg);
   // select_max 1, a ritual's "equal or more": min and max are 0, any count goes.
   const largest = msg.select_max ? msg.selects.length : Math.min(msg.max, msg.selects.length);
   for (const fits of [exact, tight]) {
@@ -121,6 +134,10 @@ function lowBits(mask: bigint, count: number): bigint[] {
   for (let bit = 1n; bit <= mask && bits.length < count; bit <<= 1n) if ((mask & bit) !== 0n) bits.push(bit);
   return bits;
 }
+
+// Races travel as strings (JSON has no bigint): the engine takes bigints.
+export const engineForm = (response: OcgResponse): OcgResponse =>
+  response.type === OcgResponseType.ANNOUNCE_RACE ? { ...response, races: response.races.map((race) => BigInt(race) as OcgRace) } : response;
 
 const firstIndices = (min: number) => Array.from({ length: Math.max(min, 1) }, (_, i) => i);
 
@@ -159,7 +176,7 @@ export function respond(msg: OcgMessage, announce = cannotAnnounce): OcgResponse
     case OcgMessageType.SELECT_COUNTER:
       return { type: OcgResponseType.SELECT_COUNTER, counters: counters(msg.cards, msg.count) };
     case OcgMessageType.ANNOUNCE_RACE:
-      return { type: OcgResponseType.ANNOUNCE_RACE, races: lowBits(msg.available, msg.count) as OcgRace[] };
+      return { type: OcgResponseType.ANNOUNCE_RACE, races: lowBits(BigInt(msg.available), msg.count) as OcgRace[] };
     case OcgMessageType.ANNOUNCE_ATTRIB:
       return { type: OcgResponseType.ANNOUNCE_ATTRIB, attributes: lowBits(BigInt(msg.available), msg.count).map(Number) as OcgAttribute[] };
     case OcgMessageType.ANNOUNCE_CARD:
