@@ -62,9 +62,11 @@ export type LobbyState = {
   won?: StoryWon;
   // Online rematch: the seat that asked, or declined for good.
   rematch?: { from: Seat } | "declined";
+  // Bug reports the server has stored.
+  reported: number;
 };
 
-export const initialLobby: LobbyState = { started: false, asked: 0, emotes: {}, closed: false, needsStarter: false, openedCount: 0, storyOpen: false };
+export const initialLobby: LobbyState = { started: false, asked: 0, emotes: {}, closed: false, needsStarter: false, openedCount: 0, storyOpen: false, reported: 0 };
 
 export function reduce(state: LobbyState, action: Action): LobbyState {
   switch (action.type) {
@@ -134,6 +136,8 @@ export function reduce(state: LobbyState, action: Action): LobbyState {
       return { ...state, rematch: { from: action.from } };
     case "rematch_declined":
       return { ...state, rematch: "declined" };
+    case "report_sent":
+      return { ...state, reported: state.reported + 1 };
   }
 }
 

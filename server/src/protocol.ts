@@ -8,6 +8,9 @@ export type Wire<T> = T extends bigint ? string : T extends object ? { [K in key
 
 export type Seat = 0 | 1;
 
+// Longest text of a bug report.
+export const REPORT_MAX = 500;
+
 export type BotLevel = "debutant" | "normal" | "expert";
 // Story duel difficulty: "facile" doubles the starting LP of the player.
 export type StoryLevel = "normal" | "facile";
@@ -24,6 +27,9 @@ export type ClientMessage =
   | { type: "respond"; response: OcgResponse }
   // Gives up the duel in progress: the other seat wins.
   | { type: "surrender" }
+  // Reports a problem of the duel in progress or just ended: the server stores what it takes to replay it, with an optional text
+  // of at most 500 characters. Answered with `report_sent`. 5 per player and per hour.
+  | { type: "report"; message?: string }
   // A phrase of the fixed list (emotes.ts) for the other seat. One per EMOTE_DELAY: the server ignores the others.
   | { type: "emote"; id: EmoteId }
   // After a duel: against the bot, starts an identical one at once. Online, asks for a rematch (or accepts the one asked,
@@ -71,6 +77,7 @@ export type ServerMessage =
   // Online: `from` asked for a rematch. `rematch_declined`: refused or left, no rematch in this room. A new duel starts with `joined`.
   | { type: "rematch"; from: Seat }
   | { type: "rematch_declined" }
+  | { type: "report_sent" }
   // Owned cards as [passcode, quantity].
   | { type: "collection"; cards: [number, number][] }
   // `saved` is the deck a `save_deck` just stored.

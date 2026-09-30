@@ -50,6 +50,7 @@ const accounts: Accounts = {
   creditBoosters: async () => {},
   storyProgress: async () => new Set(),
   completeStory: async () => undefined,
+  saveReport: async () => true,
 };
 // "admin" peut s'ajouter des boosters.
 process.env.ADMIN_USER_IDS = "admin, autreadmin";

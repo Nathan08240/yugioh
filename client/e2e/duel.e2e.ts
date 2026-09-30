@@ -66,3 +66,19 @@ test("l'écran de fin donne la cause : abandon", async ({ page }) => {
   await expect(fin).toBeVisible();
   await expect(fin.getByText("Vous avez abandonné.")).toBeVisible();
 });
+
+test("signaler un problème envoie le texte au serveur, Annuler ferme le formulaire", async ({ page }) => {
+  const { envoyes, envoyer } = await lancer(page, { duel: true });
+  await aLaMain(page);
+  await page.getByRole("button", { name: "Signaler un problème" }).click();
+  const formulaire = page.getByRole("form", { name: "Signaler un problème" });
+  await formulaire.getByRole("button", { name: "Annuler" }).click();
+  await expect(formulaire).toBeHidden();
+
+  await page.getByRole("button", { name: "Signaler un problème" }).click();
+  await formulaire.getByRole("textbox").fill("Trou Noir n'a pas détruit mon monstre");
+  await formulaire.getByRole("button", { name: "Envoyer" }).click();
+  await expect.poll(() => envoyes).toContainEqual({ type: "report", message: "Trou Noir n'a pas détruit mon monstre" });
+  envoyer({ type: "report_sent" });
+  await expect(page.getByText("Signalement envoyé, merci.")).toBeVisible();
+});

@@ -19,6 +19,7 @@ export function fakeAccounts(overrides: Partial<Accounts> = {}): Accounts {
     creditBoosters: async () => {},
     storyProgress: async () => new Set(),
     completeStory: async () => undefined,
+    saveReport: async () => true,
     ...overrides,
   };
 }

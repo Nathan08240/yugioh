@@ -18,7 +18,8 @@ import { KAIBA } from "./decks.ts";
 import { agreeToRules, fieldStats, lpOf, openDuel, STANDARD_RULES, type Rules, type Seed } from "./duel.ts";
 import { EMOTE_DELAY, EMOTE_IDS, type EmoteId } from "./emotes.ts";
 import { isAllowed, POOL, SETS, type Printing } from "./pool.ts";
-import type { BotLevel, CardInfo, ClientMessage, DuelEvent, Rewards, Seat, ServerMessage, StoryLevel } from "./protocol.ts";
+import { REPORT_MAX, type BotLevel, type CardInfo, type ClientMessage, type DuelEvent, type Rewards, type Seat, type ServerMessage, type StoryLevel } from "./protocol.ts";
+import { REPORT_BYTES, RESPONSE_BYTES, saveReport, type Report } from "./report.ts";
 import { respond } from "./respond.ts";
 import { serveClient } from "./site.ts";
 import { chooseStarter, starterCards, type Starter } from "./starter.ts";
@@ -48,6 +49,8 @@ export type Room = {
   level?: BotLevel;
   // Rewards of the room: a booster for an online duel, the story progression against the bot.
   onWin?: (winner: number) => void;
+  // What a bug report needs to replay the current (or last) duel: its seed, decks, turn and every response the engine accepted.
+  record?: { seed: Seed; decks: Report["decks"]; turn: number; responses: OcgResponse[] };
 };
 
 const rulesOf = (room: Room) => room.rules ?? STANDARD_RULES;
@@ -75,6 +78,8 @@ export type Accounts = DeckStore & {
   storyProgress: (userId: string) => Promise<ReadonlySet<string>>;
   // Resolves to the rewards granted, undefined for a duel already won.
   completeStory: (userId: string, duel: StoryDuel) => Promise<Rewards | undefined>;
+  // Resolves to false when the player already sent too many reports this hour.
+  saveReport: (userId: string, message: string, report: Report) => Promise<boolean>;
 };
 
 export function dbAccounts(db: Db): Accounts {
@@ -93,6 +98,7 @@ export function dbAccounts(db: Db): Accounts {
     creditBoosters: (userId, count) => creditBoosters(db, userId, count),
     storyProgress: (userId) => completedDuels(db, userId),
     completeStory: (userId, duel) => completeDuel(db, userId, duel),
+    saveReport: (userId, message, report) => saveReport(db, userId, message, report),
     ...dbDeckStore(db),
   };
 }
@@ -114,7 +120,7 @@ const TIME_LIMIT = 3;
 const CONNECTION_LOST = 4;
 
 // Response type the engine expects for each of its questions.
-const ANSWERS = new Map<OcgMessageType, OcgResponseType>([
+export const ANSWERS = new Map<OcgMessageType, OcgResponseType>([
   [OcgMessageType.SELECT_BATTLECMD, OcgResponseType.SELECT_BATTLECMD],
   [OcgMessageType.SELECT_IDLECMD, OcgResponseType.SELECT_IDLECMD],
   [OcgMessageType.SELECT_EFFECTYN, OcgResponseType.SELECT_EFFECTYN],
@@ -218,6 +224,7 @@ function parse(data: string): ClientMessage | undefined {
     (msg.type === "join" && typeof msg.room === "string") ||
     (msg.type === "respond" && typeof msg.response === "object" && msg.response !== null) ||
     msg.type === "surrender" ||
+    (msg.type === "report" && (msg.message === undefined || typeof msg.message === "string")) ||
     (msg.type === "rematch" && (msg.accept === undefined || typeof msg.accept === "boolean")) ||
     msg.type === "booster_state" ||
     (msg.type === "open_booster" && typeof msg.set === "string") ||
@@ -298,6 +305,16 @@ function surrender(room: Room, seat: Seat): string | undefined {
 
 const online = (room: Room) => room.players.length === 2 && !room.players.some((player) => player.bot);
 const sendAll = (room: Room, data: ServerMessage) => room.players.forEach((player) => send(player.socket, data));
+
+// The report of the current or last duel of the room, undefined before it started.
+function reportOf(room: Room): Report | undefined {
+  const { record } = room;
+  if (!record) return undefined;
+  let mode: Report["mode"] = "bot";
+  if (online(room)) mode = "online";
+  else if (room.rules) mode = "histoire";
+  return { mode, room: room.code, turn: record.turn, date: new Date().toISOString(), level: room.level, seed: record.seed.map(String), rules: rulesOf(room), decks: record.decks, responses: record.responses };
+}
 
 // When each player last sent an emote, in ms since the epoch.
 const lastEmote = new WeakMap<Player, number>();
@@ -404,10 +421,13 @@ export function advance(room: Room) {
       return;
     }
     if (messages.some((msg) => msg.type === OcgMessageType.RETRY)) {
+      // The engine refused the last response: the replay must not send it.
+      room.record?.responses.pop();
       ask(room, true);
       return;
     }
     const events = messages.filter((msg) => !ANSWERS.has(msg.type));
+    if (room.record) room.record.turn += events.filter((msg) => msg.type === OcgMessageType.NEW_TURN).length;
     // The engine keeps sending WIN without ever reaching END: the first one closes the duel.
     const win = events.findIndex((msg) => msg.type === OcgMessageType.WIN);
     broadcast(room, duel, win === -1 ? events : events.slice(0, win + 1));
@@ -433,6 +453,7 @@ export function advance(room: Room) {
 function answer(room: Room, seat: Seat, response: OcgResponse): string | undefined {
   const question = room.question;
   if (!room.duel || question?.player !== seat) return "aucune question en attente";
+  if (JSON.stringify(response).length > RESPONSE_BYTES) return "réponse trop volumineuse";
   try {
     if (response.type !== ANSWERS.get(question.type)) throw new Error("type de réponse inattendu");
     room.duel.lib.duelSetResponse(room.duel.handle, response);
@@ -440,6 +461,7 @@ function answer(room: Room, seat: Seat, response: OcgResponse): string | undefin
     ask(room, true);
     return undefined;
   }
+  room.record?.responses.push(response);
   advance(room);
   return undefined;
 }
@@ -447,6 +469,7 @@ function answer(room: Room, seat: Seat, response: OcgResponse): string | undefin
 async function start(room: Room, seed: Seed) {
   const decks = room.players.map((player) => player.deck);
   const extras = room.players.map((player) => player.extra ?? []);
+  room.record = { seed, decks: decks.map((main, seat) => ({ main: [...main], extra: [...extras[seat]] })), turn: 0, responses: [] };
   room.duel = await openDuel(seed, decks, (text) => console.error(`[salle ${room.code}] ${text}`), undefined, rulesOf(room), extras);
   advance(room);
 }
@@ -637,6 +660,17 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
       return enter(userId, room, deck);
     }
 
+    async function reportBug(room: Room, userId: string, text = ""): Promise<string | undefined> {
+      const message = text.trim();
+      if (message.length > REPORT_MAX) return `texte trop long : ${REPORT_MAX} caractères au maximum`;
+      const report = reportOf(room);
+      if (!report) return "aucun duel à signaler";
+      if (JSON.stringify(report).length > REPORT_BYTES) return "duel trop long pour être signalé";
+      if (!(await accounts.saveReport(userId, message, report))) return "trop de signalements, réessayez dans une heure";
+      send(socket, { type: "report_sent" });
+      return undefined;
+    }
+
     async function showStory(userId: string): Promise<undefined> {
       send(socket, { type: "story", arcs: storyView(await accounts.storyProgress(userId)) });
       return undefined;
@@ -721,6 +755,7 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
       if (msg.type === "respond") return seat ? answer(seat.room, seat.index, msg.response) : "pas dans une salle";
       if (msg.type === "surrender") return seat ? surrender(seat.room, seat.index) : "pas dans une salle";
       if (msg.type === "emote") return seat ? emote(seat.room, seat.index, msg.id) : "pas dans une salle";
+      if (msg.type === "report") return seat ? reportBug(seat.room, user.id, msg.message) : "pas dans une salle";
       if (msg.type === "rematch") return seat ? rematch(seat.room, seat.index, msg.accept !== false) : "pas dans une salle";
       if (seat) return "déjà dans une salle";
       if (msg.type === "story_duel") return playStory(user.id, msg.duel, msg.level);
