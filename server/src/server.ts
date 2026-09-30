@@ -19,6 +19,7 @@ import { agreeToRules, fieldMoves, fieldStats, lpLeft, lpOf, openDuel, STANDARD_
 import { CRAFT_COSTS, dbEconomyStore, economyReply, isEconomyMessage, validEconomyMessage, type EconomyMessage, type EconomyStore } from "./economy.ts";
 import { EMOTE_DELAY, EMOTE_IDS, type EmoteId } from "./emotes.ts";
 import { claimEvent, eventOf, eventRules, eventWon, type WeeklyEvent } from "./event.ts";
+import { dbFriendStore, friendHub, isFriendMessage, validFriendMessage, type FriendStore } from "./friends.ts";
 import { isAllowed, POOL, SETS, type Printing } from "./pool.ts";
 import { dbProfileStore, isProfileMessage, profileReply, validProfileMessage, type ProfileMessage, type ProfileStore } from "./profile.ts";
 import { PUZZLE_FAILED, REPORT_MAX, SPECTATORS_MAX, type BotLevel, type CardInfo, type ClientMessage, type DeckResult, type DuelEvent, type Seat, type ServerMessage, type StoryLevel, type StoryResult, type TowerView } from "./protocol.ts";
@@ -89,7 +90,7 @@ const deckSizes = (room: Room): [number, number] => [
 const extraSizes = (room: Room): [number, number] => [room.players[0]?.extra?.length ?? 0, room.players[1]?.extra?.length ?? 0];
 
 // Identity, profile, deck, booster and Story mode storage, faked in tests.
-export type Accounts = DeckStore & WishStore & EconomyStore & WonderStore & ProfileStore & SealedStore & {
+export type Accounts = DeckStore & WishStore & EconomyStore & WonderStore & ProfileStore & SealedStore & FriendStore & {
   verify: (token: string) => Promise<string | null>;
   findProfile: (userId: string) => Promise<Profile | undefined>;
   // Resolves to undefined when the pseudo is already taken.
@@ -154,6 +155,7 @@ export function dbAccounts(db: Db): Accounts {
     ...dbWonderStore(db),
     ...dbProfileStore(db),
     ...dbSealedStore(db),
+    ...dbFriendStore(db),
   };
 }
 
@@ -302,7 +304,8 @@ function parse(data: string): ClientMessage | undefined {
     validWishMessage(msg) ||
     validEconomyMessage(msg) ||
     validProfileMessage(msg) ||
-    validSealedMessage(msg);
+    validSealedMessage(msg) ||
+    validFriendMessage(msg);
   return valid ? (msg as ClientMessage) : undefined;
 }
 
@@ -647,6 +650,8 @@ const isPoolFusion = (code: number) => {
 const validDeck = ({ main, extra }: ActiveDeck) =>
   main.length >= MAIN_MIN && main.length <= MAIN_MAX && main.every(isAllowed) && extra.length <= EXTRA_MAX && extra.every(isPoolFusion);
 
+type FriendEntry = { deck: () => Promise<ActiveDeck | string>; enter: (room: Room, deck: ActiveDeck) => string | undefined };
+
 // The bot takes seat 1.
 export function startServer(port: number, accounts: Accounts, newSeed = randomSeed, botDelay = BOT_DELAY): WebSocketServer {
   const rooms = new Map<string, Room>();
@@ -686,6 +691,16 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
     sendJoined(room, 0);
     start(room, newSeed()).catch((error: unknown) => console.error(error));
   }
+
+  // A challenge between friends: the challenger hosts a new online room, the one who accepted joins it.
+  const friends = friendHub<FriendEntry>(accounts, send, async (challenger, acceptor) => {
+    const [host, guest] = await Promise.all([challenger.deck(), acceptor.deck()]);
+    if (typeof host === "string") return "l'adversaire n'a pas de deck actif valide";
+    if (typeof guest === "string") return guest;
+    const room: Room = { code: newCode(rooms), players: [], mode: { mode: "online" } };
+    room.onWin = (winner) => creditWinner(room, winner as Seat, accounts);
+    return challenger.enter(room, host) ?? acceptor.enter(room, guest);
+  });
 
   const newBot = (room: Room) => new Bot(1, lpOf(rulesOf(room), 1), deckSizes(room), botDelay, extraSizes(room), room.level);
 
@@ -737,6 +752,7 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
       const profile = await accounts.findProfile(id);
       user = { id, pseudo: profile?.pseudo, avatar: profile && ((await accounts.profileCards(id)).avatar ?? undefined) };
       const daily = profile !== undefined && (await accounts.claimDaily(id));
+      if (user.pseudo) joinFriends(user.id, user.pseudo);
       send(socket, { type: "profile", pseudo: user.pseudo ?? null, needsStarter: profile !== undefined && profile.activeDeckId === null, ...adminFlag(id), ...dailyFlag(daily) });
       return undefined;
     }
@@ -747,6 +763,7 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
       const profile = await accounts.createProfile(player.id, pseudo);
       if (!profile) return "pseudo déjà pris";
       player.pseudo = profile.pseudo;
+      joinFriends(player.id, profile.pseudo);
       const daily = await accounts.claimDaily(player.id);
       send(socket, { type: "profile", pseudo: profile.pseudo, needsStarter: profile.activeDeckId === null, ...adminFlag(player.id), ...dailyFlag(daily) });
       return undefined;
@@ -834,11 +851,13 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
     }
 
     function enter(userId: string, room: Room, deck: ActiveDeck, bot?: { deck: ActiveDeck; name: string; level?: BotLevel }): string | undefined {
+      if (seat) return "déjà dans une salle";
       room.onEnd = (winner, reason) => recordResults(room, winner, reason);
       rooms.set(room.code, room);
       const index = sit(room, userId, socket, deck, user?.pseudo, user?.avatar);
       if (index === undefined) return "salle complète";
       seat = { room, index };
+      friends.seat(socket);
       if (bot) addBot(room, bot.deck, bot.name, bot.level);
       return undefined;
     }
@@ -1072,6 +1091,14 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
       return enter(userId, room, deck, { deck: { main, extra }, name, level: room.level });
     }
 
+    // What the friend hub needs to seat this connection in the room of an accepted challenge.
+    function joinFriends(id: string, pseudo: string) {
+      friends.join(socket, id, pseudo, {
+        deck: () => duelDeck(id),
+        enter: (room, deck) => (socket.readyState === socket.OPEN ? enter(id, room, deck) : "adversaire déconnecté"),
+      });
+    }
+
     async function sendResults(userId: string): Promise<undefined> {
       send(socket, { type: "duel_results", results: await accounts.duelResults(userId) });
       return undefined;
@@ -1090,6 +1117,7 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
       if (isWonderMessage(msg)) return manageWonder(user, msg);
       if (isProfileMessage(msg)) return manageProfile(user, msg);
       if (isSealedMessage(msg)) return manageSealed(user, msg);
+      if (isFriendMessage(msg)) return friends.handle(socket, msg);
       if (msg.type === "booster_state") return sendBoosterState(user);
       if (msg.type === "open_booster") return openBoosterFor(user, msg.set);
       if (msg.type === "admin_boosters") return grantBoosters(user, msg.count);
@@ -1113,6 +1141,7 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
     }
 
     socket.on("close", () => {
+      friends.leave(socket);
       if (seat) leave(seat.room, socket);
       if (watching) stopWatching(watching);
     });

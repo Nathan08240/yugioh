@@ -99,6 +99,10 @@ const accounts: Accounts = {
   startTower: async () => 1,
   winTower: async (_userId, floor) => ({ floor, best: floor, boosters: 0 }),
   ...noSealed,
+  friendList: async () => [],
+  requestFriend: async () => "joueur introuvable",
+  acceptFriend: async () => undefined,
+  removeFriend: async () => undefined,
 };
 // "admin" peut s'ajouter des boosters.
 process.env.ADMIN_USER_IDS = "admin, autreadmin";

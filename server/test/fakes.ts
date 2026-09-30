@@ -54,6 +54,10 @@ export function fakeAccounts(overrides: Partial<Accounts> = {}): Accounts {
     startTower: async () => 1,
     winTower: async (_userId, floor) => ({ floor, best: floor, boosters: 0 }),
     ...noSealed,
+    friendList: async () => [],
+    requestFriend: async () => "joueur introuvable",
+    acceptFriend: async () => undefined,
+    removeFriend: async () => undefined,
     ...overrides,
   };
 }

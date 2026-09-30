@@ -4,7 +4,7 @@ import "./styles/shell.css";
 import { Icon } from "./ui.tsx";
 
 // "scelle" opens from the home screen only.
-export type Page = "accueil" | "collection" | "boosters" | "histoire" | "puzzles" | "tour" | "regles" | "profil" | "parametres" | "scelle";
+export type Page = "accueil" | "collection" | "boosters" | "histoire" | "puzzles" | "tour" | "regles" | "profil" | "amis" | "parametres" | "scelle";
 
 const NAV: [Page, string][] = [
   ["accueil", "Accueil"],
@@ -13,6 +13,7 @@ const NAV: [Page, string][] = [
   ["histoire", "Mode Histoire"],
   ["regles", "Règles"],
   ["profil", "Profil"],
+  ["amis", "Amis"],
   ["parametres", "Paramètres"],
 ];
 
@@ -28,6 +29,8 @@ type Props = {
   page?: Page;
   go?: (page: Page) => void;
   pending?: number;
+  // Friend requests received, on the friends menu.
+  requests?: number;
   signOut?: () => void;
   // Source link (AGPL license of the engine) and card ownership notice.
   notice?: boolean;
@@ -35,7 +38,7 @@ type Props = {
 };
 
 // Layout of every screen but the duel: background, top bar, transitions.
-export function Shell({ id, background = "ville", pseudo, page, go, pending = 0, signOut, notice = false, children }: Readonly<Props>) {
+export function Shell({ id, background = "ville", pseudo, page, go, pending = 0, requests = 0, signOut, notice = false, children }: Readonly<Props>) {
   const body = useRef<HTMLDivElement>(null);
   const sweep = useRef<HTMLDivElement>(null);
 
@@ -71,6 +74,7 @@ export function Shell({ id, background = "ville", pseudo, page, go, pending = 0,
               {NAV.map(([target, label]) => (
                 <button key={target} type="button" aria-current={target === page ? "page" : undefined} onClick={() => navigate(target)}>
                   {label} {target === "boosters" && pending > 0 && <span className="pastille">{pending}</span>}
+                  {target === "amis" && requests > 0 && <span className="pastille">{requests}</span>}
                 </button>
               ))}
             </nav>

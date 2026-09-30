@@ -16,6 +16,8 @@ export const KEEP_COPIES = 3;
 
 // Most spectators of a room at once.
 export const SPECTATORS_MAX = 20;
+// Friends of a player, pending requests included.
+export const FRIENDS_MAX = 100;
 
 export type BotLevel = "debutant" | "normal" | "expert";
 // Story duel difficulty: "facile" doubles the starting LP of the player.
@@ -65,6 +67,17 @@ export type ClientMessage =
   | { type: "player_profile" }
   | { type: "set_avatar"; code: number }
   | { type: "set_favorite"; code: number }
+  // Friends (friends.ts), by pseudo: `friends` is answered with `friends`, sent again to both players at each change of their list.
+  // `friend_add` sends a request (or accepts the one of that player), `friend_accept` accepts one, `friend_remove` refuses,
+  // cancels or removes. FRIENDS_MAX friends at most, requests included, and FRIEND_REQUESTS_PER_HOUR requests sent per hour.
+  | { type: "friends" }
+  | { type: "friend_add"; pseudo: string }
+  | { type: "friend_accept"; pseudo: string }
+  | { type: "friend_remove"; pseudo: string }
+  // Challenges a friend who is online and not in a room: they get `challenged` for CHALLENGE_TIME. Accepted with
+  // `challenge_reply`, both players enter a new online room with their active decks.
+  | { type: "challenge"; pseudo: string }
+  | { type: "challenge_reply"; pseudo: string; accept: boolean }
   // Boosters: `booster_state` is answered with `booster_state`, `open_booster` with `booster_opened` or an error.
   | { type: "booster_state" }
   | { type: "open_booster"; set: string }
@@ -149,6 +162,14 @@ export type ServerMessage =
   | { type: "duel_error"; error: string }
   // Avatar and favorite card of the player, null until chosen.
   | { type: "player_profile"; avatar: number | null; favorite: number | null }
+  // The friends of the player, by pseudo. `friend_status`: the presence of a friend changed. `friend_notice`: a text to show
+  // (request received or accepted, challenge refused or unanswered). `challenged`: `from` challenges the player, for `ms`;
+  // `challenge_gone`: that challenge was answered, withdrawn or expired.
+  | { type: "friends"; friends: Friend[] }
+  | { type: "friend_status"; pseudo: string; status: Presence }
+  | { type: "friend_notice"; text: string }
+  | { type: "challenged"; from: string; ms: number }
+  | { type: "challenge_gone"; from: string }
   // Wished passcodes, oldest first. Owned cards stay in the list until the player removes them.
   | { type: "wishlist"; cards: number[] }
   // `ultraIn`: the booster that many openings ahead holds an Ultra Rare or better for sure (1: the next one).
@@ -171,6 +192,12 @@ export type ServerMessage =
   | { type: "tower_won"; floor: number; best: number; boosters: number }
   // null before the first session.
   | { type: "sealed"; run: SealedRun | null };
+
+// Online is connected and not in a room, "duel" is in a room. Never stored.
+export type Presence = "online" | "duel" | "offline";
+// `status`: the presence of an accepted friend, else the request "sent" by the player or "received" from that player.
+// `avatar`: passcode of the card chosen as avatar, null until chosen.
+export type Friend = { pseudo: string; avatar: number | null; status: Presence | "sent" | "received" };
 
 // Wonder pick of the day. `cards` are shown face up in this order, then shuffled: face-down card `i` is `cards[shuffle[i]]`.
 // The server keeps `shuffle` to itself until the player picks `picked`, a face-down index.

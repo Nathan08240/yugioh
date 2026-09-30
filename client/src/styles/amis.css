@@ -1,0 +1,104 @@
+/* Amis (Amis.tsx) : ajout par pseudo, listes d'amis et de demandes, défis et notifications sur tous les écrans */
+
+.amis {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--e-4);
+  inline-size: 100%;
+  max-inline-size: 720px;
+  margin-inline: auto;
+  padding: var(--e-5) var(--marge-ecran) var(--e-6);
+}
+
+.amis__ajout {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--e-2);
+}
+
+.amis__saisie {
+  flex: 1;
+  min-inline-size: 0;
+  min-block-size: 44px;
+  padding: 0 var(--e-3);
+  border: 0;
+  border-radius: var(--r-2) var(--r-1);
+  background: rgb(6 8 23 / 0.6);
+  box-shadow: inset 0 0 0 1px var(--trait-fort);
+  font: inherit;
+  color: var(--texte);
+}
+
+.amis__saisie:focus-visible {
+  box-shadow: var(--focus);
+}
+
+.amis__bloc {
+  padding: var(--e-4) var(--e-5) var(--e-5);
+}
+
+.amis__liste {
+  display: grid;
+  gap: var(--e-2);
+  margin: var(--e-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ami {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--e-3);
+  align-items: center;
+}
+
+.ami__nom {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-inline-size: 0;
+}
+
+.ami__statut {
+  font-size: var(--taille-s);
+  color: var(--texte-3);
+}
+
+.ami__statut--online {
+  color: var(--succes);
+}
+
+.ami__statut--duel {
+  color: var(--or);
+}
+
+.ami__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--e-2);
+}
+
+.alertes-amis {
+  position: fixed;
+  inset: auto var(--e-4) var(--e-4) auto;
+  z-index: var(--z-modale);
+  display: grid;
+  gap: var(--e-2);
+  max-inline-size: min(360px, calc(100vw - 2 * var(--e-4)));
+}
+
+.alerte-ami {
+  margin: 0;
+  padding: var(--e-3) var(--e-4);
+  box-shadow: inset 3px 0 0 var(--holo), var(--ombre-2);
+}
+
+.alerte-ami p {
+  margin: 0 0 var(--e-2);
+}
+
+.alerte-ami__actions {
+  display: flex;
+  gap: var(--e-2);
+}

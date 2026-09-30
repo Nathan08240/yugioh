@@ -2,6 +2,7 @@ import type { OcgResponse } from "@n1xx1/ocgcore-wasm";
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import type { ClientMessage, PuzzleView } from "../../server/src/protocol.ts";
 import { Accueil, Salle } from "./Accueil.tsx";
+import { AlertesAmis, Amis } from "./Amis.tsx";
 import { Boosters } from "./Boosters.tsx";
 import { DuelView, useCards } from "./cards.ts";
 import { Collection } from "./Collection.tsx";
@@ -89,7 +90,7 @@ export function Lobby() {
       storyDuel.current = msg.duel;
       storyEasy.current = msg.level === "facile";
     }
-    if (msg.type === "create" || msg.type === "join") {
+    if (msg.type === "create" || msg.type === "join" || msg.type === "challenge" || msg.type === "challenge_reply") {
       vsBot.current = false;
       sealedDuel.current = false;
     }
@@ -128,6 +129,7 @@ export function Lobby() {
           {state.error}
         </p>
       )}
+      <AlertesAmis state={state} send={send} />
       <Screen state={state} page={shown} send={send} reconnect={reconnect} leave={leave} respond={respond} go={go} vsBot={vsBot.current} storyDuel={storyDuel.current} easy={storyEasy.current} puzzle={puzzle} sealedDuel={sealedDuel.current} />
     </DuelView>
   );
@@ -214,7 +216,7 @@ function Screen({ state, page, send, reconnect, leave, respond, go, vsBot, story
     );
   }
   return (
-    <Shell id={page} background={page === "collection" ? "nuit" : "ville"} pseudo={state.pseudo} page={page} go={go} pending={state.boosters?.pending} signOut={signOut} notice={page === "accueil"}>
+    <Shell id={page} background={page === "collection" ? "nuit" : "ville"} pseudo={state.pseudo} page={page} go={go} pending={state.boosters?.pending} requests={state.friends?.filter((friend) => friend.status === "received").length} signOut={signOut} notice={page === "accueil"}>
       {page === "accueil" && <Accueil state={state} send={send} go={go} />}
       {page === "collection" && <Collection collection={state.collection} rarities={state.rarities} decks={state.decks} results={state.results} wishlist={state.wishlist} points={state.points} conversion={state.conversion} send={send} />}
       {page === "boosters" && <Boosters state={state} send={send} go={go} />}
@@ -223,6 +225,7 @@ function Screen({ state, page, send, reconnect, leave, respond, go, vsBot, story
       {page === "tour" && <Tour tower={state.tower} send={send} />}
       {page === "regles" && <Regles />}
       {page === "profil" && <Profil state={state} send={send} />}
+      {page === "amis" && <Amis state={state} send={send} />}
       {page === "parametres" && <Parametres />}
       {page === "scelle" && <Scelle run={state.sealed} send={send} go={go} />}
     </Shell>

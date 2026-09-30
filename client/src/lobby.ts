@@ -1,5 +1,5 @@
 import type { EmoteId } from "../../server/src/emotes.ts";
-import type { ClientMessage, DeckResult, PuzzleView, SealedRun, Seat, ServerMessage, StoryArcView, TowerView, Wire } from "../../server/src/protocol.ts";
+import type { ClientMessage, DeckResult, Friend, PuzzleView, SealedRun, Seat, ServerMessage, StoryArcView, TowerView, Wire } from "../../server/src/protocol.ts";
 import { newBoard, playAll, type Board, type EngineMessage, type Message } from "./board.ts";
 
 export type DeckList = Extract<Wire<ServerMessage>, { type: "decks" }>;
@@ -100,9 +100,15 @@ export type LobbyState = {
   eventWon?: boolean;
   // Latest Sealed session, null before the first one, loaded by the Sealed screen.
   sealed?: SealedRun | null;
+  // Friends and requests, loaded by the friends screen and kept up to date by the server.
+  friends?: Friend[];
+  // Challenges received, shown on every screen until answered or `until` (ms since the epoch).
+  challenges: { from: string; until: number }[];
+  // Last friend notice; `n` tells two successive ones apart.
+  notice?: { text: string; n: number };
 };
 
-export const initialLobby: LobbyState = { started: false, spectators: 0, asked: 0, emotes: {}, closed: false, needsStarter: false, openedCount: 0, storyOpen: false, reported: 0 };
+export const initialLobby: LobbyState = { started: false, spectators: 0, asked: 0, emotes: {}, closed: false, needsStarter: false, openedCount: 0, storyOpen: false, reported: 0, challenges: [] };
 
 export function reduce(state: LobbyState, action: Action): LobbyState {
   switch (action.type) {
@@ -207,6 +213,16 @@ export function reduce(state: LobbyState, action: Action): LobbyState {
       return { ...state, reported: state.reported + 1 };
     case "sealed":
       return { ...state, sealed: action.run, error: undefined };
+    case "friends":
+      return { ...state, friends: action.friends, error: undefined };
+    case "friend_status":
+      return { ...state, friends: state.friends?.map((friend) => (friend.pseudo === action.pseudo ? { ...friend, status: action.status } : friend)) };
+    case "friend_notice":
+      return { ...state, notice: { text: action.text, n: (state.notice?.n ?? 0) + 1 } };
+    case "challenged":
+      return { ...state, challenges: [...state.challenges.filter((challenge) => challenge.from !== action.from), { from: action.from, until: Date.now() + action.ms }] };
+    case "challenge_gone":
+      return { ...state, challenges: state.challenges.filter((challenge) => challenge.from !== action.from) };
   }
 }
 
