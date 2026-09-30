@@ -1,6 +1,6 @@
-import { OcgLocation, OcgMessageType, OcgRace, type OcgMessage, type OcgMessageSelectSum } from "@n1xx1/ocgcore-wasm";
+import { OcgLocation, OcgMessageType, OcgRace, OcgResponseType, type OcgMessage, type OcgMessageSelectSum, type OcgResponse } from "@n1xx1/ocgcore-wasm";
 import { describe, expect, it } from "vitest";
-import { respond } from "../src/respond.ts";
+import { engineForm, respond, sumValid } from "../src/respond.ts";
 
 const card = (amount: number) => ({ code: 1, controller: 0 as const, location: OcgLocation.MZONE, sequence: 0, amount });
 
@@ -20,5 +20,23 @@ describe("répondeur première option", () => {
     expect(respond(counters)).toMatchObject({ counters: [2, 1] });
     const race: OcgMessage = { type: OcgMessageType.ANNOUNCE_RACE, player: 0, count: 1, available: (OcgRace.DRAGON | OcgRace.WARRIOR) as OcgRace };
     expect(respond(race)).toMatchObject({ races: [OcgRace.WARRIOR] });
+  });
+
+  it("lit les Types reçus en texte et remet en bigint ceux de la réponse pour le moteur", () => {
+    const wire = { type: OcgMessageType.ANNOUNCE_RACE, player: 0, count: 2, available: String(OcgRace.DRAGON | OcgRace.WARRIOR | OcgRace.FAIRY) };
+    expect(respond(wire as unknown as OcgMessage)).toMatchObject({ races: [OcgRace.WARRIOR, OcgRace.FAIRY] });
+    expect(engineForm({ type: OcgResponseType.ANNOUNCE_RACE, races: ["8192", "1"] as unknown as OcgRace[] })).toEqual({ type: OcgResponseType.ANNOUNCE_RACE, races: [8192n, 1n] });
+    const other: OcgResponse = { type: OcgResponseType.SELECT_CARD, indicies: [0] };
+    expect(engineForm(other)).toBe(other);
+  });
+
+  it("valide une sélection de somme : exacte dans les bornes, ou Rituel sans carte en trop", () => {
+    const sum = (extra: Partial<OcgMessageSelectSum>): OcgMessageSelectSum => ({ type: OcgMessageType.SELECT_SUM, player: 0, select_max: 0, amount: 8, min: 1, max: 2, selects_must: [], selects: [4, 3, 5].map(card), ...extra });
+    expect(sumValid(sum({}), [1, 2])).toBe(true);
+    expect(sumValid(sum({}), [0, 1])).toBe(false);
+    expect(sumValid(sum({}), [])).toBe(false);
+    expect(sumValid(sum({ max: 1 }), [1, 2])).toBe(false);
+    expect(sumValid(sum({ select_max: 1, min: 0, max: 0, amount: 7 }), [0, 1])).toBe(true);
+    expect(sumValid(sum({ select_max: 1, min: 0, max: 0, amount: 7 }), [0, 1, 2])).toBe(false);
   });
 });

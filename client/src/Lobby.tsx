@@ -76,7 +76,8 @@ export function Lobby() {
       storyEasy.current = msg.level === "facile";
     }
     if (msg.type === "create" || msg.type === "join") vsBot.current = false;
-    socket.current?.send(JSON.stringify(msg));
+    // The races of an ANNOUNCE_RACE response are bigints: they travel as strings.
+    socket.current?.send(JSON.stringify(msg, (_key, value: unknown) => (typeof value === "bigint" ? String(value) : value)));
   };
   const reconnect = () => {
     rejoin.current = state.room;

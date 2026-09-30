@@ -3,6 +3,7 @@ import { OcgMessageType, OcgProcessResult, type OcgMessage, type OcgResponse } f
 import type { Db } from "./db.ts";
 import { openDuel, type Rules } from "./duel.ts";
 import type { BotLevel } from "./protocol.ts";
+import { engineForm } from "./respond.ts";
 
 // Per player and per hour.
 export const REPORT_LIMIT = 5;
@@ -52,7 +53,7 @@ export async function replay(report: Report, trace: { messages?: (messages: OcgM
       const response = report.responses[next++];
       if (!response) break;
       trace.answer?.(response);
-      lib.duelSetResponse(handle, response);
+      lib.duelSetResponse(handle, engineForm(response));
     }
   } finally {
     lib.destroyDuel(handle);
