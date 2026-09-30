@@ -42,15 +42,28 @@ it("pioche, puis invocation : la carte arrive sur sa zone et son hologramme se l
 
 it("distingue un sacrifice, un matériau de fusion et une destruction d'après la suite des messages", () => {
   const tribute = [move(KURIBOH, at(0, MZONE, 0), at(0, GRAVE, 0)), move(SUMMONED_SKULL, at(0, HAND, 0), at(0, MZONE, 1)), summon(OcgMessageType.SUMMONING, SUMMONED_SKULL, 1)];
-  expect(effects(onField, tribute)[0]).toEqual([{ type: "depart", cle: `0:${MZONE}:0`, genre: "sacrifice" }]);
+  // The tribute's light and the material's swirl go to the zone of the monster summoned.
+  expect(effects(onField, tribute)[0]).toEqual([{ type: "depart", cle: `0:${MZONE}:0`, genre: "sacrifice", vers: `0:${MZONE}:1` }]);
 
   const fusion = [move(KURIBOH, at(0, MZONE, 0), at(0, GRAVE, 0)), move(FLAME_SWORDSMAN, at(0, EXTRA, 0), at(0, MZONE, 3)), summon(OcgMessageType.SPSUMMONING, FLAME_SWORDSMAN, 3)];
-  const [material, , summoned] = effects(onField, fusion);
-  expect(material).toEqual([{ type: "depart", cle: `0:${MZONE}:0`, genre: "materiau" }]);
+  const [material, entered, summoned] = effects(onField, fusion);
+  expect(material).toEqual([{ type: "depart", cle: `0:${MZONE}:0`, genre: "materiau", vers: `0:${MZONE}:3` }]);
+  expect(entered).toEqual([{ type: "entree", cle: `0:${MZONE}:3`, joueur: 0, depuis: `0:${EXTRA}` }]);
   expect(summoned).toEqual([{ type: "invocation", cle: `0:${MZONE}:3`, code: FLAME_SWORDSMAN, genre: "fusion" }]);
 
   const battle: Message[] = [move(KURIBOH, at(0, MZONE, 0), at(0, GRAVE, 0)), { type: OcgMessageType.DAMAGE, player: 0, amount: 300 }];
   expect(effects(onField, battle)[0]).toEqual([{ type: "depart", cle: `0:${MZONE}:0`, genre: "destruction" }]);
+});
+
+it("prend pour un sacrifice un monstre envoyé seul au Cimetière en Main Phase hors chaîne (l'invocation suit après le choix de la zone)", () => {
+  const phase = (p: OcgPhase) => playAll(onField, [{ type: OcgMessageType.NEW_PHASE, phase: p }]);
+  const tribute = [move(KURIBOH, at(0, MZONE, 0), at(0, GRAVE, 0))];
+  expect(played(phase(OcgPhase.MAIN1), tribute)).toEqual([[{ type: "depart", cle: `0:${MZONE}:0`, genre: "sacrifice" }]]);
+  expect(played(phase(OcgPhase.MAIN2), tribute)[0][0]).toMatchObject({ genre: "sacrifice" });
+  // Destroyed by an effect while a chain resolves, or by battle.
+  const chaining: Message = { type: OcgMessageType.CHAINING, code: 5318639, controller: 1, location: SZONE, sequence: 1, position: FACEUP_ATTACK, triggering_controller: 1, triggering_location: SZONE, triggering_sequence: 1, description: "0", chain_size: 1 };
+  expect(played(playAll(phase(OcgPhase.MAIN1), [chaining]), tribute)[0][0]).toMatchObject({ genre: "destruction" });
+  expect(played(phase(OcgPhase.DAMAGE), tribute)[0][0]).toMatchObject({ genre: "destruction" });
 });
 
 it("distingue un bannissement et un retour en main, au Deck ou à l'Extra Deck d'une destruction", () => {
@@ -97,7 +110,31 @@ it("joue l'attaque avant les dégâts, directe quand elle n'a pas de cible", () 
   ];
   const steps = etapes(onField, attack, cards);
   expect(steps[0].avant).toEqual([{ type: "attaque", de: `0:${MZONE}:0`, vers: undefined, joueur: 0 }]);
-  expect(steps.slice(1).map((step) => step.apres)).toEqual([[{ type: "lp", joueur: 1, delta: -300, directe: true }], [{ type: "lp", joueur: 0, delta: -1000, directe: false }]]);
+  // Damage shakes the camera, a cost does not.
+  expect(steps.slice(1).map((step) => step.apres)).toEqual([[{ type: "lp", joueur: 1, delta: -300, directe: true, choc: true }], [{ type: "lp", joueur: 0, delta: -1000, directe: false }]]);
+});
+
+it("joue la charge et l'impact au calcul des dégâts, avec les dégâts du combat", () => {
+  const battle = (target: { position: OcgPosition; attack: number; defense: number } | null): Message => ({
+    type: OcgMessageType.BATTLE,
+    card: { ...at(0, MZONE, 0), attack: 1500, defense: 1000, destroyed: false },
+    target: target && { ...at(1, MZONE, 2, target.position), ...target, destroyed: false },
+  });
+  const combat = (target: Parameters<typeof battle>[0]) => etapes(onField, [battle(target)], cards)[0].avant;
+  expect(combat({ position: FACEUP_ATTACK, attack: 1200, defense: 800 })).toEqual([{ type: "combat", de: `0:${MZONE}:0`, vers: `1:${MZONE}:2`, joueur: 0, degats: 300 }]);
+  // Against a Defense Position monster, only a higher DEF deals damage (to the attacker).
+  expect(combat({ position: OcgPosition.FACEUP_DEFENSE, attack: 0, defense: 2000 })[0]).toMatchObject({ degats: 500 });
+  expect(combat({ position: FACEDOWN_DEFENSE, attack: 0, defense: 1000 })[0]).toMatchObject({ degats: 0 });
+  expect(combat(null)).toEqual([{ type: "combat", de: `0:${MZONE}:0`, vers: undefined, joueur: 0, degats: 1500 }]);
+  // The damage that follows in the same batch is that of a direct attack.
+  expect(played(onField, [battle(null), { type: OcgMessageType.DAMAGE, player: 1, amount: 1500 }])[1]).toEqual([{ type: "lp", joueur: 1, delta: -1500, directe: true, choc: true }]);
+});
+
+it("fait partir une carte revenue sur le terrain de sa pile, les bannies du Cimetière", () => {
+  const enters = (from: ReturnType<typeof at>) => played(start, [move(KURIBOH, from, at(0, MZONE, 1))])[0];
+  expect(enters(at(0, GRAVE, 0))).toEqual([{ type: "entree", cle: `0:${MZONE}:1`, joueur: 0, depuis: `0:${GRAVE}` }]);
+  expect(enters(at(0, OcgLocation.REMOVED, 0))).toEqual([{ type: "entree", cle: `0:${MZONE}:1`, joueur: 0, depuis: `0:${GRAVE}` }]);
+  expect(enters(at(0, HAND, 0))[0]).toMatchObject({ depuis: undefined });
 });
 
 it("invoque un Dieu Égyptien, pose face cachée, enchaîne et change de tour", () => {
@@ -138,7 +175,7 @@ it("rejoue un duel réel étape par étape jusqu'au même plateau, avec invocati
     board = playAll(board, msg.messages);
     expect(shown).toEqual(board);
   }
-  expect([...seen]).toEqual(expect.arrayContaining(["pioche", "entree", "invocation", "attaque", "lp", "depart", "phase", "tour"]));
+  expect([...seen]).toEqual(expect.arrayContaining(["pioche", "entree", "invocation", "attaque", "combat", "lp", "depart", "phase", "tour", "activation"]));
 });
 
 it("applique chaque message quand son animation l'atteint, dans l'ordre de la file", async () => {
