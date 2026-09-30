@@ -378,17 +378,42 @@ export function dessinerFond(largeur: number, hauteur: number, horizon: number, 
   return texture(c, 1);
 }
 
+// Chain link number: an hexagon of the camp's color with a light outline, sharp at the size it is shown.
 export function dessinerMaillon(numero: number, camp: number) {
-  const c = toile(64, 70);
+  const c = toile(128, 140);
   const g = c.getContext("2d") as CanvasRenderingContext2D;
-  hexagone(g, 2, 2, 60, 66);
+  hexagone(g, 6, 6, 116, 128);
   g.fillStyle = jeton(CAMPS[camp]);
   g.fill();
-  g.font = "800 38px Oxanium";
+  g.lineWidth = 7;
+  g.strokeStyle = "#fff";
+  g.stroke();
+  g.font = "800 76px Oxanium";
   g.fillStyle = jeton("--nuit-0");
   g.textAlign = "center";
   g.textBaseline = "middle";
-  g.fillText(String(numero), 32, 38);
+  g.fillText(String(numero), 64, 76);
+  return texture(c, 1);
+}
+
+// LP change shown over the board: −X in the danger color, +X in the success one, dark outline and glow.
+export function dessinerNombre(delta: number) {
+  const c = toile(512, 160);
+  const g = c.getContext("2d") as CanvasRenderingContext2D;
+  const couleur = jeton(delta < 0 ? "--danger" : "--succes");
+  g.font = "800 120px Oxanium";
+  g.textAlign = "center";
+  g.textBaseline = "middle";
+  g.lineJoin = "round";
+  const texte = delta < 0 ? `−${-delta}` : `+${delta}`;
+  g.shadowColor = couleur;
+  g.shadowBlur = 24;
+  g.lineWidth = 14;
+  g.strokeStyle = SOMBRE;
+  g.strokeText(texte, 256, 84);
+  g.shadowBlur = 0;
+  g.fillStyle = couleur;
+  g.fillText(texte, 256, 84);
   return texture(c, 1);
 }
 

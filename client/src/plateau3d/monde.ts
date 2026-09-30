@@ -1,5 +1,5 @@
 // The 3D board in plain three.js, ported from design/plateau-3d: Plateau3D.tsx mounts it in a react-three-fiber canvas.
-import { OcgLocation } from "@n1xx1/ocgcore-wasm";
+import { OcgLocation, OcgType } from "@n1xx1/ocgcore-wasm";
 import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { FXAAPass } from "three/addons/postprocessing/FXAAPass.js";
@@ -7,15 +7,17 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
 import type { Board } from "../board.ts";
-import type { Cards } from "../cards.ts";
-import { D2, D3, D4, prefersReduced } from "../motion.ts";
+import { has, type Cards } from "../cards.ts";
+import { D1, D2, D3, D4, phase, prefersReduced } from "../motion.ts";
 import { placeKey } from "../question.ts";
-import { surveillant } from "./cadence.ts";
+import { jouer as jouerSon } from "../son.ts";
+import { horloge } from "./cadence.ts";
 import { CARTE, pileId, PLATEAU, ZONE, zones, type CarteScene, type EtatScene, type PileScene, type Zone } from "./disposition.ts";
 import type { Depart, Effet, Variation } from "./effets.ts";
+import { Eclats, Particules } from "./particules.ts";
 import { FS_BALAYAGE, FS_CONE, FS_FAISCEAU, FS_HOLOGRAMME, FS_SOL, FS_SURBRILLANCE, VS_MONDE, VS_UV } from "./shaders.ts";
 import type { Jeu } from "./spectacle.ts";
-import { art, couleurCamp, dessinerDos, dessinerFace, dessinerFond, dessinerLueur, dessinerMaillon, dessinerPlateau, dessinerTranche, hdr, texture, TEX, toile, type Ressources } from "./textures.ts";
+import { art, couleurCamp, dessinerDos, dessinerFace, dessinerFond, dessinerLueur, dessinerMaillon, dessinerNombre, dessinerPlateau, dessinerTranche, hdr, texture, TEX, toile, type Ressources } from "./textures.ts";
 
 export type Qualite = "haute" | "basse";
 type Etat = "choisie" | "survol" | "visee" | "attaquant" | "activee" | "cible";
@@ -23,9 +25,13 @@ type CarteM = CarteScene & { face: THREE.MeshStandardMaterial; mesh: THREE.Mesh;
 type ZoneM = Zone & { overlay: THREE.Mesh<THREE.BufferGeometry, THREE.ShaderMaterial>; carte?: CarteM; pile?: THREE.Mesh; pileEtat?: string; etats: Set<Etat> };
 
 const TANGAGE = THREE.MathUtils.degToRad(52);
+// Tilt that turns a card lying on the board towards the camera.
+const FACE_CAMERA = Math.PI / 2 - TANGAGE;
 const DEFENSE = 0.8;
 const HOLO_Y = 0.3;
 const CIBLE = new THREE.Vector3(0, 0, 0.1);
+const ZERO = new THREE.Vector3();
+const HAUT = new THREE.Vector3(0, 1, 0);
 const PRIORITE: Etat[] = ["choisie", "survol", "visee", "attaquant", "activee", "cible"];
 const STYLES: Record<Etat, { couleur?: string; force: number; fond: number; pulse: number }> = {
   choisie: { couleur: "--or", force: 2.4, fond: 0.16, pulse: 0 },
@@ -41,11 +47,20 @@ const SEUIL = 1e-3;
 const PAUSE_AMBIANT = 50;
 const FIELD: ReadonlySet<string> = new Set(["terrain", "monstre", "magie"]);
 const DEPARTS: Record<Depart, string> = { destruction: "--danger", sacrifice: "--or", materiau: "--type-fusion", bannissement: "--ombre-violet", main: "--holo-2", deck: "--holo", extra: "--holo" };
+// Particles: capacity, and the share low quality keeps. Hit-stop of an attack (ms). Damage that shakes the most.
+const PARTICULES = 480;
+const PARTICULES_BASSE = 160;
+const ARRET = 90;
+const DEGATS_MAX = 3000;
+const MAILLON = { l: 0.34, h: 0.37 };
 
 const sortie = (k: number) => 1 - (1 - k) ** 4;
 const elan = (k: number) => k ** 3;
+// Overshoots then settles (--courbe-ressort).
+const ressort = (k: number) => 1 + 2.70158 * (k - 1) ** 3 + 1.70158 * (k - 1) ** 2;
 const uni = <T>(value: T) => ({ value });
 const bouge = (...ecarts: number[]) => ecarts.some((ecart) => Math.abs(ecart) > SEUIL);
+const puissanceDe = (degats: number) => Math.min(1, Math.max(0, degats) / DEGATS_MAX);
 
 function geoCarte(epaisseur: number) {
   const g = new THREE.BoxGeometry(CARTE.l, epaisseur, CARTE.h);
@@ -83,14 +98,19 @@ export class Monde {
   private readonly cibles: THREE.Object3D[] = [];
   private readonly faces = new Map<string, THREE.CanvasTexture>();
   private readonly arts = new Map<number, THREE.Texture>();
-  private readonly maillons: THREE.Sprite[] = [];
+  // By link number minus one; a link off the field (hand, Graveyard) has none.
+  private readonly maillons: (THREE.Sprite | undefined)[] = [];
+  private cleChaine = "";
   // Half of the mat of each camp, dressed with the artwork of its Field Spell (fades in and out).
   private readonly terrains: { mesh: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>; code: number; vise: number }[] = [];
+  private readonly lampes: THREE.PointLight[] = [];
   private readonly mat: { tranche: THREE.Material; tranchePile: THREE.Material; dos: THREE.MeshStandardMaterial };
   private readonly geo: { carte: THREE.BufferGeometry; zone: THREE.BufferGeometry };
   private readonly holo: { groupe: THREE.Group; plan: THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial>; cone: THREE.Mesh<THREE.CylinderGeometry, THREE.ShaderMaterial>; anneau: THREE.Mesh<THREE.RingGeometry, THREE.MeshBasicMaterial> };
-  private readonly fx: { tir: THREE.Mesh<THREE.BufferGeometry, THREE.ShaderMaterial>; tete: THREE.Sprite; eclat: THREE.Sprite; onde: THREE.Mesh<THREE.RingGeometry, THREE.MeshBasicMaterial>; balayage: THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial> };
-  private readonly decalage = { lacet: 0, tangage: 0, recul: 0, secousse: 0 };
+  private readonly fx: { tir: THREE.Mesh<THREE.BufferGeometry, THREE.ShaderMaterial>; eclat: THREE.Sprite; onde: THREE.Mesh<THREE.RingGeometry, THREE.MeshBasicMaterial>; balayage: THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial> };
+  private readonly particules = new Particules(PARTICULES);
+  // Camera moves of the effects: sway, recoil and shake, and a point it closes in on (`vise`, `zoom`: share of the distance).
+  private readonly decalage = { lacet: 0, tangage: 0, recul: 0, secousse: 0, zoom: 0, vise: new THREE.Vector3() };
   private composer: EffectComposer | null = null;
   private distance = 12;
   private holoZone: ZoneM | undefined;
@@ -100,10 +120,15 @@ export class Monde {
   private readonly racine = new THREE.Group();
   // On-demand rendering: the world asks for a frame (`invalider`) whenever something changes or moves, and none at rest.
   private readonly invalider: () => void;
-  private readonly mesure: (dt: number) => void;
-  private enchaine = false;
+  private readonly horloge: ReturnType<typeof horloge>;
   private tweens = 0;
+  // Hit-stop: the particles hold still.
+  private gel = false;
   private minuteur: ReturnType<typeof setTimeout> | undefined;
+  private readonly rayon = new THREE.Raycaster();
+  private readonly ndc = new THREE.Vector2();
+  private readonly tmp = new THREE.Vector3();
+  private readonly visee = new THREE.Vector3();
 
   private readonly gl: THREE.WebGLRenderer;
   private readonly scene: THREE.Scene;
@@ -120,7 +145,7 @@ export class Monde {
     this.cards = cards;
     this.seat = seat;
     this.invalider = rappels.invalider;
-    this.mesure = surveillant(rappels.lent);
+    this.horloge = horloge(rappels.lent);
     gl.toneMapping = THREE.NeutralToneMapping;
     // As in production builds: no reading of the compile logs (ANGLE warns about the FXAA shader).
     gl.debug.checkShaderErrors = false;
@@ -135,6 +160,7 @@ export class Monde {
       const lampe = new THREE.PointLight(couleurCamp(camp, 1), 5, 6, 1.5);
       lampe.position.set(0, 1.4, z);
       this.racine.add(lampe);
+      this.lampes.push(lampe);
     }
     this.geo = { carte: geoCarte(CARTE.e), zone: new THREE.PlaneGeometry(ZONE.l + 0.16, ZONE.p + 0.16).rotateX(-Math.PI / 2) };
     this.mat = { tranche: new THREE.MeshStandardMaterial({ color: 0x20264f, roughness: 0.6 }), tranchePile: new THREE.MeshStandardMaterial({ map: dessinerTranche(), roughness: 0.8 }), dos: matCarte(texture(dessinerDos())) };
@@ -143,6 +169,7 @@ export class Monde {
     this.construireDecor(liste);
     this.holo = this.construireHolo();
     this.fx = this.construireEffets();
+    this.racine.add(this.particules.points);
     this.reveiller();
   }
 
@@ -209,12 +236,12 @@ export class Monde {
 
   private construireEffets() {
     const lueur = dessinerLueur();
-    const tir = new THREE.Mesh(new THREE.BufferGeometry(), effet(FS_FAISCEAU, { uColor: uni(new THREE.Color()), uMode: uni(1), uProgress: uni(0), uOpacity: uni(1) }));
-    const sprite = () => new THREE.Sprite(new THREE.SpriteMaterial({ map: lueur, blending: THREE.AdditiveBlending, depthWrite: false }));
+    const tir = new THREE.Mesh(new THREE.BufferGeometry(), effet(FS_FAISCEAU, { uColor: uni(new THREE.Color()), uMode: uni(0), uProgress: uni(0), uOpacity: uni(1) }));
+    const eclat = new THREE.Sprite(new THREE.SpriteMaterial({ map: lueur, blending: THREE.AdditiveBlending, depthWrite: false }));
     const onde = new THREE.Mesh(new THREE.RingGeometry(0.36, 0.46, 6).rotateX(-Math.PI / 2), additive());
     const balayage = new THREE.Mesh(new THREE.PlaneGeometry(2 * PLATEAU.l, 0.9).rotateX(-Math.PI / 2), effet(FS_BALAYAGE, { uColor: uni(new THREE.Color()), uOpacity: uni(0) }));
     balayage.position.y = 0.02;
-    const fx = { tir, tete: sprite(), eclat: sprite(), onde, balayage };
+    const fx = { tir, eclat, onde, balayage };
     Object.values(fx).forEach((objet, i) => {
       objet.visible = false;
       objet.renderOrder = 7 + i;
@@ -343,8 +370,13 @@ export class Monde {
     terrain.mesh.material.needsUpdate = true;
   }
 
+  // Chain links: numbered hexagons on the corner of their card, rebuilt only when the chain changes.
   private syncChaine(chain: Board["chain"]) {
+    const cle = chain.map((link) => placeKey(link)).join(",");
+    if (cle === this.cleChaine) return;
+    this.cleChaine = cle;
     for (const sprite of this.maillons.splice(0)) {
+      if (!sprite) continue;
       this.racine.remove(sprite);
       sprite.material.map?.dispose();
       sprite.material.dispose();
@@ -355,11 +387,12 @@ export class Monde {
       if (!zone) return;
       zone.etats.add("activee");
       const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: dessinerMaillon(i + 1, zone.camp), depthTest: false }));
-      sprite.scale.set(0.24, 0.26, 1);
-      sprite.position.set(zone.x + 0.3, 0.2, zone.z - 0.43);
+      sprite.scale.set(MAILLON.l, MAILLON.h, 1);
+      sprite.position.set(zone.x + 0.3, 0.25, zone.z - 0.43);
       sprite.renderOrder = 20;
+      sprite.userData.cle = zone.id;
       this.racine.add(sprite);
-      this.maillons.push(sprite);
+      this.maillons[i] = sprite;
     });
     this.majEtats();
   }
@@ -409,9 +442,8 @@ export class Monde {
 
   // The zone under the pointer (normalized device coordinates).
   toucher(x: number, y: number): string | undefined {
-    const rayon = new THREE.Raycaster();
-    rayon.setFromCamera(new THREE.Vector2(x, y), this.camera);
-    return rayon.intersectObjects(this.cibles, false)[0]?.object.userData.cle;
+    this.rayon.setFromCamera(this.ndc.set(x, y), this.camera);
+    return this.rayon.intersectObjects(this.cibles, false)[0]?.object.userData.cle;
   }
 
   // Effects ---------------------------------------------------------------------------------
@@ -437,8 +469,10 @@ export class Monde {
 
   private lancer(effet: Effet, jeu: Jeu): Promise<void> {
     switch (effet.type) {
+      case "pioche":
+        return this.pioche(effet.joueur, effet.nombre, jeu);
       case "entree":
-        return this.entree(this.zones.get(effet.cle), jeu);
+        return this.entree(this.zones.get(effet.cle), effet.depuis, jeu);
       case "invocation":
         return this.invocation(this.zones.get(effet.cle), effet.code, effet.genre, jeu);
       case "pose":
@@ -446,11 +480,17 @@ export class Monde {
       case "position":
         return this.sauter(this.zones.get(effet.cle), jeu);
       case "depart":
-        return this.depart(this.zones.get(effet.cle), effet.genre, jeu);
+        return this.depart(this.zones.get(effet.cle), effet.genre, effet.vers ? this.zones.get(effet.vers) : undefined, jeu);
       case "attaque":
         return this.attaque(this.zones.get(effet.de), effet.vers ? this.zones.get(effet.vers) : undefined, jeu);
+      case "combat":
+        return this.combat(this.zones.get(effet.de), effet.vers ? this.zones.get(effet.vers) : undefined, effet.degats, jeu);
+      case "lp":
+        return this.pointsDeVie(effet.joueur === this.seat ? 0 : 1, effet.delta, effet.choc === true, jeu);
       case "activation":
-        return this.activation(this.zones.get(effet.cle), jeu);
+        return this.activation(this.zones.get(effet.cle), effet.maillon, jeu);
+      case "resolution":
+        return this.resolution(effet.maillon, effet.annule, jeu);
       case "tour":
         return this.tour(effet.joueur === this.seat ? 0 : 1, jeu);
       case "stats":
@@ -462,13 +502,21 @@ export class Monde {
 
   // The hand of a camp in the scene: bottom of the screen, top for the opponent.
   private pointMain(camp: number) {
-    const rayon = new THREE.Raycaster();
-    rayon.setFromCamera(new THREE.Vector2(0, camp === 0 ? -0.9 : 0.95), this.camera);
-    return rayon.ray.at(camp === 0 ? 4.5 : 9, new THREE.Vector3());
+    this.rayon.setFromCamera(this.ndc.set(0, camp === 0 ? -0.9 : 0.95), this.camera);
+    return this.rayon.ray.at(camp === 0 ? 4.5 : 9, new THREE.Vector3());
   }
 
-  // The card comes from the hand and lands on its zone.
-  private async entree(zone: ZoneM | undefined, jeu: Jeu) {
+  // How hard a card lands: a set card softly, a monster by its Level.
+  private poids(carte: CarteM) {
+    if (carte.cachee) return 0.4;
+    const niveau = this.cards.get(carte.code)?.level ?? 0;
+    if (niveau >= 7) return 1.25;
+    if (niveau >= 5) return 1;
+    return 0.7;
+  }
+
+  // The card leaves the hand (or its pile) in an arc, turns over on the way, hangs an instant and slams onto its zone.
+  private async entree(zone: ZoneM | undefined, depuis: string | undefined, jeu: Jeu) {
     const carte = zone?.carte;
     if (!zone || !carte) return;
     if (jeu.reduced) {
@@ -476,33 +524,102 @@ export class Monde {
       return;
     }
     carte.libre = true;
-    const depart = this.pointMain(zone.camp);
-    const haut = new THREE.Vector3(zone.x, 0.5, zone.z);
-    const courbe = new THREE.QuadraticBezierCurve3(depart, depart.clone().lerp(haut, 0.5).setY(Math.max(depart.y, haut.y) + 0.4), haut);
-    const inclinaison = zone.camp === 0 ? Math.PI / 2 - TANGAGE : 0;
+    const pile = depuis ? this.zones.get(depuis) : undefined;
+    const depart = pile ? new THREE.Vector3(pile.x, 0.1, pile.z) : this.pointMain(zone.camp);
     const pose = this.pose(carte);
-    carte.groupe.position.copy(depart);
-    await jeu.tween(D3, (k) => {
-      const e = sortie(k);
-      carte.groupe.position.copy(courbe.getPoint(e));
-      carte.groupe.rotation.set(inclinaison * (1 - e), pose.rotY, pose.rotZ);
+    const poids = this.poids(carte);
+    const haut = new THREE.Vector3(zone.x, 0.7 + 0.35 * poids, zone.z + (zone.camp === 0 ? 0.3 : -0.3));
+    const courbe = new THREE.QuadraticBezierCurve3(depart, depart.clone().lerp(haut, 0.5).setY(Math.max(depart.y, haut.y) + 0.5), haut);
+    const inclinaison = pile || zone.camp !== 0 ? 0 : FACE_CAMERA;
+    const g = carte.groupe;
+    const vol = (k: number) => {
+      const e = sortie(phase(k, 0, 0.8));
+      g.position.copy(courbe.getPoint(e));
+      g.position.y += 0.08 * Math.sin(Math.PI * phase(k, 0.8, 1));
+      // Back up at first: a face-up card shows its face as it turns over, a face-down one stays down.
+      g.rotation.set(inclinaison * (1 - e) + 0.35 * e, pose.rotY * e, Math.PI + (pose.rotZ - Math.PI) * e);
+      g.scale.setScalar(pose.echelle * (1 + 0.12 * e));
+    };
+    vol(0);
+    await jeu.tween(D3 + D2, vol);
+    const au = g.position.clone();
+    const sol = new THREE.Vector3(zone.x, pose.y, zone.z);
+    await jeu.tween(D1 + 40, (k) => {
+      const e = elan(k);
+      g.position.lerpVectors(au, sol, e);
+      g.rotation.set(0.35 * (1 - e), pose.rotY, pose.rotZ);
+      g.scale.setScalar(pose.echelle * (1 + 0.12 * (1 - e)));
     });
-    await jeu.tween(D2, (k) => carte.groupe.position.set(zone.x, 0.5 + (pose.y - 0.5) * elan(k), zone.z));
     carte.libre = false;
-    await this.onde(zone, 0.8, jeu);
+    this.atterrir(zone, poids);
+    await this.onde(zone, 0.5 + 0.5 * poids, jeu);
   }
 
-  // Only the monster that acts projects itself, then comes down. A god gets a giant hologram and shakes the board.
+  // A card lands: a thud, dust along the board, a shake as heavy as the card.
+  private atterrir(zone: ZoneM, poids: number) {
+    jouerSon("atterrissage");
+    this.decalage.secousse = Math.max(this.decalage.secousse, 0.01 + 0.035 * poids * poids);
+    this.particules.emettre({
+      nombre: 14 + 26 * poids,
+      origine: new THREE.Vector3(zone.x, 0.03, zone.z),
+      rayon: 0.4,
+      plat: true,
+      vitesse: [0.5, 0.6 + 1.3 * poids],
+      taille: [0.1, 0.22],
+      vie: [0.5, 0.9],
+      couleur: couleurCamp(zone.camp, 0.7),
+      freinage: 3.5,
+      gravite: 0.2,
+    });
+  }
+
+  // Only the monster that acts projects itself, then comes down. A Fusion Monster comes out of a flash of the vortex.
   private async invocation(zone: ZoneM | undefined, code: number, genre: "normale" | "fusion" | "dieu", jeu: Jeu) {
     if (!zone) return;
-    if (genre === "fusion") await this.eclat(zone, "--type-fusion", jeu);
-    const dieu = genre === "dieu";
-    await this.projeter(zone, code, dieu ? 1.8 : 1, jeu);
-    if (dieu) {
-      if (!jeu.reduced) this.decalage.secousse = 0.08;
-      await jeu.pause(D4 + 1000, true);
-    } else await jeu.tenir(400);
+    if (genre === "dieu") {
+      await this.dieu(zone, code, jeu);
+      return;
+    }
+    if (genre === "fusion") {
+      this.gerbe(zone, "--type-fusion", 60, jeu);
+      await this.eclat(zone, "--type-fusion", jeu);
+    }
+    await this.projeter(zone, code, 1, jeu);
+    await jeu.tenir(400);
     await this.baisser(jeu);
+  }
+
+  // Sparks rising from a zone.
+  private gerbe(zone: ZoneM, couleur: string, nombre: number, jeu: Jeu) {
+    if (jeu.reduced) return;
+    this.particules.emettre({ nombre, origine: new THREE.Vector3(zone.x, 0.05, zone.z), rayon: 0.45, plat: true, direction: HAUT, ecart: 0.3, vitesse: [0.8, 2.2], taille: [0.04, 0.1], vie: [0.7, 1.3], couleur: hdr(couleur, 2), freinage: 0.9 });
+  }
+
+  // Egyptian God: the camera closes in, the lamp of the camp turns gold, sparks rise, a heavy shake and a giant hologram.
+  private async dieu(zone: ZoneM, code: number, jeu: Jeu) {
+    if (jeu.reduced) {
+      await this.projeter(zone, code, 1.8, jeu);
+      await jeu.pause(D4 + 1000, true);
+      await this.baisser(jeu);
+      return;
+    }
+    const lampe = this.lampes[zone.camp];
+    const [teinte, intensite] = [lampe.color.clone(), lampe.intensity];
+    const or = hdr("--attr-divin", 1);
+    const vise = new THREE.Vector3(zone.x * 0.6, 0.3, zone.z * 0.6);
+    const approche = (e: number) => {
+      this.decalage.vise.lerpVectors(ZERO, vise, e);
+      this.decalage.zoom = 0.22 * e;
+      lampe.color.copy(teinte).lerp(or, e);
+      lampe.intensity = intensite * (1 + 3 * e);
+    };
+    await jeu.tween(D4, (k) => approche(sortie(k)));
+    this.gerbe(zone, "--attr-divin", 90, jeu);
+    this.decalage.secousse = 0.1;
+    jouerSon("impact");
+    await Promise.all([this.eclat(zone, "--attr-divin", jeu), this.projeter(zone, code, 1.8, jeu)]);
+    await jeu.pause(1000, true);
+    await Promise.all([this.baisser(jeu), jeu.tween(D3, (k) => approche(1 - sortie(k)))]);
   }
 
   private texArt(code: number, img: HTMLImageElement | undefined) {
@@ -594,40 +711,43 @@ export class Monde {
     eclat.visible = false;
   }
 
-  // Destroyed: flash and flight to the Graveyard; tribute: dissolves into light; material: sucked into a violet spiral;
-  // banished: spins up and fades away; back to the hand or a Deck: flies there.
-  private async depart(zone: ZoneM | undefined, genre: Depart, jeu: Jeu) {
+  // Destroyed: the card breaks into shards; tribute: dissolves into light drawn to the monster summoned; material: sucked
+  // into the vortex of the Fusion; banished: spins up and fades away; back to the hand or a Deck: flies there.
+  private async depart(zone: ZoneM | undefined, genre: Depart, vers: ZoneM | undefined, jeu: Jeu) {
     const carte = zone?.carte;
     if (!zone || !carte) return;
     if (jeu.reduced) await this.fondu(carte, 1, 0, jeu);
+    else if (genre === "destruction") await this.briser(zone, carte, jeu);
     else {
       carte.libre = true;
-      const vol = this.vol(zone, carte, genre);
-      await Promise.all([this.eclat(zone, DEPARTS[genre], jeu), jeu.tween(D3, (k) => vol(elan(k), k)), genre === "bannissement" && this.fondu(carte, 1, 0, jeu, D3)]);
+      const vol = this.vol(zone, carte, genre, vers);
+      const duree = genre === "materiau" ? D4 : D3;
+      await Promise.all([this.eclat(zone, DEPARTS[genre], jeu), jeu.tween(duree, (k) => vol(elan(k), k)), genre === "bannissement" && this.fondu(carte, 1, 0, jeu, D3)]);
     }
     this.retirerCarte(zone);
   }
 
-  private vol(zone: ZoneM, carte: CarteM, genre: Depart) {
+  private vol(zone: ZoneM, carte: CarteM, genre: Depart, vers: ZoneM | undefined) {
     switch (genre) {
       case "sacrifice":
+        return this.aspirer(carte, vers);
       case "materiau":
-        return this.dissoudre(carte, genre === "materiau");
+        return this.tourbillon(carte, vers);
       case "bannissement":
         return this.bannir(zone, carte);
       case "main":
         return this.rentrer(zone, carte);
       case "deck":
-        return this.briser(zone, carte, OcgLocation.DECK, 0);
+        return this.voler(zone, carte, OcgLocation.DECK, 0);
       case "extra":
-        return this.briser(zone, carte, OcgLocation.EXTRA, 0);
+        return this.voler(zone, carte, OcgLocation.EXTRA, 0);
       default:
-        return this.briser(zone, carte, OcgLocation.GRAVE, 2);
+        return this.voler(zone, carte, OcgLocation.GRAVE, 2);
     }
   }
 
   // Flight to a pile of the owner, turning `tours` radians on the way.
-  private briser(zone: ZoneM, carte: CarteM, pile: OcgLocation, tours: number) {
+  private voler(zone: ZoneM, carte: CarteM, pile: OcgLocation, tours: number) {
     const pose = this.pose(carte);
     const arrivee = this.zones.get(pileId(zone.joueur, pile)) ?? zone;
     const depuis = carte.groupe.position.clone();
@@ -637,6 +757,32 @@ export class Monde {
       carte.groupe.rotation.set(0, pose.rotY + e * tours, pose.rotZ);
       carte.groupe.scale.setScalar(pose.echelle * (1 - 0.7 * e));
     };
+  }
+
+  // Destroyed: a flash, the card breaks into shards that fly and fall, sparks, then a trail of light to the Graveyard.
+  private async briser(zone: ZoneM, carte: CarteM, jeu: Jeu) {
+    // The side seen from above: the back for a face-down card.
+    const map = Math.cos(carte.groupe.rotation.z) < 0 ? this.mat.dos.map : carte.face.map;
+    const eclats = new Eclats(carte.groupe, map, CARTE);
+    this.racine.add(eclats.mesh);
+    carte.groupe.visible = false;
+    const centre = new THREE.Vector3(zone.x, 0.15, zone.z);
+    this.particules.emettre({ nombre: 40, origine: centre, direction: HAUT, ecart: 1, vitesse: [1.5, 3.5], gravite: 4, freinage: 1, vie: [0.3, 0.6], taille: [0.03, 0.06], couleur: hdr("--danger", 2.5) });
+    const cimetiere = this.zones.get(pileId(zone.joueur, OcgLocation.GRAVE));
+    let envoyee = false;
+    const duree = D3 + D2;
+    await Promise.all([
+      this.eclat(zone, "--danger", jeu),
+      jeu.tween(duree, (k) => {
+        eclats.avancer((k * duree) / 1000);
+        eclats.mesh.material.opacity = 1 - phase(k, 0.5, 1);
+        if (envoyee || k < 0.35 || !cimetiere) return;
+        envoyee = true;
+        const vers = new THREE.Vector3(cimetiere.x, 0.1, cimetiere.z);
+        this.particules.emettre({ nombre: 18, origine: centre, rayon: 0.3, vitesse: [0.3, 0.8], vie: [0.9, 1.4], taille: [0.05, 0.1], couleur: hdr("--danger", 1.6), vers, attraction: 10 });
+      }),
+    ]);
+    eclats.dispose();
   }
 
   // Banished: the card rises, spins up and drifts halfway to the Graveyard while it fades (see `depart`).
@@ -657,7 +803,7 @@ export class Monde {
     const depuis = carte.groupe.position.clone();
     const main = this.pointMain(zone.camp);
     const courbe = new THREE.QuadraticBezierCurve3(depuis, depuis.clone().lerp(main, 0.5).setY(Math.max(depuis.y, main.y) + 0.4), main);
-    const inclinaison = zone.camp === 0 ? Math.PI / 2 - TANGAGE : 0;
+    const inclinaison = zone.camp === 0 ? FACE_CAMERA : 0;
     return (e: number) => {
       carte.groupe.position.copy(courbe.getPoint(e));
       carte.groupe.rotation.set(inclinaison * e, pose.rotY, pose.rotZ);
@@ -693,15 +839,35 @@ export class Monde {
     }
   }
 
-  // A tribute rises into light; a material spirals to the middle of the board.
-  private dissoudre(carte: CarteM, spirale: boolean) {
+  // A tribute rises and dissolves into golden light, drawn to the zone of the monster about to be summoned.
+  private aspirer(carte: CarteM, vers: ZoneM | undefined) {
     const pose = this.pose(carte);
     const depuis = carte.groupe.position.clone();
-    const aspire = Number(spirale);
+    const arrivee = vers ? new THREE.Vector3(vers.x, 0.45, vers.z) : depuis.clone().setY(depuis.y + 0.9);
+    this.particules.emettre({ nombre: 40, origine: depuis, rayon: 0.35, direction: HAUT, ecart: 0.6, vitesse: [0.4, 1], vie: [0.9, 1.5], taille: [0.05, 0.11], couleur: hdr("--or", 2), vers: arrivee, attraction: vers ? 7 : 0, freinage: 1.5 });
     return (e: number) => {
-      carte.groupe.position.set(depuis.x * (1 - aspire * e), depuis.y + e * 0.9, depuis.z * (1 - aspire * e * 0.6));
-      carte.groupe.rotation.set(0, pose.rotY + aspire * e * 6, pose.rotZ);
+      carte.groupe.position.lerpVectors(depuis, arrivee, e * 0.6).setY(depuis.y + 0.9 * e);
+      carte.groupe.rotation.set(0, pose.rotY + e * 3, pose.rotZ);
       carte.groupe.scale.setScalar(pose.echelle * (1 - e));
+      carte.face.emissiveIntensity = 0.3 + 2 * e;
+    };
+  }
+
+  // A Fusion Material spirals into the vortex over the zone of the Fusion Monster, violet sparks swirling with it.
+  private tourbillon(carte: CarteM, vers: ZoneM | undefined) {
+    const pose = this.pose(carte);
+    const depuis = carte.groupe.position.clone();
+    const centre = vers ? new THREE.Vector3(vers.x, 0.5, vers.z) : new THREE.Vector3(0, 0.5, 0);
+    const rayon = Math.hypot(depuis.x - centre.x, depuis.z - centre.z);
+    const angle = Math.atan2(depuis.z - centre.z, depuis.x - centre.x);
+    this.particules.emettre({ nombre: 50, origine: centre, rayon: Math.max(0.4, rayon * 0.6), plat: true, vitesse: [0.2, 0.6], vie: [0.9, 1.5], taille: [0.05, 0.1], couleur: hdr("--type-fusion", 2.2), vers: centre, attraction: 2.5, tourbillon: 6, freinage: 0.8 });
+    return (e: number, k: number) => {
+      const r = rayon * (1 - e);
+      const a = angle + k * Math.PI * 3;
+      carte.groupe.position.set(centre.x + Math.cos(a) * r, depuis.y + (centre.y - depuis.y) * Math.sin((Math.PI / 2) * k), centre.z + Math.sin(a) * r);
+      carte.groupe.rotation.set(0, pose.rotY + k * 8, pose.rotZ);
+      carte.groupe.scale.setScalar(pose.echelle * (1 - 0.8 * e));
+      carte.face.emissiveIntensity = 0.3 + 1.5 * e;
     };
   }
 
@@ -717,69 +883,245 @@ export class Monde {
     for (const m of clones) m.dispose();
   }
 
-  private courbe(de: ZoneM, vers: THREE.Vector3) {
-    const depart = new THREE.Vector3(de.x, HOLO_Y + 0.6, de.z - 0.15);
-    const sommet = depart.clone().lerp(vers, 0.5).setY(1.7);
-    // Curve offset to one side, readable when the attack follows the axis of the camera.
-    sommet.x += de.x <= vers.x ? -0.9 : 0.9;
-    return new THREE.QuadraticBezierCurve3(depart, sommet, vers);
+  // Where an attack hits: the target's zone, or the opponent's edge of the board for a direct attack.
+  private pointVise(de: ZoneM, vers: ZoneM | undefined) {
+    if (vers) return new THREE.Vector3(vers.x, 0.06, vers.z);
+    return new THREE.Vector3(de.x * 0.4, 0.3, (de.camp === 0 ? -1 : 1) * (PLATEAU.p + 0.2));
   }
 
-  // Hologram of the attacker, beam, impact on the target (or on the opponent for a direct attack).
+  // Attack declared: the attacker rises and leans towards its target, a dashed line joins them, then it settles back.
   private async attaque(de: ZoneM | undefined, vers: ZoneM | undefined, jeu: Jeu) {
-    if (!de?.carte) return;
+    const carte = de?.carte;
+    if (!de || !carte) return;
     this.marquer(de, "attaquant", true);
     this.marquer(vers, "visee", true);
-    await this.projeter(de, de.carte.code, 1, jeu);
-    const point = vers ? new THREE.Vector3(vers.x, 0.06, vers.z) : new THREE.Vector3(0, 0.3, de.camp === 0 ? -PLATEAU.p : PLATEAU.p);
-    const courbe = this.courbe(de, point);
-    const { tir, tete } = this.fx;
+    const point = this.pointVise(de, vers);
+    const depart = new THREE.Vector3(de.x, 0.4, de.z);
+    const sommet = depart.clone().lerp(point, 0.5).setY(1.2);
+    // Curve offset to one side, readable when the attack follows the axis of the camera.
+    sommet.x += de.x <= point.x ? -0.6 : 0.6;
+    const { tir } = this.fx;
     tir.geometry.dispose();
-    tir.geometry = new THREE.TubeGeometry(courbe, 64, 0.06, 8);
+    tir.geometry = new THREE.TubeGeometry(new THREE.QuadraticBezierCurve3(depart, sommet, point), 48, 0.03, 6);
     tir.material.uniforms.uColor.value.copy(couleurCamp(de.camp, 2.5));
-    tete.material.color.copy(couleurCamp(de.camp, 3));
     tir.visible = true;
-    tete.visible = !jeu.reduced;
-    await jeu.tween(D2, (k) => {
-      const e = jeu.reduced ? 1 : k * k;
-      tir.material.uniforms.uProgress.value = e;
-      tete.position.copy(courbe.getPoint(e));
-      tete.scale.setScalar(0.5 + 0.3 * e);
-    });
+    const pose = this.pose(carte);
+    const dir = new THREE.Vector3(point.x - de.x, 0, point.z - de.z).normalize();
+    carte.libre = !jeu.reduced;
+    const lever = (e: number) => {
+      tir.material.uniforms.uOpacity.value = e;
+      if (jeu.reduced) return;
+      carte.groupe.position.set(de.x - dir.x * 0.12 * e, pose.y + 0.35 * e, de.z - dir.z * 0.12 * e);
+      carte.groupe.rotation.set(0.45 * e, pose.rotY, pose.rotZ - dir.x * 0.25 * e);
+    };
+    await jeu.tween(D3, (k) => lever(sortie(k)), true);
+    await jeu.tenir(350);
+    await jeu.tween(D2, (k) => lever(1 - k), true);
     tir.visible = false;
-    tete.visible = false;
-    await this.impact(point, vers, jeu);
+    carte.libre = false;
     this.marquer(de, "attaquant", false);
     this.marquer(vers, "visee", false);
-    await this.baisser(jeu);
   }
 
-  private async impact(point: THREE.Vector3, vers: ZoneM | undefined, jeu: Jeu) {
-    if (jeu.reduced) return;
+  // Damage calculation: the attacker winds up, charges, hits (flash, hit-stop, sparks, a shake as strong as the damage)
+  // and comes back; on a direct attack the camera goes along to the opponent's side.
+  private async combat(de: ZoneM | undefined, vers: ZoneM | undefined, degats: number, jeu: Jeu) {
+    const carte = de?.carte;
+    if (!de || !carte || jeu.reduced) return;
+    this.marquer(de, "attaquant", true);
+    this.marquer(vers, "visee", true);
+    carte.libre = true;
+    const g = carte.groupe;
+    const pose = this.pose(carte);
+    const point = this.pointVise(de, vers);
+    const dir = new THREE.Vector3(point.x - de.x, 0, point.z - de.z).normalize();
+    const place = new THREE.Vector3(de.x, pose.y, de.z);
+    const recul = new THREE.Vector3(de.x - dir.x * 0.35, 0.55, de.z - dir.z * 0.35);
+    const contact = point.clone().addScaledVector(dir, -0.25).setY(vers ? 0.2 : 0.45);
+    const roulis = -dir.x * 0.3;
+    // Nose down onto the target at the end of the charge.
+    const pique = de.camp === 0 ? -0.35 : 0.9;
+    const suivre = vers ? undefined : new THREE.Vector3(point.x * 0.5, 0, point.z * 0.45);
+    const camera = (e: number) => {
+      if (!suivre) return;
+      this.decalage.vise.lerpVectors(ZERO, suivre, e);
+      this.decalage.zoom = 0.14 * e;
+    };
+    await jeu.tween(D2 + 60, (k) => {
+      const e = sortie(k);
+      g.position.lerpVectors(place, recul, e);
+      g.rotation.set(0.5 * e, pose.rotY, pose.rotZ + roulis * e);
+      g.scale.setScalar(pose.echelle * (1 + 0.15 * e));
+      camera(0.3 * e);
+    });
+    const couleur = couleurCamp(de.camp, 1.8);
+    await jeu.tween(D2, (k) => {
+      const e = elan(k);
+      g.position.lerpVectors(recul, contact, e);
+      g.rotation.set(0.5 + (pique - 0.5) * e, pose.rotY, pose.rotZ + roulis);
+      camera(0.3 + 0.7 * sortie(k));
+      this.particules.emettre({ nombre: 3, origine: g.position, rayon: 0.12, vitesse: [0.05, 0.25], vie: [0.2, 0.35], taille: [0.05, 0.1], couleur });
+    });
+    await this.frapper(contact, dir, vers, puissanceDe(degats), jeu);
+    const choc = g.position.clone();
+    await jeu.tween(D3, (k) => {
+      const e = sortie(k);
+      g.position.lerpVectors(choc, place, e);
+      g.position.y += 0.35 * Math.sin(Math.PI * e);
+      g.rotation.set(pique * (1 - e), pose.rotY, pose.rotZ + roulis * (1 - e));
+      g.scale.setScalar(pose.echelle * (1 + 0.15 * (1 - e)));
+      camera(1 - e);
+    });
+    carte.libre = false;
+    this.marquer(de, "attaquant", false);
+    this.marquer(vers, "visee", false);
+  }
+
+  // The hit: a white flash, the picture holds an instant, then sparks, a shock wave and a shake.
+  private async frapper(point: THREE.Vector3, dir: THREE.Vector3, vers: ZoneM | undefined, puissance: number, jeu: Jeu) {
     const { eclat, onde } = this.fx;
-    eclat.position.copy(point).setY(0.12);
-    onde.position.copy(point).setY(0.02);
-    eclat.material.color.copy(hdr("--danger", 3));
-    onde.material.color.copy(hdr("--danger", 2.5));
+    jouerSon("impact");
+    eclat.position.copy(point);
+    eclat.material.color.copy(hdr("--or-2", 4));
+    eclat.material.opacity = 1;
+    eclat.scale.setScalar(1.2 + 1.4 * puissance);
     eclat.visible = true;
+    this.gel = true;
+    await jeu.pause(ARRET);
+    this.gel = false;
+    this.particules.emettre({ nombre: 30 + 50 * puissance, origine: point, direction: dir.clone().negate().setY(0.9).normalize(), ecart: 0.9, vitesse: [1.5, 3.5 + 2 * puissance], gravite: 5, freinage: 1.2, vie: [0.25, 0.6], taille: [0.025, 0.06], couleur: hdr("--or-2", 3) });
+    onde.position.copy(point).setY(0.02);
+    onde.material.color.copy(hdr("--danger", 2.5));
     onde.visible = true;
     if (vers?.carte) vers.carte.secousse = 1;
-    await jeu.tween(D4 * 0.7, (k) => {
+    const secousse = 0.02 + 0.08 * puissance;
+    await jeu.tween(D4 * 0.6, (k) => {
       const e = sortie(k);
-      eclat.scale.setScalar(0.4 + 2.2 * e);
+      eclat.scale.setScalar((1.2 + 1.4 * puissance) * (1 + e));
       eclat.material.opacity = 1 - k;
-      onde.scale.setScalar(1 + 2.4 * e);
+      onde.scale.setScalar(1 + (2 + puissance) * e);
       onde.material.opacity = 1 - k;
-      this.decalage.secousse = 0.05 * (1 - k);
+      this.decalage.secousse = secousse * (1 - k);
     });
     eclat.visible = false;
     onde.visible = false;
   }
 
-  private async activation(zone: ZoneM | undefined, jeu: Jeu) {
-    if (!zone?.carte) return;
-    zone.carte.saut = 1;
-    await this.onde(zone, 1, jeu);
+  // Activation: the card rises towards the camera, turns face up, grows and glows in the color of its type, then goes back.
+  private async activation(zone: ZoneM | undefined, maillon: number, jeu: Jeu) {
+    const carte = zone?.carte;
+    if (!zone || !carte || jeu.reduced) return;
+    carte.libre = true;
+    const g = carte.groupe;
+    const pose = this.pose(carte);
+    const depuis = g.position.clone();
+    const [rotY, rotZ] = [g.rotation.y, g.rotation.z];
+    const devant = new THREE.Vector3(depuis.x * 0.35, depuis.y, depuis.z * 0.5).lerp(this.camera.position, 0.4);
+    const { eclat } = this.fx;
+    const info = this.cards.get(carte.code);
+    let teinte = couleurCamp(zone.camp, 2);
+    if (has(info?.type ?? 0, OcgType.SPELL)) teinte = hdr("--type-magie", 2.2);
+    else if (has(info?.type ?? 0, OcgType.TRAP)) teinte = hdr("--type-piege", 2.2);
+    eclat.material.color.copy(teinte);
+    eclat.visible = true;
+    const lever = (e: number) => {
+      g.position.lerpVectors(depuis, devant, e);
+      g.rotation.set(FACE_CAMERA * e, rotY * (1 - e), rotZ + (pose.rotZ - rotZ) * Math.min(1, e * 1.5));
+      g.scale.setScalar(pose.echelle + (1.3 - pose.echelle) * e);
+      carte.face.emissiveIntensity = 0.3 + 0.9 * e;
+      eclat.position.copy(g.position).addScaledVector(this.tmp.subVectors(g.position, this.camera.position).normalize(), 0.05);
+      eclat.scale.setScalar(1.6 * e);
+      eclat.material.opacity = 0.8 * e;
+    };
+    lever(0);
+    await Promise.all([jeu.tween(D3, (k) => lever(sortie(k))), this.onde(zone, 1, jeu), this.gonflerMaillon(maillon, jeu)]);
+    await jeu.tenir(350);
+    await jeu.tween(D3, (k) => {
+      lever(1 - sortie(k));
+      g.rotation.set(g.rotation.x, pose.rotY * sortie(k), pose.rotZ);
+    });
+    eclat.visible = false;
+    // The pose is reached: nothing left to smooth (else the card would turn over again).
+    Object.assign(carte, { libre: false, rotY: pose.rotY, rotZ: pose.rotZ, echelle: pose.echelle });
+  }
+
+  // A new chain link pops in with a spring.
+  private async gonflerMaillon(maillon: number, jeu: Jeu) {
+    const sprite = this.maillons[maillon - 1];
+    if (!sprite) return;
+    sprite.scale.set(0, 0, 1);
+    await jeu.tween(D3, (k) => {
+      const s = ressort(k);
+      sprite.scale.set(MAILLON.l * s, MAILLON.h * s, 1);
+    });
+  }
+
+  // A link resolves: its number flares then shrinks away; a negated one turns red and shakes.
+  private async resolution(maillon: number, annule: boolean, jeu: Jeu) {
+    const sprite = this.maillons[maillon - 1];
+    if (!sprite || jeu.reduced) return;
+    if (annule) sprite.material.color.copy(hdr("--danger", 1.5));
+    const x = sprite.position.x;
+    await Promise.all([
+      this.onde(this.zones.get(sprite.userData.cle), 0.6, jeu, annule ? "--danger" : undefined),
+      jeu.tween(D3, (k) => {
+        const s = (1 + 0.45 * Math.sin(Math.PI * phase(k, 0, 0.55))) * (1 - elan(phase(k, 0.55, 1)));
+        sprite.scale.set(MAILLON.l * s, MAILLON.h * s, 1);
+        if (annule) sprite.position.x = x + Math.sin(k * 60) * 0.03 * (1 - k);
+      }),
+    ]);
+  }
+
+  // Draw: the cards slide off the Deck one after the other and fly to the hand, tilting towards the screen.
+  private async pioche(joueur: number, nombre: number, jeu: Jeu) {
+    const deck = this.zones.get(pileId(joueur, OcgLocation.DECK));
+    if (!deck || jeu.reduced || nombre <= 0) return;
+    const n = Math.min(nombre, 6);
+    const dessus = new THREE.Vector3(deck.x, (deck.pile?.position.y ?? 0) * 2 + 0.01, deck.z);
+    const main = this.pointMain(deck.camp);
+    const courbe = new THREE.QuadraticBezierCurve3(dessus, dessus.clone().lerp(main, 0.4).setY(Math.max(dessus.y, main.y) + 0.5), main);
+    const inclinaison = deck.camp === 0 ? FACE_CAMERA : 0;
+    const cartes = Array.from({ length: n }, () => {
+      const mesh = new THREE.Mesh(this.geo.carte, [this.mat.tranche, this.mat.dos, this.mat.dos]);
+      mesh.visible = false;
+      this.racine.add(mesh);
+      return mesh;
+    });
+    const decalage = 70;
+    const duree = D3 + decalage * (n - 1);
+    await jeu.tween(duree, (k) => {
+      cartes.forEach((mesh, i) => {
+        const t = phase(k, (i * decalage) / duree, (i * decalage + D3) / duree);
+        const e = sortie(t);
+        mesh.visible = t > 0 && t < 1;
+        mesh.position.copy(courbe.getPoint(e));
+        mesh.rotation.set(inclinaison * e, 0.3 * Math.sin(Math.PI * e), 0);
+        mesh.scale.setScalar(1 - 0.25 * e);
+      });
+    });
+    for (const mesh of cartes) this.racine.remove(mesh);
+  }
+
+  // LP change: the number springs out over the player's side of the board, rises and fades; damage shakes the camera.
+  private async pointsDeVie(camp: number, delta: number, choc: boolean, jeu: Jeu) {
+    if (jeu.reduced || !delta) return;
+    const map = dessinerNombre(delta);
+    const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map, depthTest: false, transparent: true }));
+    sprite.renderOrder = 21;
+    const base = new THREE.Vector3(0, 0.7, camp === 0 ? 1.3 : -1.3);
+    this.racine.add(sprite);
+    const puissance = puissanceDe(Math.abs(delta));
+    if (choc && delta < 0) this.decalage.secousse = Math.max(this.decalage.secousse, 0.015 + 0.06 * puissance);
+    const taille = 0.5 + 0.4 * puissance;
+    await jeu.tween(D4 + D3, (k) => {
+      const s = taille * ressort(phase(k, 0, 0.2));
+      sprite.scale.set(s * 3.2, s, 1);
+      sprite.position.copy(base).setY(base.y + 0.5 * sortie(phase(k, 0.45, 1)));
+      sprite.material.opacity = 1 - phase(k, 0.65, 1);
+    });
+    sprite.removeFromParent();
+    sprite.material.dispose();
+    map.dispose();
   }
 
   // Turn change: the camera sways towards the player whose turn it is, a sweep of their color crosses the board.
@@ -828,24 +1170,24 @@ export class Monde {
     return bouge(leve - c.levee, cible.rotY - c.rotY, cible.rotZ - c.rotZ, cible.echelle - c.echelle, c.saut, c.secousse);
   }
 
-  private poserCamera(d: number, lacet = 0, tangage = 0) {
+  private poserCamera(d: number, lacet = 0, tangage = 0, cible = CIBLE) {
     const p = TANGAGE + tangage;
-    this.camera.position.set(Math.sin(lacet) * Math.cos(p) * d, Math.sin(p) * d, Math.cos(lacet) * Math.cos(p) * d).add(CIBLE);
-    this.camera.lookAt(CIBLE);
+    this.camera.position.set(Math.sin(lacet) * Math.cos(p) * d, Math.sin(p) * d, Math.cos(lacet) * Math.cos(p) * d).add(cible);
+    this.camera.lookAt(cible);
     this.camera.updateMatrixWorld();
   }
 
   // Shaders driven by time (pulse of the targets, hologram) are the only thing moving.
   private ambiant() {
     if (this.holoZone) return true;
-    return [...this.zones.values()].some((zone) => zone.overlay.visible && zone.overlay.material.uniforms.uPulse.value > 0);
+    for (const zone of this.zones.values()) if (zone.overlay.visible && zone.overlay.material.uniforms.uPulse.value > 0) return true;
+    return false;
   }
 
   // Called by react-three-fiber on each frame it renders (`frameloop="demand"`); asks for the next one only while something moves.
   // `dt`: the real time since the last frame, which a frame after a rest does not follow (one 60th of a second then).
   frame(dt: number, t: number) {
-    const suite = this.enchaine;
-    const pas = suite ? Math.min(dt, 0.1) : 1 / 60;
+    const pas = this.horloge.pas(dt);
     const reduit = prefersReduced();
     temps.value = reduit ? 0 : t;
     const k = reduit ? 1 : 1 - Math.exp(-pas * 12);
@@ -858,8 +1200,12 @@ export class Monde {
       mesh.visible = mesh.material.opacity > 0.005;
       mouvement = bouge(vise - mesh.material.opacity) || mouvement;
     }
-    const { lacet, tangage, recul } = this.decalage;
-    this.poserCamera(this.distance * (1 + recul), lacet, tangage);
+    if (this.particules.actives > 0 && !this.gel) {
+      this.particules.echelle(this.gl.domElement.height, this.camera.fov);
+      mouvement = this.particules.avancer(pas) || mouvement;
+    }
+    const { lacet, tangage, recul, zoom, vise } = this.decalage;
+    this.poserCamera(this.distance * (1 + recul - zoom), lacet, tangage, this.visee.copy(CIBLE).add(vise));
     this.decalage.secousse *= retombe;
     if (this.decalage.secousse > 0.001) {
       mouvement = true;
@@ -869,16 +1215,14 @@ export class Monde {
     }
     if (this.holoZone) {
       const { plan } = this.holo;
-      const monde = plan.getWorldPosition(new THREE.Vector3());
+      const monde = plan.getWorldPosition(this.tmp);
       plan.lookAt(this.camera.position.x, monde.y, this.camera.position.z);
       plan.rotateX(-0.28);
     }
     if (this.composer) this.composer.render(pas);
     else this.gl.render(this.scene, this.camera);
     // A tween asks for its own frames; the ones that follow each other are the ones that tell the speed of the device.
-    const rapide = mouvement || this.tweens > 0;
-    if (suite && rapide) this.mesure(dt);
-    this.enchaine = rapide;
+    this.horloge.fin(dt, mouvement || this.tweens > 0);
     if (mouvement) this.invalider();
     else if (!reduit && this.ambiant()) {
       this.minuteur ??= setTimeout(() => {
@@ -930,11 +1274,12 @@ export class Monde {
     return { l: ((x1 - x0) * l) / 2, h: ((y1 - y0) * h) / 2, cx: ((x0 + x1) / 2) * (l / 2), cy: (-(y0 + y1) / 2) * (h / 2) };
   }
 
-  // High: bloom and FXAA (MSAA 4x cost 12 ms a frame on an integrated GPU); low: no post-processing.
+  // High: bloom and FXAA (MSAA 4x cost 12 ms a frame on an integrated GPU); low: no post-processing, a third of the particles.
   qualite(q: Qualite, l: number, h: number) {
     this.reveiller();
     this.composer?.dispose();
     this.composer = null;
+    this.particules.budget = q === "haute" ? PARTICULES : PARTICULES_BASSE;
     if (q === "haute") {
       const composer = new EffectComposer(this.gl, new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType }));
       composer.addPass(new RenderPass(this.scene, this.camera));
@@ -953,7 +1298,7 @@ export class Monde {
     for (const tex of [...this.faces.values(), ...this.arts.values()]) tex.dispose();
     this.scene.remove(this.racine);
     this.racine.traverse((objet) => {
-      if (!(objet instanceof THREE.Mesh || objet instanceof THREE.Sprite)) return;
+      if (!(objet instanceof THREE.Mesh || objet instanceof THREE.Sprite || objet instanceof THREE.Points)) return;
       objet.geometry.dispose();
       for (const m of [objet.material].flat()) m.dispose();
     });
