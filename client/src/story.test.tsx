@@ -86,6 +86,8 @@ it("présente le duel : adversaire, LP, main, règles spéciales, récompenses",
     expect(html).toContain(text);
   }
   expect(html).toContain('<span class="avatar avatar--geant">BK</span>');
+  // Difficulty: Normal by default, Facile doubles the player's LP.
+  for (const text of ["Difficulté", 'checked="" value="normal"', 'value="facile"', "Le duel tel qu&#x27;il a été écrit."]) expect(html).toContain(text);
 
   const replay = render(<Briefing duel={{ ...bandit, status: "done", outro: "Keith est libéré." }} back={() => {}} start={() => {}} />);
   for (const text of ["Keith est libéré.", "Récompenses déjà obtenues", "Rejouer le duel"]) expect(replay).toContain(text);

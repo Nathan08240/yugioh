@@ -33,8 +33,9 @@ export type LobbyState = {
   // Name of the other seat, once known.
   opponent?: string;
   board?: Board;
-  // Starting LP of the duel, and the last batch of engine messages: the duel screen animates them (id tells batches apart).
+  // Starting LP of the player and of the opponent, and the last batch of engine messages: the duel screen animates them (id tells batches apart).
   lp?: number;
+  opponentLp?: number;
   feed?: { id: number; messages: Message[] };
   // The duel has sent its first message.
   started: boolean;
@@ -82,7 +83,8 @@ export function reduce(state: LobbyState, action: Action): LobbyState {
         seat: action.seat,
         opponent: action.opponent,
         lp: action.lp,
-        board: playAll(newBoard(action.lp, action.decks, action.extras), action.log),
+        opponentLp: action.opponentLp,
+        board: playAll(newBoard(action.seat === 0 ? [action.lp, action.opponentLp ?? action.lp] : [action.opponentLp ?? action.lp, action.lp], action.decks, action.extras), action.log),
         started: action.log.length > 0,
         question: undefined,
         error: undefined,

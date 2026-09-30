@@ -40,10 +40,13 @@ type Props = {
   away?: Deadline;
   feed?: Feed;
   lp?: number;
+  opponentLp?: number;
   pseudo?: string;
   opponent?: string;
   // Special rules of a story duel, opened from a badge.
   rules?: Rule[];
+  // Story duel played at the "Facile" level.
+  easy?: boolean;
   // The duel has the Duelist Kingdom rule: ending a turn without monster is confirmed.
   kingdom?: boolean;
   // Last emote of each seat, and how to send one (no emote button without it).
@@ -104,7 +107,7 @@ function zoneCard(board: Board, id: string): Card | undefined {
 const codeAt = (board: Board, id: string) => zoneCard(board, id)?.code ?? 0;
 
 // The end of the duel (Fin.tsx) is drawn over the board by the lobby.
-export function Duel({ board, seat, asked, respond, leave, surrender, answerBy, away, feed, lp, pseudo, opponent, rules, kingdom, emotes, sendEmote }: Readonly<Props>) {
+export function Duel({ board, seat, asked, respond, leave, surrender, answerBy, away, feed, lp, opponentLp, pseudo, opponent, rules, easy, kingdom, emotes, sendEmote }: Readonly<Props>) {
   const cards = useCards();
   const [reglages] = useReglages();
   const strings = useSystemStrings();
@@ -162,6 +165,7 @@ export function Duel({ board, seat, asked, respond, leave, surrender, answerBy, 
   const choisies = useMemo(() => cibles3D(picked), [picked]);
   const cadre = useRef<HTMLDivElement>(null);
   const start = lp ?? Math.max(...board.players.map((side) => side.lp), 1);
+  const opponentStart = opponentLp ?? start;
 
   const onZone = (id: string, point: Point) => {
     const location = Number(id.split(":")[1]);
@@ -212,7 +216,7 @@ export function Duel({ board, seat, asked, respond, leave, surrender, answerBy, 
           )}
         </div>
         <div className="hud">
-          <Plaque board={shown} player={1 - seat} start={start} name={opponent ?? "Adversaire"} refs={hud.refs} visee={enDepot?.includes(String(1 - seat))} until={delai(1 - seat)} emote={reglages.emotes === "oui" ? emotes?.[(1 - seat) as Seat] : undefined} />
+          <Plaque board={shown} player={1 - seat} start={opponentStart} name={opponent ?? "Adversaire"} refs={hud.refs} visee={enDepot?.includes(String(1 - seat))} until={delai(1 - seat)} emote={reglages.emotes === "oui" ? emotes?.[(1 - seat) as Seat] : undefined} />
           <section className="main-adverse" ref={hud.refs.mains[1 - seat]} aria-label={`Main de l'adversaire : ${cartes(shown.players[1 - seat].hand.length)}`}>
             {[...shown.players[1 - seat].hand.keys()].map((i) => (
               <CardView key={i} code={0} />
@@ -230,6 +234,7 @@ export function Duel({ board, seat, asked, respond, leave, surrender, answerBy, 
           </aside>
           <Hand hand={shown.players[seat].hand} seat={seat} ui={targets} main={hud.refs.mains[seat]} appui={appui} />
           <aside className="colonne colonne--droite">
+            {easy && <p className="puce puce--holo niveau-duel">Facile</p>}
             {rules?.length ? <RulesBadge rules={rules} /> : null}
             {shown.chain.length > 0 && <Chain chain={shown.chain} seat={seat} opponent={opponent} />}
             <Log log={shown.log} opponent={opponent} />

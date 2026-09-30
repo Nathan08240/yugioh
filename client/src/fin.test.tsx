@@ -73,6 +73,16 @@ it("donne la vraie cause d'une défaite qui n'est pas une perte de LP, sans coup
   expect(fin(finished(1, 0))).not.toContain("fin__note");
 });
 
+it("indique le niveau Facile pendant le duel et sur l'écran de fin", () => {
+  const board = finished(1, 0);
+  const duel = (easy?: boolean) => render(<Duel board={board} seat={0} respond={() => {}} leave={() => {}} surrender={() => {}} easy={easy} />);
+  expect(duel(true)).toContain("Facile");
+  expect(duel()).not.toContain("Facile");
+  const end = (easy: boolean) => render(<Fin board={board} seat={0} room="ABCDE" vsBot story={{ title: "Battle City · Duel 2 sur 3", easy }} leave={() => {}} go={() => {}} onRematch={() => {}} />);
+  expect(end(true)).toContain("Battle City · Duel 2 sur 3 · Facile");
+  expect(end(false)).not.toContain("Facile");
+});
+
 it("montre le badge « Règles spéciales » d'un duel d'histoire seulement", () => {
   const board = finished(1);
   const duel = (rules?: ReturnType<typeof specialRules>) => render(<Duel board={board} seat={0} respond={() => {}} leave={() => {}} surrender={() => {}} rules={rules} />);

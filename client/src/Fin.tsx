@@ -17,7 +17,7 @@ type Props = {
   vsBot: boolean;
   opponent?: string;
   // A story duel ("Battle City · Duel 4 sur 5"), its special rules, and its conclusion once the server has recorded the win.
-  story?: { title?: string; won?: StoryWon; special?: readonly string[] };
+  story?: { title?: string; won?: StoryWon; special?: readonly string[]; easy?: boolean };
   // Online rematch state; against the bot, asking starts a new duel at once.
   rematch?: LobbyState["rematch"];
   onRematch: (accept: boolean) => void;
@@ -86,7 +86,7 @@ export function Fin({ board, seat, room, vsBot, opponent, story, rematch, onRema
   }, [won]);
 
   let context = `Duel en ligne · salle ${room}`;
-  if (story) context = story.title ?? "Mode Histoire";
+  if (story) context = `${story.title ?? "Mode Histoire"}${story.easy ? " · Facile" : ""}`;
   else if (vsBot) context = "Duel contre le bot";
   const back = story ? "Retour à l'histoire" : "Retour à l'accueil";
   const boosters = won && !vsBot && !story ? 1 : (story?.won?.rewards?.boosters ?? 0);

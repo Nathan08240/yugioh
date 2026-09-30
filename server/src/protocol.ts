@@ -9,6 +9,8 @@ export type Wire<T> = T extends bigint ? string : T extends object ? { [K in key
 export type Seat = 0 | 1;
 
 export type BotLevel = "debutant" | "normal" | "expert";
+// Story duel difficulty: "facile" doubles the starting LP of the player.
+export type StoryLevel = "normal" | "facile";
 
 // `auth` must come first, with the Supabase access token. Joining a room again as the same user resumes the seat.
 export type ClientMessage =
@@ -38,9 +40,9 @@ export type ClientMessage =
   | { type: "open_booster"; set: string }
   // Accounts listed in ADMIN_USER_IDS only: adds 1 to ADMIN_BOOSTERS_MAX earned boosters, answered with `booster_state`.
   | { type: "admin_boosters"; count: number }
-  // Story mode: `story` asks for the arcs and progression, `story_duel` starts a duel against the bot.
+  // Story mode: `story` asks for the arcs and progression, `story_duel` starts a duel against the bot, at "normal" without `level`.
   | { type: "story" }
-  | { type: "story_duel"; duel: string };
+  | { type: "story_duel"; duel: string; level?: StoryLevel };
 
 export type Deck = { id: number; name: string; main: number[]; extra: number[] };
 
@@ -51,13 +53,13 @@ export type MonsterStats = { atk: number; def: number } | null;
 export type DuelEvent = OcgMessage | StatsEvent;
 
 // `joined` replays every message the player was allowed to see, which rebuilds the board after a reconnection,
-// from the starting LP, main deck and extra deck sizes (the engine never sends them).
+// from the starting LP (`lp` for the player, `opponentLp` when the opponent's differs), main deck and extra deck sizes (the engine never sends them).
 // `opponent` is the name of the other seat once someone (a player, the bot or a story character) sits there.
 // `profile` answers `auth`, `pseudo` and `starter`: a null pseudo means the player has to choose one before playing,
 // `needsStarter` means the player has a pseudo but no active deck yet and must pick a starter deck.
 export type ServerMessage =
   | { type: "profile"; pseudo: string | null; needsStarter: boolean; admin?: true }
-  | { type: "joined"; room: string; seat: Seat; lp: number; decks: [number, number]; extras: [number, number]; opponent?: string; log: DuelEvent[] }
+  | { type: "joined"; room: string; seat: Seat; lp: number; opponentLp?: number; decks: [number, number]; extras: [number, number]; opponent?: string; log: DuelEvent[] }
   | { type: "messages"; messages: DuelEvent[] }
   | { type: "question"; question: OcgMessage; retry: boolean }
   // Online duel between two players: ms left before `seat` loses, to answer the engine or to come back after a lost connection.

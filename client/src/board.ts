@@ -57,8 +57,9 @@ const side = (lp: number, deck: number, extra: number): Side => ({
   banished: [],
 });
 
-export const newBoard = (lp: number, decks: readonly number[], extras: readonly number[] = [0, 0]): Board => ({
-  players: [side(lp, decks[0], extras[0]), side(lp, decks[1], extras[1])],
+// `lp`: the starting LP of both players, or of each one by seat.
+export const newBoard = (lp: number | readonly [number, number], decks: readonly number[], extras: readonly number[] = [0, 0]): Board => ({
+  players: [side(typeof lp === "number" ? lp : lp[0], decks[0], extras[0]), side(typeof lp === "number" ? lp : lp[1], decks[1], extras[1])],
   turn: 0,
   turnPlayer: 0,
   phase: 0,

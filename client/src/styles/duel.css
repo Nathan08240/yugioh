@@ -934,6 +934,11 @@ button.slot {
   align-self: flex-end;
 }
 
+.niveau-duel {
+  align-self: flex-end;
+  margin: 0;
+}
+
 .regles-duel > summary {
   cursor: pointer;
   list-style: none;
