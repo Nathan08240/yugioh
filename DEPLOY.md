@@ -6,7 +6,7 @@ Un seul conteneur (`Dockerfile` à la racine) : le serveur de jeu sert le client
 - **Domaine** : `https://yugioh.nbrcs.pro`. **Port exposé** : `3001`, sans mapping de port (tout passe par Caddy).
 - **WebSocket** : rien à régler, le proxy Caddy les relaie ; le client se connecte à `wss://yugioh.nbrcs.pro/ws`.
 - **Stockage persistant** : un volume monté sur `/app/server/vendor/art`. Les illustrations manquantes s'y téléchargent en arrière-plan au démarrage (jamais dans git ni dans Supabase Storage).
-- **Variables d'exécution** (runtime seulement) : `YUGIOH_DATABASE_URL=postgres://yugioh_server:<mdp>@100.99.0.1:5432/postgres`, `SUPABASE_URL=https://supabase.nbrcs.pro`, `SUPABASE_ANON_KEY`. `PORT` vaut 3001 par défaut.
+- **Variables d'exécution** (runtime seulement) : `YUGIOH_DATABASE_URL=postgres://yugioh_server:<mdp>@100.99.0.1:5432/postgres`, `SUPABASE_URL=https://supabase.nbrcs.pro`, `SUPABASE_ANON_KEY`. `PORT` vaut 3001 par défaut. `ADMIN_USER_IDS` (facultatif) : id Supabase des comptes, séparés par des virgules, qui voient le bouton « Admin : +10 boosters ».
 - **Variables de build** (build seulement) : `VITE_SUPABASE_URL=https://supabase.nbrcs.pro`, `VITE_SUPABASE_ANON_KEY`.
 - **Supabase Auth** : ajouter `https://yugioh.nbrcs.pro` aux URL de redirection autorisées (lien de confirmation d'email).
 

@@ -140,6 +140,11 @@ export function Boosters({ state, send, go }: Readonly<{ state: LobbyState; send
             <b>Boosters gagnés</b>
             <span className="texte-2">Victoires en ligne et mode Histoire.</span>
           </p>
+          {state.admin && (
+            <button type="button" className="btn btn--fantome" onClick={() => send({ type: "admin_boosters", count: 10 })}>
+              Admin : +10 boosters
+            </button>
+          )}
         </div>
       </aside>
 

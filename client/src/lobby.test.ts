@@ -55,3 +55,8 @@ it("suit les délais d'un duel en ligne jusqu'à leur arrêt ou la fin du duel",
   expect([minutes(121_000, 1000), minutes(66_500, 1000), minutes(0, 1000)]).toEqual(["2:00", "1:06", "0:00"]);
   vi.useRealTimers();
 });
+
+it("garde le droit admin annoncé par le profil", () => {
+  expect(reduce(initialLobby, { type: "profile", pseudo: "nathan", needsStarter: false, admin: true }).admin).toBe(true);
+  expect(reduce(initialLobby, { type: "profile", pseudo: "dave", needsStarter: false }).admin).toBeUndefined();
+});

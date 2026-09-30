@@ -30,6 +30,8 @@ export type ClientMessage =
   // Boosters: `booster_state` is answered with `booster_state`, `open_booster` with `booster_opened` or an error.
   | { type: "booster_state" }
   | { type: "open_booster"; set: string }
+  // Accounts listed in ADMIN_USER_IDS only: adds 1 to ADMIN_BOOSTERS_MAX earned boosters, answered with `booster_state`.
+  | { type: "admin_boosters"; count: number }
   // Story mode: `story` asks for the arcs and progression, `story_duel` starts a duel against the bot.
   | { type: "story" }
   | { type: "story_duel"; duel: string };
@@ -48,7 +50,7 @@ export type DuelEvent = OcgMessage | StatsEvent;
 // `profile` answers `auth`, `pseudo` and `starter`: a null pseudo means the player has to choose one before playing,
 // `needsStarter` means the player has a pseudo but no active deck yet and must pick a starter deck.
 export type ServerMessage =
-  | { type: "profile"; pseudo: string | null; needsStarter: boolean }
+  | { type: "profile"; pseudo: string | null; needsStarter: boolean; admin?: true }
   | { type: "joined"; room: string; seat: Seat; lp: number; decks: [number, number]; extras: [number, number]; opponent?: string; log: DuelEvent[] }
   | { type: "messages"; messages: DuelEvent[] }
   | { type: "question"; question: OcgMessage; retry: boolean }

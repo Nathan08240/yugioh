@@ -50,6 +50,8 @@ const accounts: Accounts = {
   storyProgress: async () => new Set(),
   completeStory: async () => undefined,
 };
+// "admin" peut s'ajouter des boosters.
+process.env.ADMIN_USER_IDS = "admin, autreadmin";
 const wss = startServer(0, accounts, () => [1n, 2n, 3n, 4n]);
 await once(wss, "listening");
 const url = `ws://localhost:${(wss.address() as AddressInfo).port}`;
@@ -333,6 +335,24 @@ describe("serveur de partie", () => {
     await vi.waitFor(() => expect(p.received.length).toBeGreaterThanOrEqual(3));
     expect(p.received).toContainEqual({ type: "booster_state", nextFreeAt: new Date(0).toISOString(), pending: 0 });
     expect(p.received).toContainEqual({ type: "booster_opened", set: "LOB", cards: [{ code: 1, rarity: "common" }] });
+  });
+
+  it("réserve l'ajout de boosters aux comptes admin", async () => {
+    const credit = vi.spyOn(accounts, "creditBoosters");
+    const admin = await connect("admin");
+    const joueur = await connect("dave");
+    const profile = (received: Received[]) => received.find((msg) => msg.type === "profile");
+    await vi.waitFor(() => expect(profile(admin.received)).toMatchObject({ pseudo: "admin", admin: true }));
+    await vi.waitFor(() => expect(profile(joueur.received)).toBeDefined());
+    expect(profile(joueur.received)).not.toHaveProperty("admin");
+    admin.send({ type: "admin_boosters", count: 10 });
+    joueur.send({ type: "admin_boosters", count: 10 });
+    admin.send({ type: "admin_boosters", count: 51 });
+    await vi.waitFor(() => expect(admin.received.filter((msg) => msg.type === "booster_state" || msg.type === "error")).toHaveLength(2));
+    await vi.waitFor(() => expect(joueur.received).toContainEqual({ type: "error", error: "commande réservée" }));
+    expect(admin.received).toContainEqual({ type: "error", error: "message invalide" });
+    expect(credit.mock.calls).toEqual([["admin", 10]]);
+    credit.mockRestore();
   });
 
   it("refuse l'ouverture d'un booster sans droit ou d'un set inconnu", async () => {
