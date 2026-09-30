@@ -105,3 +105,12 @@ export function Avatar({ name, code, className = "" }: Readonly<{ name: string; 
     </span>
   );
 }
+
+// Closes the detail of a card shown full screen on a phone; hidden on a wider screen (cartes.css).
+export function FermerFiche({ fermer }: Readonly<{ fermer: () => void }>) {
+  return (
+    <button type="button" className="btn-icone fiche__fermer" aria-label="Fermer la fiche" onClick={fermer}>
+      <Icon id="ui-fermer" />
+    </button>
+  );
+}

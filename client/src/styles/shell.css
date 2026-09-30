@@ -5,6 +5,8 @@
   display: flex;
   flex-direction: column;
   min-block-size: 100dvh;
+  /* Zones sûres d'un téléphone à encoche (viewport-fit=cover dans index.html) */
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
   overflow-x: clip;
   isolation: isolate;
 }
@@ -179,23 +181,71 @@ button.marque {
   translate: -50% 0;
 }
 
-@media (max-width: 900px) {
+/* Les huit entrées du menu tiennent sur la barre d'un écran de 1280 px */
+@media (max-width: 1400px) {
   .barre {
     gap: var(--e-4);
   }
 
-  .barre__pseudo {
-    display: none;
-  }
-
   .barre__nav button {
     padding-inline: var(--e-2);
-    font-size: var(--taille-s);
   }
 }
 
-@media (max-width: 700px) {
+@media (max-width: 900px) {
+  .barre__pseudo {
+    display: none;
+  }
+}
+
+/* Le bouton du menu ne sert que sur téléphone et tablette */
+.barre__menu {
+  display: none;
+}
+
+/* Téléphone et tablette : le menu se replie derrière un bouton et s'ouvre en liste sous la barre */
+@media (max-width: 1150px) {
+  .barre {
+    position: relative;
+    z-index: var(--z-bandeau);
+    gap: var(--e-2);
+    block-size: auto;
+    min-block-size: 56px;
+  }
+
+  .marque {
+    font-size: var(--taille-m);
+  }
+
+  .barre__menu {
+    display: inline-grid;
+    order: -1;
+  }
+
   .barre__nav {
     display: none;
+  }
+
+  .barre__nav.est-ouvert {
+    position: absolute;
+    inset: 100% 0 auto;
+    display: grid;
+    max-block-size: calc(100dvh - 100%);
+    padding: var(--e-2) var(--marge-ecran) var(--e-4);
+    overflow: auto;
+    background: rgb(6 8 23 / 0.97);
+    box-shadow: inset 0 -1px 0 var(--trait), var(--ombre-3);
+  }
+
+  .barre__nav.est-ouvert button {
+    min-block-size: 48px;
+    font-size: var(--taille-l);
+    text-align: start;
+  }
+
+  .barre__nav button[aria-current]::after {
+    inset: var(--e-3) auto var(--e-3) 0;
+    block-size: auto;
+    inline-size: 2px;
   }
 }

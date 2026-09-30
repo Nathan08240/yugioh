@@ -7,7 +7,7 @@ import { WishButton } from "./Souhait.tsx";
 import { WISH_MAX } from "./wishlist.ts";
 import "./styles/classeur.css";
 import "./styles/collection.css";
-import { BestRarity } from "./ui.tsx";
+import { BestRarity, FermerFiche } from "./ui.tsx";
 
 type SetCards = { code: string; name: string; date: string; cards: number[] };
 
@@ -19,6 +19,8 @@ export function Classeur({ collection, rarities, wishlist, points, send }: Reado
   const [sets, setSets] = useState<SetCards[]>();
   const [selected, setSelected] = useState(0);
   const [shown, setShown] = useState<number>();
+  // On a phone the detail opens full screen on a tap (classeur.css).
+  const [fiche, setFiche] = useState(false);
   const [onlyWished, setOnlyWished] = useState(false);
   // Points to obtain each booster card.
   const [costs, setCosts] = useState<ReadonlyMap<number, number>>(new Map());
@@ -90,7 +92,10 @@ export function Classeur({ collection, rarities, wishlist, points, send }: Reado
                     aria-label={`${cardName(cards, code)} : ${quantity > 0 ? `${quantity} possédée${quantity > 1 ? "s" : ""}` : "manquante"}`}
                     onMouseEnter={() => setShown(code)}
                     onFocus={() => setShown(code)}
-                    onClick={() => setShown(code)}
+                    onClick={() => {
+                      setShown(code);
+                      setFiche(true);
+                    }}
                   >
                     <CardView code={code} rarity={bestRarity(copies.get(code))} className={quantity > 0 ? undefined : "est-manquante"} />
                   </button>
@@ -106,7 +111,8 @@ export function Classeur({ collection, rarities, wishlist, points, send }: Reado
             })}
           </ul>
         </section>
-        <aside className="panneau classeur__detail" aria-label="Détail de la carte" data-entree>
+        <aside className={fiche ? "panneau fiche classeur__detail est-ouverte" : "panneau fiche classeur__detail"} aria-label="Détail de la carte" data-entree>
+          <FermerFiche fermer={() => setFiche(false)} />
           <CardDetail code={shown} copies={shown === undefined ? undefined : copies.get(shown)} />
           {shown !== undefined && (
             <>
