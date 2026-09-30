@@ -12,6 +12,7 @@ export type Action =
   | { type: "left" }
   | { type: "story_menu"; open: boolean };
 export type StoryWon = Extract<ServerMessage, { type: "story_won" }>;
+export type Wonder = Extract<Wire<ServerMessage>, { type: "wonder" }>;
 
 // `id` tells two successive questions apart, even identical ones.
 // `announce`: the cards the player may declare, for ANNOUNCE_CARD.
@@ -63,6 +64,8 @@ export type LobbyState = {
   // The cards of the last booster opened, and a counter so a new opening resets the reveal animation.
   opened?: { set: string; cards: { code: number; rarity: string }[] };
   openedCount: number;
+  // Wonder pick of the day, loaded by the boosters screen.
+  wonder?: Wonder;
   // Story mode screen, kept open across its duels.
   storyOpen: boolean;
   story?: StoryArcView[];
@@ -137,6 +140,8 @@ export function reduce(state: LobbyState, action: Action): LobbyState {
       return { ...state, boosters: { nextFreeAt: action.nextFreeAt, pending: action.pending } };
     case "booster_opened":
       return { ...state, opened: { set: action.set, cards: action.cards }, openedCount: state.openedCount + 1 };
+    case "wonder":
+      return { ...state, wonder: action, error: undefined };
     case "story_menu":
       return { ...state, storyOpen: action.open, error: undefined };
     case "story":

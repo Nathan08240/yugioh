@@ -7,9 +7,10 @@ import type { Bot } from "../src/bot.ts";
 import { KAIBA, YUGI } from "../src/decks.ts";
 import { EMOTE_DELAY } from "../src/emotes.ts";
 import { POOL, SETS } from "../src/pool.ts";
-import type { CardInfo, ClientMessage, ServerMessage, Wire } from "../src/protocol.ts";
+import type { CardInfo, ClientMessage, ServerMessage, Wire, WonderView } from "../src/protocol.ts";
 import { respond } from "../src/respond.ts";
 import { WISH_MAX } from "../src/wishlist.ts";
+import { drawWonder } from "../src/wonder.ts";
 import { advance, creditWinner, DECISION_TIME, RECONNECT_TIME, startServer, type Accounts, type Room } from "../src/server.ts";
 
 const FLAME_SWORDSMAN = 45231177;
@@ -22,6 +23,7 @@ const decks = new Map<string, number[]>([["alice", YUGI], ["bob", KAIBA], ["caro
 // Extra decks, empty unless a test sets one.
 const extras = new Map<string, number[]>();
 const wishes = new Map<string, Set<number>>();
+const wonderDraws = new Map<string, Exclude<WonderView, { status: "available" }>>();
 
 // Token "jeton-<id>" identifies user <id>; "nouveau" has no profile yet and "pris" is a taken pseudo.
 const accounts: Accounts = {
@@ -53,6 +55,20 @@ const accounts: Accounts = {
   },
   removeWish: async (userId, code) => {
     wishes.get(userId)?.delete(code);
+  },
+  // Pioche miracle en mémoire : le tirage est celui de la vraie fonction, le choix retient l'index.
+  wonder: async (userId) => wonderDraws.get(userId) ?? { status: "available" },
+  wonderDraw: async (userId) => {
+    if (!wonderDraws.has(userId)) wonderDraws.set(userId, { status: "drawn", cards: drawWonder().cards });
+    return wonderDraws.get(userId) as WonderView;
+  },
+  wonderPick: async (userId, index) => {
+    const draw = wonderDraws.get(userId);
+    if (!draw) return "aucune pioche miracle en cours";
+    if (draw.status === "picked") return "carte déjà choisie";
+    const picked: Exclude<WonderView, { status: "available" }> = { status: "picked", cards: draw.cards, shuffle: [4, 3, 2, 1, 0], picked: index };
+    wonderDraws.set(userId, picked);
+    return picked;
   },
   boosterState: async () => ({ nextFreeAt: new Date(0).toISOString(), pending: 0 }),
   // "sansdroit" a un profil mais aucun droit d'ouverture ; le set "ZZZ" n'existe pas.
@@ -387,6 +403,32 @@ describe("serveur de partie", () => {
     expect((last() as { cards: number[] }).cards).toHaveLength(WISH_MAX);
     p.send({ type: "wish_add", code: 1.5 });
     await vi.waitFor(() => expect(p.received.at(-1)).toEqual({ type: "error", error: "message invalide" }));
+  });
+
+  it("répond à la pioche miracle : tirage, même tirage ensuite, un seul choix, index refusé hors des 5 cartes", async () => {
+    const p = await connect("miracle");
+    await vi.waitFor(() => expect(p.received).toHaveLength(1));
+    const ask = async (msg: ClientMessage) => {
+      const count = p.received.length;
+      p.send(msg);
+      await vi.waitFor(() => expect(p.received.length).toBeGreaterThan(count));
+      return p.received.at(-1);
+    };
+    expect(await ask({ type: "wonder" })).toEqual({ type: "wonder", status: "available" });
+    const drawn = await ask({ type: "wonder_draw" });
+    expect(drawn).toMatchObject({ type: "wonder", status: "drawn", cards: expect.any(Array) });
+    expect(await ask({ type: "wonder_draw" })).toEqual(drawn);
+    expect(await ask({ type: "wonder" })).toEqual(drawn);
+    for (const index of [5, -1, 1.5]) {
+      p.send({ type: "wonder_pick", index });
+      await vi.waitFor(() => expect(p.received.at(-1)).toEqual({ type: "error", error: "message invalide" }));
+    }
+    expect(await ask({ type: "wonder_pick", index: 1 })).toMatchObject({ type: "wonder", status: "picked", picked: 1 });
+    expect(await ask({ type: "wonder_pick", index: 2 })).toEqual({ type: "error", error: "carte déjà choisie" });
+    const other = await connect("miracle2");
+    await vi.waitFor(() => expect(other.received).toHaveLength(1));
+    other.send({ type: "wonder_pick", index: 0 });
+    await vi.waitFor(() => expect(other.received.at(-1)).toEqual({ type: "error", error: "aucune pioche miracle en cours" }));
   });
 
   it("réserve l'ajout de boosters aux comptes admin", async () => {
