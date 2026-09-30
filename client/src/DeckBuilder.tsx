@@ -5,7 +5,7 @@ import type { ClientMessage, Deck, DeckResult } from "../../server/src/protocol.
 import { CardDetail, CardView } from "./Card.tsx";
 import { Constructeur } from "./Constructeur.tsx";
 import { DeckRecord } from "./DeckRecord.tsx";
-import { GoatStatus } from "./goat.tsx";
+import { GoatStatus, goatCompliant } from "./goat.tsx";
 import { attributeKey, cardName, DuelView, frame, useCards, useDuelView } from "./cards.ts";
 import { drawHand, fitSuggestion, formatYdk, importDeck, parseYdk, type Skipped, type Suggestion } from "./deckTools.ts";
 import { bestRarity, copiesByRarity, filterCollection, kindCounts, noFilters, type Copies, type Filters, type Kind } from "./collection.ts";
@@ -395,7 +395,7 @@ function DeckEditor({ decks, results, draft, error, owned, setDraft, send }: Rea
       <p className={error ? "message message--erreur" : "message message--succes"} role="status">
         {error ?? "Deck valide : il peut servir en duel."}
       </p>
-      <GoatStatus deck={draft} cards={cards} />
+      <GoatStatus deck={draft} cards={cards} fix={() => setDraft({ ...draft, ...goatCompliant(draft, cards, new Map(owned)) })} />
       <div className="deck-actions">
         <button type="button" className="btn" disabled={Boolean(error) || !dirty} onClick={() => send({ type: "save_deck", deck: draft })}>
           {dirty ? "Enregistrer" : "Enregistré"}

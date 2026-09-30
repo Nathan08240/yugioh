@@ -1,6 +1,7 @@
 import goat from "../../server/data/goat-2005-04.json";
-import { limitError, overLimit, type DeckDraft } from "../../server/src/deckcheck.ts";
+import { limitError, overLimit, sameCard, type DeckDraft } from "../../server/src/deckcheck.ts";
 import type { Cards } from "./cards.ts";
+import { buildDeck } from "./constructeur.ts";
 
 const LIMITS = new Map(Object.entries(goat).map(([code, max]) => [Number(code), max]));
 type Deck = Pick<DeckDraft, "main" | "extra">;
@@ -12,13 +13,32 @@ const details = ({ main, extra }: Deck, cards: Cards, where: string) => limitErr
 
 const plural = (count: number) => `${count} carte${count > 1 ? "s" : ""}`;
 
-// Deck builder: a discreet line under the validity message.
-export function GoatStatus({ deck, cards }: Readonly<{ deck: Deck; cards: Cards }>) {
+// The deck without the copies beyond the Goat list, completed to 40 by the automatic builder with owned cards that follow it.
+export function goatCompliant({ main, extra }: Deck, cards: Cards, owned: ReadonlyMap<number, number>): Deck {
+  const kept = new Map<number, number>();
+  const allowed = (code: number) => {
+    const card = cards.get(code);
+    const key = card ? sameCard(code, card) : code;
+    kept.set(key, (kept.get(key) ?? 0) + 1);
+    return (kept.get(key) ?? 0) <= (LIMITS.get(key) ?? Infinity);
+  };
+  const trimmed = { main: main.filter(allowed), extra: extra.filter(allowed) };
+  const built = buildDeck(cards, owned, {}, trimmed, LIMITS);
+  return { main: built.main, extra: built.extra };
+}
+
+// Deck builder: a discreet line under the validity message, and a way to follow the list when the deck does not.
+export function GoatStatus({ deck, cards, fix }: Readonly<{ deck: Deck; cards: Cards; fix?: () => void }>) {
   const count = beyondGoat(deck, cards);
   if (count === 0) return <p className="texte-3">Classé : conforme</p>;
   return (
     <p className="texte-3" title={details(deck, cards, "en classé")}>
-      Classé : {plural(count)} au-delà de la liste Goat
+      Classé : {plural(count)} au-delà de la liste Goat{" "}
+      {fix && (
+        <button type="button" className="lien" onClick={fix}>
+          Rendre conforme
+        </button>
+      )}
     </p>
   );
 }
