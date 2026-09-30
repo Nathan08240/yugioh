@@ -5,7 +5,7 @@ import { afterAll, describe, expect, it, vi } from "vitest";
 import { WebSocket } from "ws";
 import type { Bot } from "../src/bot.ts";
 import { KAIBA, YUGI } from "../src/decks.ts";
-import { POOL } from "../src/pool.ts";
+import { POOL, SETS } from "../src/pool.ts";
 import type { CardInfo, ClientMessage, ServerMessage, Wire } from "../src/protocol.ts";
 import { respond } from "../src/respond.ts";
 import { advance, creditWinner, startServer, type Accounts, type Room } from "../src/server.ts";
@@ -189,6 +189,17 @@ describe("serveur de partie", () => {
     expect((await fetch(`${http}/api/art/1.jpg`)).status).toBe(404);
     expect((await fetch(`${http}/api/art/..%2F..%2Fpackage.json`)).status).toBe(404);
     expect((await fetch(`${http}/api/images/46986414.jpg`)).status).toBe(404);
+  });
+
+  it("sert les cartes de chaque set, une fois par passcode", async () => {
+    const http = url.replace("ws:", "http:");
+    const sets: { code: string; name: string; cards: number[] }[] = await (await fetch(`${http}/api/sets`)).json();
+    expect(sets.map((set) => set.code)).toEqual(SETS.map((set) => set.code));
+    expect(sets.find((set) => set.code === "LOB")?.cards).toHaveLength(126);
+    expect(sets.find((set) => set.code === "LOB")?.cards).toContain(89631139);
+    // Ultimate Rare variants repeat a passcode: FET has 85 printings for 60 cards.
+    expect(sets.find((set) => set.code === "FET")?.cards).toHaveLength(60);
+    for (const set of sets) expect(new Set(set.cards).size).toBe(set.cards.length);
   });
 
   it("sert les chaînes système du moteur en français", async () => {

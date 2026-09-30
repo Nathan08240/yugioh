@@ -55,3 +55,12 @@ export function filterCollection(owned: [number, number][], cards: Cards, filter
     })
     .sort(([a], [b]) => (cards.get(a)?.name ?? "").localeCompare(cards.get(b)?.name ?? ""));
 }
+
+// Codes of the cards owned at least once.
+export const ownedCodes = (owned: [number, number][]): ReadonlySet<number> => new Set(owned.filter(([, quantity]) => quantity > 0).map(([code]) => code));
+
+// Cards of a set the player owns, out of its total; the percentage rounds down so that 100 means complete.
+export function setProgress(setCards: readonly number[], owned: ReadonlySet<number>): { owned: number; total: number; percent: number } {
+  const count = setCards.filter((code) => owned.has(code)).length;
+  return { owned: count, total: setCards.length, percent: setCards.length === 0 ? 0 : Math.floor((count * 100) / setCards.length) };
+}

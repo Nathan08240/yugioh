@@ -16,7 +16,7 @@ import { activeDeck, createProfile, findProfile, openDb, type ActiveDeck, type D
 import { EXTRA_MAX, isFusion, MAIN_MAX, MAIN_MIN } from "./deckcheck.ts";
 import { KAIBA } from "./decks.ts";
 import { agreeToRules, fieldStats, openDuel, STANDARD_RULES, type Rules, type Seed } from "./duel.ts";
-import { isAllowed, POOL, type Printing } from "./pool.ts";
+import { isAllowed, POOL, SETS, type Printing } from "./pool.ts";
 import type { CardInfo, ClientMessage, DuelEvent, Rewards, Seat, ServerMessage } from "./protocol.ts";
 import { respond } from "./respond.ts";
 import { serveClient } from "./site.ts";
@@ -147,6 +147,12 @@ function serveHttp(req: IncomingMessage, res: ServerResponse) {
   }
   if (req.method === "GET" && req.url === "/api/boosters") {
     const body = [...BOOSTERS.values()].map(({ code, name, date }) => ({ code, name, date }));
+    res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify(body));
+    return;
+  }
+  if (req.method === "GET" && req.url === "/api/sets") {
+    // Boosters then starter decks, each passcode once per set (an Ultimate Rare variant repeats it).
+    const body = SETS.map(({ code, name, date, cards }) => ({ code, name, date, cards: [...new Set(cards.map((card) => card.code))] }));
     res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify(body));
     return;
   }
