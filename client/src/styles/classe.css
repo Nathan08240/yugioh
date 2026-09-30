@@ -1,4 +1,4 @@
-/* Mode classé (Classe.tsx) : classement du joueur, recherche d'un adversaire, meilleurs joueurs */
+/* Mode classé (Classe.tsx) : classement du joueur, recherche d'un adversaire, saison, meilleurs joueurs */
 
 .classe {
   display: flex;
@@ -61,4 +61,13 @@
 
 .classe__table tr[aria-current] {
   color: var(--or);
+}
+
+.classe__bareme {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--e-2) var(--e-5);
+  margin-block: var(--e-3);
+  padding: 0;
+  list-style: none;
 }

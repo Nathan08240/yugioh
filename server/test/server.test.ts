@@ -28,6 +28,17 @@ const wishes = new Map<string, Set<number>>();
 const wonderDraws = new Map<string, Exclude<WonderView, { status: "available" }>>();
 // Classements en mémoire, 1000 par défaut.
 const ratings = new Map<string, number>();
+const seasonView = {
+  rating: 1000,
+  games: 7,
+  season: "2026-10",
+  daysLeft: 31,
+  seasonGames: 2,
+  leaderboard: [{ pseudo: "alice", avatar: null, rating: 1200, games: 3 }],
+  previousSeason: "2026-09",
+  previousLeaderboard: [{ pseudo: "bob", avatar: null, rating: 1450, games: 20 }],
+  lastResult: { season: "2026-09", rating: 1250, games: 6, boosters: 3 },
+};
 
 // Token "jeton-<id>" identifies user <id>; "nouveau" has no profile yet and "pris" is a taken pseudo.
 const accounts: Accounts = {
@@ -107,8 +118,8 @@ const accounts: Accounts = {
   requestFriend: async () => "joueur introuvable",
   acceptFriend: async () => undefined,
   removeFriend: async () => undefined,
-  rating: async (userId) => ({ rating: ratings.get(userId) ?? 1000, games: 0 }),
-  leaderboard: async () => [{ pseudo: "alice", avatar: null, rating: 1200, games: 3 }],
+  rating: async (userId) => ({ rating: ratings.get(userId) ?? 1000, games: 0, seasonGames: 0 }),
+  ranked: async (userId) => ({ ...seasonView, rating: ratings.get(userId) ?? 1000 }),
   rateDuel: async ({ players, winner }) => {
     const before = players.map((id) => ratings.get(id) ?? 1000) as [number, number];
     const after = elo(before, winner);
@@ -835,11 +846,13 @@ describe("mode classé", () => {
     return client;
   }
 
-  it("envoie le classement du joueur et les meilleurs joueurs", async () => {
+  it("envoie le classement du joueur, la saison en cours et la précédente, en faisant d'abord entrer le joueur dans la saison", async () => {
     ratings.set("classe-vue", 1100);
+    const ranked = vi.spyOn(accounts, "ranked");
     const client = await connect("classe-vue");
     client.send({ type: "ranked" });
-    await vi.waitFor(() => expect(client.received).toContainEqual({ type: "ranked", rating: 1100, games: 0, leaderboard: [{ pseudo: "alice", avatar: null, rating: 1200, games: 3 }] }));
+    await vi.waitFor(() => expect(client.received).toContainEqual({ type: "ranked", ...seasonView, rating: 1100 }));
+    expect(ranked).toHaveBeenCalledWith("classe-vue");
   });
 
   it("apparie deux joueurs en attente dans un duel en ligne, met à jour les deux classements une seule fois, sans revanche", { timeout: 30_000 }, async () => {

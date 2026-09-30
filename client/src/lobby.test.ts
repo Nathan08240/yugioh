@@ -129,7 +129,7 @@ it("distingue le lien pour jouer (?salle=) du lien pour regarder (?regarder=)", 
 
 it("suit la recherche classée jusqu'au duel, puis garde la variation du classement jusqu'au départ de la salle", () => {
   vi.useFakeTimers({ now: 5000 });
-  let state = reduce(initialLobby, { type: "ranked", rating: 1000, games: 0, leaderboard: [] });
+  let state = reduce(initialLobby, { type: "ranked", rating: 1000, games: 0, season: "2026-10", daysLeft: 31, seasonGames: 0, leaderboard: [], previousSeason: "2026-09", previousLeaderboard: [], lastResult: null });
   state = reduce(state, { type: "ranked_queue", waiting: true });
   expect(state).toMatchObject({ ranked: { rating: 1000, games: 0 }, rankedSince: 5000 });
   expect(reduce(state, { type: "ranked_queue", waiting: false }).rankedSince).toBeUndefined();

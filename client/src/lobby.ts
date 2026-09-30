@@ -1,5 +1,5 @@
 import type { EmoteId } from "../../server/src/emotes.ts";
-import type { ClientMessage, DeckResult, Friend, PuzzleView, RankedPlayer, SealedRun, Seat, ServerMessage, StoryArcView, TowerView, Wire } from "../../server/src/protocol.ts";
+import type { ClientMessage, DeckResult, Friend, PuzzleView, RankedView, SealedRun, Seat, ServerMessage, StoryArcView, TowerView, Wire } from "../../server/src/protocol.ts";
 import { newBoard, playAll, type Board, type EngineMessage, type Message } from "./board.ts";
 
 export type DeckList = Extract<Wire<ServerMessage>, { type: "decks" }>;
@@ -106,9 +106,9 @@ export type LobbyState = {
   challenges: { from: string; until: number }[];
   // Last friend notice; `n` tells two successive ones apart.
   notice?: { text: string; n: number };
-  // Ranked mode: rating, games and leaderboard, loaded by its screen; when the search for an opponent started (ms since the
+  // Ranked mode: rating, season and leaderboards, loaded by its screen; when the search for an opponent started (ms since the
   // epoch), and the rating change of the last ranked duel.
-  ranked?: { rating: number; games: number; leaderboard: RankedPlayer[] };
+  ranked?: RankedView;
   rankedSince?: number;
   rankedResult?: { delta: number; rating: number };
 };
@@ -231,7 +231,7 @@ export function reduce(state: LobbyState, action: Action): LobbyState {
     case "challenge_gone":
       return { ...state, challenges: state.challenges.filter((challenge) => challenge.from !== action.from) };
     case "ranked":
-      return { ...state, ranked: { rating: action.rating, games: action.games, leaderboard: action.leaderboard } };
+      return { ...state, ranked: action };
     case "ranked_queue":
       return { ...state, rankedSince: action.waiting ? Date.now() : undefined, error: undefined };
     case "ranked_result":
