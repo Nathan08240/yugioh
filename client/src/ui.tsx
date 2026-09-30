@@ -94,3 +94,14 @@ export function nextStar(best: number, lp: number): string | undefined {
   if (best >= 3) return undefined;
   return best === 2 ? `Gagnez en Normal avec au moins ${starLp(lp)} LP pour la 3e étoile.` : "Gagnez en Normal pour la 2e étoile.";
 }
+
+// Hexagonal avatar: the artwork of the card chosen as avatar when it is available, else the initial of the name.
+export function Avatar({ name, code, className = "" }: Readonly<{ name: string; code?: number; className?: string }>) {
+  const { cards } = useDuelView();
+  const art = code !== undefined && cards.get(code)?.image;
+  return (
+    <span className={`avatar ${className}`.trim()} aria-hidden="true">
+      {art ? <img className="avatar__art" src={`/api/art/${code}.jpg`} alt="" /> : name.charAt(0).toUpperCase()}
+    </span>
+  );
+}

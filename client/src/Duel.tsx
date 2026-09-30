@@ -20,7 +20,7 @@ import { RulesBadge, type Rule } from "./regles.tsx";
 import { Signaler, type Report } from "./Signaler.tsx";
 import { jouer as jouerSon, sonDe } from "./son.ts";
 import "./styles/duel.css";
-import { Apercu, Icon } from "./ui.tsx";
+import { Apercu, Avatar, Icon } from "./ui.tsx";
 
 // The 3D board and three.js are fetched when a duel starts (their own chunk).
 const Plateau3D = lazy(() => import("./plateau3d/Plateau3D.tsx"));
@@ -44,6 +44,9 @@ type Props = {
   opponentLp?: number;
   pseudo?: string;
   opponent?: string;
+  // Passcodes of the cards whose artwork is the avatar of each player.
+  avatar?: number;
+  opponentAvatar?: number;
   // Special rules of a story duel, opened from a badge.
   rules?: Rule[];
   // Story duel played at the "Facile" level.
@@ -110,7 +113,7 @@ function zoneCard(board: Board, id: string): Card | undefined {
 const codeAt = (board: Board, id: string) => zoneCard(board, id)?.code ?? 0;
 
 // The end of the duel (Fin.tsx) is drawn over the board by the lobby.
-export function Duel({ board, seat, asked, respond, leave, surrender, answerBy, away, feed, lp, opponentLp, pseudo, opponent, rules, easy, kingdom, emotes, sendEmote, report }: Readonly<Props>) {
+export function Duel({ board, seat, asked, respond, leave, surrender, answerBy, away, feed, lp, opponentLp, pseudo, opponent, avatar, opponentAvatar, rules, easy, kingdom, emotes, sendEmote, report }: Readonly<Props>) {
   const cards = useCards();
   const [reglages] = useReglages();
   const strings = useSystemStrings();
@@ -219,7 +222,7 @@ export function Duel({ board, seat, asked, respond, leave, surrender, answerBy, 
           )}
         </div>
         <div className="hud">
-          <Plaque board={shown} player={1 - seat} start={opponentStart} name={opponent ?? "Adversaire"} refs={hud.refs} visee={enDepot?.includes(String(1 - seat))} until={delai(1 - seat)} emote={reglages.emotes === "oui" ? emotes?.[(1 - seat) as Seat] : undefined} />
+          <Plaque board={shown} player={1 - seat} start={opponentStart} name={opponent ?? "Adversaire"} avatar={opponentAvatar} refs={hud.refs} visee={enDepot?.includes(String(1 - seat))} until={delai(1 - seat)} emote={reglages.emotes === "oui" ? emotes?.[(1 - seat) as Seat] : undefined} />
           <section className="main-adverse" ref={hud.refs.mains[1 - seat]} aria-label={`Main de l'adversaire : ${cartes(shown.players[1 - seat].hand.length)}`}>
             {[...shown.players[1 - seat].hand.keys()].map((i) => (
               <CardView key={i} code={0} />
@@ -231,7 +234,7 @@ export function Duel({ board, seat, asked, respond, leave, surrender, answerBy, 
               <CardDetail code={detail?.code} atk={stats?.atk} def={stats?.def} />
             </div>
             <div className="plaque-moi">
-              <Plaque board={shown} player={seat} start={start} name={pseudo ?? "Vous"} refs={hud.refs} until={delai(seat)} emote={emotes?.[seat as Seat]} />
+              <Plaque board={shown} player={seat} start={start} name={pseudo ?? "Vous"} avatar={avatar} refs={hud.refs} until={delai(seat)} emote={emotes?.[seat as Seat]} />
               {sendEmote && <MenuEmotes send={sendEmote} />}
             </div>
           </aside>
@@ -540,7 +543,7 @@ function Compte({ until }: Readonly<{ until: number }>) {
 }
 
 // `visee`: a monster being dragged can attack this player directly. `until`: when the player loses unless they answer. `emote`: the phrase shown in a bubble.
-function Plaque({ board, player, start, name, refs, visee, until, emote }: Readonly<{ board: Board; player: number; start: number; name: string; refs: Refs; visee?: boolean; until?: number; emote?: ShownEmote }>) {
+function Plaque({ board, player, start, name, avatar, refs, visee, until, emote }: Readonly<{ board: Board; player: number; start: number; name: string; avatar?: number; refs: Refs; visee?: boolean; until?: number; emote?: ShownEmote }>) {
   const { seat } = useDuelView();
   const side = board.players[player];
   const lp = Math.max(side.lp, 0);
@@ -557,9 +560,7 @@ function Plaque({ board, player, start, name, refs, visee, until, emote }: Reado
   const label = mine ? `Vos points de vie : ${lp} sur ${start}` : `Points de vie de l'adversaire : ${lp} sur ${start}`;
   return (
     <div ref={refs.plaques[player]} className={`plaque plaque--${mine ? "moi" : "adverse"}${visee ? " est-visee" : ""}`} data-cible={mine ? undefined : String(player)}>
-      <span className="avatar" aria-hidden="true">
-        {name.charAt(0).toUpperCase()}
-      </span>
+      <Avatar name={name} code={avatar} />
       <div className="plaque__id">
         <b>{name}</b>
         <span className="compteurs">

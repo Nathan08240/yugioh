@@ -10,6 +10,7 @@ import { Duel } from "./Duel.tsx";
 import { Fin } from "./Fin.tsx";
 import { initialLobby, reduce, roomFromUrl, type Action, type LobbyState } from "./lobby.ts";
 import { Parametres } from "./Parametres.tsx";
+import { Profil } from "./Profil.tsx";
 import { autoAnswer } from "./question.ts";
 import { reglages } from "./reglages.ts";
 import { Regles, specialRules } from "./regles.tsx";
@@ -67,6 +68,10 @@ export function Lobby() {
     socket.current?.send(JSON.stringify({ type: "join", room: invite } satisfies ClientMessage));
     invite = undefined;
     history.replaceState(null, "", location.pathname);
+  }, [ready]);
+  // The avatar is shown on the plate of the duel, whatever screen the player came from.
+  useEffect(() => {
+    if (ready) socket.current?.send(JSON.stringify({ type: "player_profile" } satisfies ClientMessage));
   }, [ready]);
 
   const send: Send = (msg) => {
@@ -174,7 +179,7 @@ function Screen({ state, page, send, reconnect, leave, respond, go, vsBot, story
     const report = { send: (message: string) => send({ type: "report", message: message || undefined }), sent: state.reported };
     return (
       <>
-        <Duel board={state.board} seat={state.seat ?? 0} asked={state.question} respond={respond} leave={leave} surrender={() => send({ type: "surrender" })} emotes={state.emotes} sendEmote={(id) => send({ type: "emote", id })} report={report} answerBy={state.answerBy} away={state.away} feed={state.feed} lp={state.lp} opponentLp={state.opponentLp} pseudo={state.pseudo} opponent={state.opponent} rules={specialRules(special)} easy={state.storyOpen && easy} kingdom={special.includes("duelist-kingdom")} />
+        <Duel board={state.board} seat={state.seat ?? 0} asked={state.question} respond={respond} leave={leave} surrender={() => send({ type: "surrender" })} emotes={state.emotes} sendEmote={(id) => send({ type: "emote", id })} report={report} answerBy={state.answerBy} away={state.away} feed={state.feed} lp={state.lp} opponentLp={state.opponentLp} pseudo={state.pseudo} opponent={state.opponent} avatar={state.profile?.avatar ?? undefined} opponentAvatar={state.opponentAvatar} rules={specialRules(special)} easy={state.storyOpen && easy} kingdom={special.includes("duelist-kingdom")} />
         {state.board.winner !== undefined && <Fin board={state.board} seat={state.seat ?? 0} room={state.room} vsBot={vsBot} opponent={state.opponent} story={story} rematch={state.rematch} onRematch={(accept) => send({ type: "rematch", accept })} report={report} leave={leave} go={leaveFor} />}
       </>
     );
@@ -193,6 +198,7 @@ function Screen({ state, page, send, reconnect, leave, respond, go, vsBot, story
       {page === "boosters" && <Boosters state={state} send={send} go={go} />}
       {page === "histoire" && <Story arcs={state.story} send={send} />}
       {page === "regles" && <Regles />}
+      {page === "profil" && <Profil state={state} send={send} />}
       {page === "parametres" && <Parametres />}
     </Shell>
   );

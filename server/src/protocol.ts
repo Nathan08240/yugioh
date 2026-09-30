@@ -54,6 +54,10 @@ export type ClientMessage =
   | { type: "convert_preview" }
   | { type: "convert"; points: number }
   | { type: "craft"; code: number }
+  // Avatar and favorite card (profile.ts): each message is answered with `player_profile`. `set_avatar` and `set_favorite` fail for a card not owned.
+  | { type: "player_profile" }
+  | { type: "set_avatar"; code: number }
+  | { type: "set_favorite"; code: number }
   // Boosters: `booster_state` is answered with `booster_state`, `open_booster` with `booster_opened` or an error.
   | { type: "booster_state" }
   | { type: "open_booster"; set: string }
@@ -71,8 +75,8 @@ export type ClientMessage =
   | { type: "duel_results" };
 
 export type DuelMode = "online" | "bot" | "story";
-// Wins and losses of a player with a deck in a mode; `deck` is null for a deck deleted since.
-export type DeckResult = { deck: number | null; mode: DuelMode; wins: number; losses: number };
+// Wins and losses of a player with a deck in a mode (and at a level, against the bot or in Story mode); `deck` is null for a deck deleted since.
+export type DeckResult = { deck: number | null; mode: DuelMode; level?: string; wins: number; losses: number };
 
 export type Deck = { id: number; name: string; main: number[]; extra: number[] };
 
@@ -84,13 +88,14 @@ export type DuelEvent = OcgMessage | StatsEvent;
 
 // `joined` replays every message the player was allowed to see, which rebuilds the board after a reconnection,
 // from the starting LP (`lp` for the player, `opponentLp` when the opponent's differs), main deck and extra deck sizes (the engine never sends them).
-// `opponent` is the name of the other seat once someone (a player, the bot or a story character) sits there.
+// `opponent` is the name of the other seat once someone (a player, the bot or a story character) sits there, `opponentAvatar`
+// the avatar (passcode of a card whose artwork to show) of an opponent who is a player and chose one.
 // `profile` answers `auth`, `pseudo` and `starter`: a null pseudo means the player has to choose one before playing,
 // `needsStarter` means the player has a pseudo but no active deck yet and must pick a starter deck.
 // `daily`: this connection is the first of the day (Europe/Paris), which earned a booster.
 export type ServerMessage =
   | { type: "profile"; pseudo: string | null; needsStarter: boolean; admin?: true; daily?: true }
-  | { type: "joined"; room: string; seat: Seat; lp: number; opponentLp?: number; decks: [number, number]; extras: [number, number]; opponent?: string; log: DuelEvent[] }
+  | { type: "joined"; room: string; seat: Seat; lp: number; opponentLp?: number; decks: [number, number]; extras: [number, number]; opponent?: string; opponentAvatar?: number; log: DuelEvent[] }
   | { type: "messages"; messages: DuelEvent[] }
   // `announce`: for ANNOUNCE_CARD, the pool cards the engine accepts.
   | { type: "question"; question: OcgMessage; retry: boolean; announce?: number[] }
@@ -113,6 +118,8 @@ export type ServerMessage =
   // `saved` is the deck a `save_deck` just stored.
   | { type: "decks"; decks: Deck[]; active: number | null; saved?: number }
   | { type: "duel_error"; error: string }
+  // Avatar and favorite card of the player, null until chosen.
+  | { type: "player_profile"; avatar: number | null; favorite: number | null }
   // Wished passcodes, oldest first. Owned cards stay in the list until the player removes them.
   | { type: "wishlist"; cards: number[] }
   // `ultraIn`: the booster that many openings ahead holds an Ultra Rare or better for sure (1: the next one).

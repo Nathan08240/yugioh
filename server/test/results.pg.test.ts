@@ -51,15 +51,15 @@ describe("résultats des duels sur Postgres jetable", () => {
     await recordResult(server, { userId: id, ...result });
 
     expect(await readResults(server, id)).toEqual([
-      { deck: dragons, mode: "bot", wins: 1, losses: 0 },
+      { deck: dragons, mode: "bot", level: "expert", wins: 1, losses: 0 },
       { deck: dragons, mode: "online", wins: 1, losses: 1 },
-      { deck: magicians, mode: "story", wins: 0, losses: 1 },
+      { deck: magicians, mode: "story", level: "facile", wins: 0, losses: 1 },
       { deck: null, mode: "online", wins: 1, losses: 0 },
     ]);
 
     await admin`delete from yugioh.decks where id = ${magicians}`;
     const after = await readResults(server, id);
-    expect(after).toContainEqual({ deck: null, mode: "story", wins: 0, losses: 1 });
+    expect(after).toContainEqual({ deck: null, mode: "story", level: "facile", wins: 0, losses: 1 });
     expect(after.filter((row) => row.deck === null)).toHaveLength(2);
   });
 
