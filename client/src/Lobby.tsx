@@ -33,6 +33,7 @@ export function Lobby() {
   // Rooms against the bot (story duels included) earn no booster.
   const vsBot = useRef(false);
   const storyDuel = useRef<string>(undefined);
+  const storyEasy = useRef(false);
   const cards = useCards();
   const view = useMemo(() => ({ cards, show: () => {}, seat: 0 }), [cards]);
 
@@ -69,7 +70,10 @@ export function Lobby() {
 
   const send: Send = (msg) => {
     if (msg.type === "bot" || msg.type === "story_duel") vsBot.current = true;
-    if (msg.type === "story_duel") storyDuel.current = msg.duel;
+    if (msg.type === "story_duel") {
+      storyDuel.current = msg.duel;
+      storyEasy.current = msg.level === "facile";
+    }
     if (msg.type === "create" || msg.type === "join") vsBot.current = false;
     socket.current?.send(JSON.stringify(msg));
   };
@@ -102,7 +106,7 @@ export function Lobby() {
           {state.error}
         </p>
       )}
-      <Screen state={state} page={state.storyOpen ? "histoire" : page} send={send} reconnect={reconnect} leave={leave} respond={respond} go={go} vsBot={vsBot.current} storyDuel={storyDuel.current} />
+      <Screen state={state} page={state.storyOpen ? "histoire" : page} send={send} reconnect={reconnect} leave={leave} respond={respond} go={go} vsBot={vsBot.current} storyDuel={storyDuel.current} easy={storyEasy.current} />
     </DuelView>
   );
 }
@@ -117,13 +121,14 @@ type ScreenProps = {
   go: (page: Page) => void;
   vsBot: boolean;
   storyDuel?: string;
+  easy: boolean;
 };
 
 const signOut = () => {
   supabase.auth.signOut();
 };
 
-function Screen({ state, page, send, reconnect, leave, respond, go, vsBot, storyDuel }: Readonly<ScreenProps>) {
+function Screen({ state, page, send, reconnect, leave, respond, go, vsBot, storyDuel, easy }: Readonly<ScreenProps>) {
   if (state.closed) {
     return (
       <Shell id="perdu">
@@ -159,14 +164,14 @@ function Screen({ state, page, send, reconnect, leave, respond, go, vsBot, story
   }
   if (state.room && state.started && state.board) {
     const special = state.storyOpen ? duelSpecial(state.story, storyDuel) : [];
-    const story = state.storyOpen ? { title: duelLabel(state.story, storyDuel), won: state.won, special } : undefined;
+    const story = state.storyOpen ? { title: duelLabel(state.story, storyDuel), won: state.won, special, easy } : undefined;
     const leaveFor = (next: Page) => {
       leave();
       go(next);
     };
     return (
       <>
-        <Duel board={state.board} seat={state.seat ?? 0} asked={state.question} respond={respond} leave={leave} surrender={() => send({ type: "surrender" })} answerBy={state.answerBy} away={state.away} feed={state.feed} lp={state.lp} pseudo={state.pseudo} opponent={state.opponent} rules={specialRules(special)} kingdom={special.includes("duelist-kingdom")} />
+        <Duel board={state.board} seat={state.seat ?? 0} asked={state.question} respond={respond} leave={leave} surrender={() => send({ type: "surrender" })} answerBy={state.answerBy} away={state.away} feed={state.feed} lp={state.lp} opponentLp={state.opponentLp} pseudo={state.pseudo} opponent={state.opponent} rules={specialRules(special)} easy={state.storyOpen && easy} kingdom={special.includes("duelist-kingdom")} />
         {state.board.winner !== undefined && <Fin board={state.board} seat={state.seat ?? 0} room={state.room} vsBot={vsBot} opponent={state.opponent} story={story} leave={leave} go={leaveFor} />}
       </>
     );

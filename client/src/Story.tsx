@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type Ref } from "react";
-import type { ClientMessage, StoryArcView, StoryDuelView, StoryStatus } from "../../server/src/protocol.ts";
+import type { ClientMessage, StoryArcView, StoryDuelView, StoryLevel, StoryStatus } from "../../server/src/protocol.ts";
 import { cardName, isDivine, useDuelView, type Cards } from "./cards.ts";
 import { createQueue, entrance } from "./motion.ts";
 import { RuleBlock, specialRules } from "./regles.tsx";
@@ -74,7 +74,7 @@ export function Story({ arcs, send }: Readonly<Props>) {
   if (!arcs || !arc) return <p className="ecran-message">Chargement de l'histoire…</p>;
   const duel = arc.duels.find((candidate) => candidate.id === picked);
   if (duel) {
-    return <Briefing ref={view} duel={duel} label={duelLabel(arcs, duel.id)} back={() => setPicked(undefined)} start={() => send({ type: "story_duel", duel: duel.id })} />;
+    return <Briefing ref={view} duel={duel} label={duelLabel(arcs, duel.id)} back={() => setPicked(undefined)} start={(level) => send({ type: "story_duel", duel: duel.id, level })} />;
   }
   const all = arcs.flatMap((candidate) => candidate.duels);
   const won = wins(all);
@@ -232,7 +232,30 @@ const initials = (name: string) =>
     .map((word) => word[0])
     .join("");
 
-type BriefingProps = { ref?: Ref<HTMLDivElement>; duel: StoryDuelView; label?: string; back: () => void; start: () => void };
+type BriefingProps = { ref?: Ref<HTMLDivElement>; duel: StoryDuelView; label?: string; back: () => void; start: (level: StoryLevel) => void };
+
+const LEVELS: readonly (readonly [StoryLevel, string])[] = [
+  ["normal", "Normal"],
+  ["facile", "Facile"],
+];
+
+// Normal keeps the duel as written; Facile doubles the player's starting LP. Rewards and progression are the same.
+function Difficulty({ duel, level, choose }: Readonly<{ duel: StoryDuelView; level: StoryLevel; choose: (level: StoryLevel) => void }>) {
+  return (
+    <fieldset className="difficulte" data-entree>
+      <legend className="titre-bloc">Difficulté</legend>
+      <div className="difficulte__choix">
+        {LEVELS.map(([value, label]) => (
+          <label key={value}>
+            <input type="radio" name="difficulte" value={value} checked={level === value} onChange={() => choose(value)} />
+            <span>{label}</span>
+          </label>
+        ))}
+      </div>
+      <p className="texte-2">{level === "facile" ? `Vos LP de départ sont doublés (${duel.lp * 2} LP). Récompenses et progression identiques.` : "Le duel tel qu'il a été écrit."}</p>
+    </fieldset>
+  );
+}
 
 // Before the duel: the opponent projected by the Duel Disk, the story so far, the rules, what can be won.
 export function Briefing({ ref, duel, label, back, start }: Readonly<BriefingProps>) {
@@ -240,6 +263,7 @@ export function Briefing({ ref, duel, label, back, start }: Readonly<BriefingPro
   const rules = specialRules(duel.special);
   const star = duel.rewards.cards?.find((code) => cards.get(code)?.image);
   const replay = duel.status === "done";
+  const [level, setLevel] = useState<StoryLevel>("normal");
   return (
     <div ref={ref} className="briefing">
       <div className="briefing__adversaire" aria-hidden="true" data-entree>
@@ -275,6 +299,7 @@ export function Briefing({ ref, duel, label, back, start }: Readonly<BriefingPro
         {rules.map((rule) => (
           <RuleBlock key={rule.title} rule={rule} open />
         ))}
+        <Difficulty duel={duel} level={level} choose={setLevel} />
         <div className="briefing__bas" data-entree>
           <div className="briefing__gains">
             <h2 className="titre-bloc">{replay ? "Récompenses déjà obtenues" : "Récompenses"}</h2>
@@ -282,7 +307,7 @@ export function Briefing({ ref, duel, label, back, start }: Readonly<BriefingPro
               <Rewards rewards={duel.rewards} />
             </div>
           </div>
-          <button type="button" className="btn btn--grand" onClick={start}>
+          <button type="button" className="btn btn--grand" onClick={() => start(level)}>
             <Icon id="ui-duel" />
             {replay ? "Rejouer le duel" : "Lancer le duel"}
           </button>

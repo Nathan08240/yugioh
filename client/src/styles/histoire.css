@@ -484,3 +484,66 @@
     --carte-l: 72px;
   }
 }
+
+/* Choix de difficulté du briefing : les vrais boutons radio restent dans la page, la pastille en est l'habillage */
+.difficulte {
+  min-inline-size: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.difficulte legend {
+  padding: 0;
+  margin-block-end: var(--e-2);
+}
+
+.difficulte__choix {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--e-2);
+}
+
+.difficulte__choix label {
+  position: relative;
+}
+
+.difficulte__choix input {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.difficulte__choix span {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 44px;
+  padding: 0 var(--e-5);
+  border-radius: var(--r-3) var(--r-1);
+  background: rgb(6 8 23 / 0.6);
+  box-shadow: inset 0 0 0 1px var(--trait-fort);
+  font: 700 var(--taille-m) / 1 var(--police-etroite);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--texte-2);
+}
+
+.difficulte__choix input:hover + span {
+  color: var(--texte);
+}
+
+.difficulte__choix input:checked + span {
+  background: var(--holo-fond);
+  box-shadow: inset 0 0 0 1px rgb(67 240 255 / 0.6);
+  color: var(--holo-2);
+}
+
+.difficulte__choix input:focus-visible + span {
+  box-shadow: var(--focus);
+}
+
+.difficulte p {
+  margin-block: var(--e-2) 0;
+}

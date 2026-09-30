@@ -7,7 +7,7 @@ import type { Db } from "./db.ts";
 import { EXTRA_MAX } from "./deckcheck.ts";
 import type { Rules } from "./duel.ts";
 import { isAllowed } from "./pool.ts";
-import type { Rewards, StoryArcView, StoryStatus } from "./protocol.ts";
+import type { Rewards, StoryArcView, StoryLevel, StoryStatus } from "./protocol.ts";
 
 // Format of each data/story/*.json file, version STORY_VERSION. Texts are short summaries written by us, never anime dialogue.
 export type StoryDuel = {
@@ -143,8 +143,9 @@ export const storyDeck = (duel: StoryDuel) => expand(duel.deck);
 
 export const storyExtra = (duel: StoryDuel) => expand(duel.extra ?? []);
 
-export const storyRules = ({ rules }: StoryDuel): Rules => ({
+export const storyRules = ({ rules }: StoryDuel, level: StoryLevel = "normal"): Rules => ({
   lp: rules.lp,
+  playerLp: level === "facile" ? rules.lp * 2 : undefined,
   hand: rules.hand,
   cards: (rules.special ?? []).map((name) => EXTRA_RULES.get(name) as number),
 });

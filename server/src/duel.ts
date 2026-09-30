@@ -23,8 +23,10 @@ import { faceUp, hideCards, visibleTo } from "./visibility.ts";
 export const RULES = OcgDuelMode.MODE_GOAT;
 export const STARTING_LP = 4000;
 // `cards`: EDOPro Extra Rules cards (aux.EnableExtraRules), shuffled into player 0's deck; each one leaves the duel at the start.
-export type Rules = { lp: number; hand: number; cards: readonly number[] };
+// `playerLp`: starting LP of player 0 when it differs from `lp`.
+export type Rules = { lp: number; playerLp?: number; hand: number; cards: readonly number[] };
 export const STANDARD_RULES: Rules = { lp: STARTING_LP, hand: 5, cards: [] };
+export const lpOf = (rules: Rules, seat: number) => (seat === 0 ? (rules.playerLp ?? rules.lp) : rules.lp);
 // aux.EnableExtraRules asks both players to agree, Stringid(4014, 6), and Virtual World whether to apply the Deck Master
 // System, Stringid(153999999, 0): the host imposes the rule and says yes.
 const RULE_AGREEMENTS: ReadonlySet<bigint> = new Set([(4014n << 20n) | 6n, 153999999n << 20n]);
@@ -144,12 +146,12 @@ export async function openDuel(
   extras: readonly (readonly number[])[] = [],
 ) {
   const lib = await (core ??= createCore({ sync: true }));
-  const settings = { startingLP: rules.lp, startingDrawCount: rules.hand, drawCountPerTurn: 1 };
+  const settings = (seat: number) => ({ startingLP: lpOf(rules, seat), startingDrawCount: rules.hand, drawCountPerTurn: 1 });
   const handle = lib.createDuel({
     flags: RULES,
     seed,
-    team1: settings,
-    team2: settings,
+    team1: settings(0),
+    team2: settings(1),
     cardReader: readCard,
     scriptReader: (name) => {
       onScript(name);
@@ -202,7 +204,7 @@ export async function runDuel(
   rules = STANDARD_RULES,
   extras: readonly (readonly number[])[] = [],
 ): Promise<DuelState> {
-  const state: DuelState = { turns: 0, lp: [rules.lp, rules.lp], winner: null, log: [], errors: [], scripts: [], reason: null };
+  const state: DuelState = { turns: 0, lp: [lpOf(rules, 0), lpOf(rules, 1)], winner: null, log: [], errors: [], scripts: [], reason: null };
   const { lib, handle } = await openDuel(seed, decks, (text) => state.errors.push(text), (name) => state.scripts.push(name), rules, extras);
 
   const nameAt = (loc: OcgLocPos) => {

@@ -15,9 +15,9 @@ import { dbDeckStore, deckReply, isDeckMessage, poolCard, validDeckMessage, type
 import { activeDeck, createProfile, findProfile, openDb, type ActiveDeck, type Db, type Profile } from "./db.ts";
 import { EXTRA_MAX, isFusion, MAIN_MAX, MAIN_MIN } from "./deckcheck.ts";
 import { KAIBA } from "./decks.ts";
-import { agreeToRules, fieldStats, openDuel, STANDARD_RULES, type Rules, type Seed } from "./duel.ts";
+import { agreeToRules, fieldStats, lpOf, openDuel, STANDARD_RULES, type Rules, type Seed } from "./duel.ts";
 import { isAllowed, POOL, SETS, type Printing } from "./pool.ts";
-import type { BotLevel, CardInfo, ClientMessage, DuelEvent, Rewards, Seat, ServerMessage } from "./protocol.ts";
+import type { BotLevel, CardInfo, ClientMessage, DuelEvent, Rewards, Seat, ServerMessage, StoryLevel } from "./protocol.ts";
 import { respond } from "./respond.ts";
 import { serveClient } from "./site.ts";
 import { chooseStarter, starterCards, type Starter } from "./starter.ts";
@@ -184,6 +184,7 @@ function send(socket: WebSocket | undefined, data: ServerMessage) {
 }
 
 const BOT_LEVELS = new Set<unknown>(["debutant", "normal", "expert"] satisfies BotLevel[]);
+const STORY_LEVELS = new Set<unknown>(["normal", "facile"] satisfies StoryLevel[]);
 
 function parse(data: string): ClientMessage | undefined {
   let msg: Record<string, unknown>;
@@ -200,7 +201,7 @@ function parse(data: string): ClientMessage | undefined {
     msg.type === "create" ||
     (msg.type === "bot" && (msg.level === undefined || BOT_LEVELS.has(msg.level))) ||
     msg.type === "story" ||
-    (msg.type === "story_duel" && typeof msg.duel === "string") ||
+    (msg.type === "story_duel" && typeof msg.duel === "string" && (msg.level === undefined || STORY_LEVELS.has(msg.level))) ||
     (msg.type === "join" && typeof msg.room === "string") ||
     (msg.type === "respond" && typeof msg.response === "object" && msg.response !== null) ||
     msg.type === "surrender" ||
@@ -342,7 +343,8 @@ export function creditWinner(room: Room, seat: Seat, accounts: Pick<Accounts, "c
 function sendJoined(room: Room, seat: Seat) {
   const player = room.players[seat];
   if (!player) return;
-  send(player.socket, { type: "joined", room: room.code, seat, lp: rulesOf(room).lp, decks: deckSizes(room), extras: extraSizes(room), opponent: room.players[1 - seat]?.name, log: player.log });
+  const [lp, opponentLp] = [lpOf(rulesOf(room), seat), lpOf(rulesOf(room), 1 - seat)];
+  send(player.socket, { type: "joined", room: room.code, seat, lp, opponentLp: opponentLp === lp ? undefined : opponentLp, decks: deckSizes(room), extras: extraSizes(room), opponent: room.players[1 - seat]?.name, log: player.log });
 }
 
 // Runs the engine until it asks a question or the duel ends. A crash inside the engine closes only this room.
@@ -454,7 +456,7 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
   function addBot(room: Room, deck: ActiveDeck, name: string, level?: BotLevel) {
     const player: Player = { id: "bot", name, log: [], deck: deck.main, extra: deck.extra };
     room.players.push(player);
-    player.bot = new Bot(1, rulesOf(room).lp, deckSizes(room), botDelay, extraSizes(room), level);
+    player.bot = new Bot(1, lpOf(rulesOf(room), 1), deckSizes(room), botDelay, extraSizes(room), level);
     sendJoined(room, 0);
     start(room, newSeed()).catch((error: unknown) => console.error(error));
   }
@@ -572,13 +574,13 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
     }
 
     // The player keeps seat 0 against the bot; only their win counts.
-    async function playStory(userId: string, id: string): Promise<string | undefined> {
+    async function playStory(userId: string, id: string, level?: StoryLevel): Promise<string | undefined> {
       const duel = STORY_DUELS.get(id);
       if (!duel) return "duel d'histoire inconnu";
       if (!isUnlocked(duel, await accounts.storyProgress(userId))) return "duel verrouillé : gagnez d'abord les duels précédents";
       const deck = await duelDeck(userId);
       if (typeof deck === "string") return deck;
-      const room: Room = { code: newCode(rooms), players: [], rules: storyRules(duel) };
+      const room: Room = { code: newCode(rooms), players: [], rules: storyRules(duel, level) };
       room.onWin = (winner) => {
         if (winner === 0) recordWin(room, userId, duel);
       };
@@ -599,7 +601,7 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
       if (msg.type === "respond") return seat ? answer(seat.room, seat.index, msg.response) : "pas dans une salle";
       if (msg.type === "surrender") return seat ? surrender(seat.room, seat.index) : "pas dans une salle";
       if (seat) return "déjà dans une salle";
-      if (msg.type === "story_duel") return playStory(user.id, msg.duel);
+      if (msg.type === "story_duel") return playStory(user.id, msg.duel, msg.level);
       return enterRoom(user.id, msg);
     }
 

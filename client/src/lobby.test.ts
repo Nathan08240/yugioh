@@ -37,6 +37,16 @@ it("garde le mode Histoire ouvert pendant ses duels et oublie la conclusion en q
   expect(reduce(state, { type: "left" })).toMatchObject({ storyOpen: true, room: undefined, won: undefined });
 });
 
+it("donne à chaque joueur ses LP de départ et ceux de l'adversaire, par place", () => {
+  const joined = { type: "joined" as const, room: "ABCDE", decks: [40, 40] as [number, number], extras: [0, 0] as [number, number], log: [] };
+  const first = reduce(initialLobby, { ...joined, seat: 0, lp: 4000, opponentLp: 2000 });
+  expect(first.board?.players.map((side) => side.lp)).toEqual([4000, 2000]);
+  expect(first).toMatchObject({ lp: 4000, opponentLp: 2000 });
+  const second = reduce(initialLobby, { ...joined, seat: 1, lp: 2000, opponentLp: 4000 });
+  expect(second.board?.players.map((side) => side.lp)).toEqual([4000, 2000]);
+  expect(reduce(initialLobby, { ...joined, seat: 0, lp: 2000 }).board?.players.map((side) => side.lp)).toEqual([2000, 2000]);
+});
+
 it("extrait le code de salle d'un lien d'invitation", () => {
   expect(roomFromUrl("https://site.fr/?salle=abcd2")).toBe("ABCD2");
   expect(roomFromUrl("https://site.fr/?salle=ABCD")).toBeUndefined();

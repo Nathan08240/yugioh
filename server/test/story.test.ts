@@ -5,7 +5,7 @@ import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { WebSocket } from "ws";
 import { Bot } from "../src/bot.ts";
 import { YUGI } from "../src/decks.ts";
-import { runDuel, type Player } from "../src/duel.ts";
+import { openDuel, runDuel, type Player } from "../src/duel.ts";
 import type { ClientMessage, ServerMessage, Wire } from "../src/protocol.ts";
 import { respond } from "../src/respond.ts";
 import { startServer } from "../src/server.ts";
@@ -97,6 +97,20 @@ describe("règles du Royaume des Duellistes", () => {
   });
 });
 
+describe("difficulté des duels d'histoire", () => {
+  const startingLp = async (level?: "normal" | "facile") => {
+    const { lib, handle } = await openDuel([1n, 2n, 3n, 4n], [YUGI, storyDeck(weevil)], vi.fn(), undefined, storyRules(weevil, level), [[], []]);
+    return lib.duelQueryField(handle).players.map((player) => (player as typeof player & { lp: number }).lp);
+  };
+
+  it("double les LP de départ du joueur en facile, ceux de l'adversaire restent inchangés", async () => {
+    expect(await startingLp()).toEqual([weevil.rules.lp, weevil.rules.lp]);
+    expect(await startingLp("normal")).toEqual([weevil.rules.lp, weevil.rules.lp]);
+    expect(await startingLp("facile")).toEqual([weevil.rules.lp * 2, weevil.rules.lp]);
+    expect(storyRules(weevil, "facile")).toMatchObject({ hand: weevil.rules.hand, cards: storyRules(weevil).cards });
+  });
+});
+
 describe("duel d'histoire sur le serveur", () => {
   type Received = Wire<ServerMessage>;
   const won: string[] = [];
@@ -144,6 +158,24 @@ describe("duel d'histoire sur le serveur", () => {
       { type: "error", error: "duel d'histoire inconnu" },
       { type: "story", arcs: storyView(new Set()) },
     ]);
+  });
+
+  it("en facile, le joueur voit ses LP doublés et ceux de l'adversaire, et la victoire est enregistrée", { timeout: 60_000 }, async () => {
+    won.length = 0;
+    completed.clear();
+    const received = await play(10n, (socket) => story(socket, { type: "story_duel", duel: "dk-weevil", level: "facile" }));
+    await vi.waitFor(() => expect(received.some((msg) => msg.type === "story_won")).toBe(true), { timeout: 25_000 });
+    expect(received).toContainEqual(expect.objectContaining({ type: "joined", seat: 0, lp: weevil.rules.lp * 2, opponentLp: weevil.rules.lp }));
+    expect(received).toContainEqual({ type: "story_won", duel: "dk-weevil", outro: weevil.outro, rewards: weevil.rewards });
+    expect(won).toEqual(["dk-weevil"]);
+    won.length = 0;
+    completed.clear();
+  });
+
+  it("refuse un niveau inconnu", async () => {
+    const received = await play(1n, (socket) => socket.send(JSON.stringify({ type: "story_duel", duel: "dk-weevil", level: "divin" })));
+    await vi.waitFor(() => expect(received.length).toBeGreaterThan(1));
+    expect(received.slice(1)).toEqual([{ type: "error", error: "message invalide" }]);
   });
 
   it("joue un duel complet contre le bot aux règles de l'île, enregistre la victoire, rien de plus au second passage", { timeout: 60_000 }, async () => {
