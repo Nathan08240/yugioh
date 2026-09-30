@@ -17,6 +17,8 @@ type Props = {
   room: string;
   // Only an online duel between two players earns a booster.
   vsBot: boolean;
+  // A ranked duel, with its rating change once the server has recorded it.
+  ranked?: { result?: LobbyState["rankedResult"] };
   opponent?: string;
   // A story duel ("Battle City · Duel 4 sur 5"), its special rules, its starting LP as written, and its conclusion once the
   // server has recorded the win.
@@ -79,7 +81,7 @@ const defeat =
   };
 
 // Victory or defeat screen over the board, once the engine has named the winner.
-export function Fin({ board, seat, room, vsBot, opponent, story, rematch, onRematch, report, leave, go }: Readonly<Props>) {
+export function Fin({ board, seat, room, vsBot, ranked, opponent, story, rematch, onRematch, report, leave, go }: Readonly<Props>) {
   const root = useRef<HTMLDivElement>(null);
   const won = board.winner === seat;
   const lost = board.winner === 1 - seat;
@@ -94,7 +96,10 @@ export function Fin({ board, seat, room, vsBot, opponent, story, rematch, onRema
   let context = `Duel en ligne · salle ${room}`;
   if (story) context = `${story.title ?? "Mode Histoire"}${story.easy ? " · Facile" : ""}`;
   else if (vsBot) context = "Duel contre le bot";
-  const back = story ? "Retour à l'histoire" : "Retour à l'accueil";
+  else if (ranked) context = "Duel classé";
+  let back = "Retour à l'accueil";
+  if (story) back = "Retour à l'histoire";
+  else if (ranked) back = "Retour au mode classé";
   const boosters = won && !vsBot && !story ? 1 : storyBoosters(story?.won);
 
   return (
@@ -106,6 +111,7 @@ export function Fin({ board, seat, room, vsBot, opponent, story, rematch, onRema
           {title(won, lost)}
         </h1>
         <Score board={board} seat={seat} won={won} lost={lost} opponent={opponent} />
+        {ranked && <p className="fin__score">{ranked.result ? ratingChange(ranked.result) : "Calcul du classement…"}</p>}
         {won && <Gains story={story} boosters={boosters} />}
         {(won || lost) && <Cause board={board} seat={seat} won={won} kingdom={story?.special?.includes("duelist-kingdom") ?? false} opponent={opponent} />}
         {lost && !story && !vsBot && <p className="texte-2 fin__note">Le vainqueur d'un duel en ligne reçoit un booster. Retentez votre chance avec un deck ajusté.</p>}
@@ -124,7 +130,7 @@ export function Fin({ board, seat, room, vsBot, opponent, story, rematch, onRema
               {back}
             </button>
           )}
-          <Rematch online={!vsBot} seat={seat} rematch={rematch} opponent={opponent} onRematch={onRematch} />
+          {!ranked && <Rematch online={!vsBot} seat={seat} rematch={rematch} opponent={opponent} onRematch={onRematch} />}
           {lost && (
             <button type="button" className="btn btn--fantome" onClick={() => go("collection")}>
               Modifier mon deck
@@ -172,6 +178,11 @@ function Rematch({ online, seat, rematch, opponent, onRematch }: RematchProps) {
       Revanche
     </button>
   );
+}
+
+// "+16, classement 1016".
+function ratingChange({ delta, rating }: { delta: number; rating: number }): string {
+  return `${delta > 0 ? "+" : ""}${delta}, classement ${rating}`;
 }
 
 function title(won: boolean, lost: boolean): string {

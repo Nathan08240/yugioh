@@ -1,5 +1,5 @@
 import type { EmoteId } from "../../server/src/emotes.ts";
-import type { DeckResult, Seat, ServerMessage, StoryArcView, Wire } from "../../server/src/protocol.ts";
+import type { DeckResult, RankedPlayer, Seat, ServerMessage, StoryArcView, Wire } from "../../server/src/protocol.ts";
 import { newBoard, playAll, type Board, type EngineMessage, type Message } from "./board.ts";
 
 export type DeckList = Extract<Wire<ServerMessage>, { type: "decks" }>;
@@ -82,6 +82,11 @@ export type LobbyState = {
   rematch?: { from: Seat } | "declined";
   // Bug reports the server has stored.
   reported: number;
+  // Ranked mode: rating, games and leaderboard, loaded by its screen; when the search for an opponent started (ms since the
+  // epoch), and the rating change of the last ranked duel.
+  ranked?: { rating: number; games: number; leaderboard: RankedPlayer[] };
+  rankedSince?: number;
+  rankedResult?: { delta: number; rating: number };
 };
 
 export const initialLobby: LobbyState = { started: false, asked: 0, emotes: {}, closed: false, needsStarter: false, openedCount: 0, storyOpen: false, reported: 0 };
@@ -89,11 +94,11 @@ export const initialLobby: LobbyState = { started: false, asked: 0, emotes: {}, 
 export function reduce(state: LobbyState, action: Action): LobbyState {
   switch (action.type) {
     case "connecting":
-      return { ...state, pseudo: undefined, error: undefined, closed: false };
+      return { ...state, pseudo: undefined, error: undefined, closed: false, rankedSince: undefined };
     case "closed":
       return { ...state, closed: true };
     case "left":
-      return { ...state, room: undefined, seat: undefined, board: undefined, started: false, question: undefined, error: undefined, won: undefined, rematch: undefined, answerBy: undefined, away: undefined, emotes: {} };
+      return { ...state, room: undefined, seat: undefined, board: undefined, started: false, question: undefined, error: undefined, won: undefined, rematch: undefined, answerBy: undefined, away: undefined, emotes: {}, rankedResult: undefined };
     case "profile":
       return { ...state, pseudo: action.pseudo, needsStarter: action.needsStarter, admin: action.admin, daily: action.daily || state.daily, error: undefined };
     case "joined":
@@ -115,6 +120,8 @@ export function reduce(state: LobbyState, action: Action): LobbyState {
         // An empty log is a new duel (the first, or a rematch): a reconnection replays the old one.
         won: action.log.length === 0 ? undefined : state.won,
         rematch: action.log.length === 0 ? undefined : state.rematch,
+        rankedResult: action.log.length === 0 ? undefined : state.rankedResult,
+        rankedSince: undefined,
       };
     case "messages":
       return {
@@ -167,6 +174,12 @@ export function reduce(state: LobbyState, action: Action): LobbyState {
       return { ...state, rematch: "declined" };
     case "report_sent":
       return { ...state, reported: state.reported + 1 };
+    case "ranked":
+      return { ...state, ranked: { rating: action.rating, games: action.games, leaderboard: action.leaderboard } };
+    case "ranked_queue":
+      return { ...state, rankedSince: action.waiting ? Date.now() : undefined, error: undefined };
+    case "ranked_result":
+      return { ...state, rankedResult: { delta: action.delta, rating: action.rating } };
   }
 }
 

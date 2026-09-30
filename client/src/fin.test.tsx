@@ -122,3 +122,14 @@ it("propose la revanche selon son état : à demander, en attente, à accepter o
   // Against the bot the button restarts at once, whatever the online state.
   expect(fin(board)).toContain("Revanche</button>");
 });
+
+it("affiche la variation du classement en fin de duel classé, sans revanche", () => {
+  const board = finished(0, 0);
+  const ranked = (result?: { delta: number; rating: number }) => render(<Fin board={board} seat={0} room="r" vsBot={false} ranked={{ result }} leave={() => {}} go={() => {}} onRematch={() => {}} />);
+  expect(ranked({ delta: 16, rating: 1016 })).toContain("+16, classement 1016");
+  expect(ranked({ delta: -14, rating: 986 })).toContain("-14, classement 986");
+  expect(ranked()).toContain("Calcul du classement…");
+  expect(ranked()).toContain("Duel classé");
+  expect(ranked()).not.toContain("Revanche");
+  expect(render(<Fin board={board} seat={0} room="r" vsBot={false} leave={() => {}} go={() => {}} onRematch={() => {}} />)).toContain("Revanche");
+});

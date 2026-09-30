@@ -72,7 +72,12 @@ export type ClientMessage =
   | { type: "story" }
   | { type: "story_duel"; duel: string; level?: StoryLevel }
   // Wins and losses of the player per deck, answered with `duel_results`.
-  | { type: "duel_results" };
+  | { type: "duel_results" }
+  // Ranked mode (ranked.ts): `ranked` is answered with `ranked`. `ranked_queue` waits for an opponent of close rating, with the
+  // active deck, until the duel starts with `joined`; `ranked_cancel` stops waiting. Both are answered with `ranked_queue`.
+  | { type: "ranked" }
+  | { type: "ranked_queue" }
+  | { type: "ranked_cancel" };
 
 export type DuelMode = "online" | "bot" | "story";
 // Wins and losses of a player with a deck in a mode (and at a level, against the bot or in Story mode); `deck` is null for a deck deleted since.
@@ -129,7 +134,15 @@ export type ServerMessage =
   | { type: "story"; arcs: StoryArcView[] }
   // A won story duel, recorded.
   | ({ type: "story_won"; duel: string; outro: string } & StoryResult)
-  | { type: "duel_results"; results: DeckResult[] };
+  | { type: "duel_results"; results: DeckResult[] }
+  // Rating and ranked duels played of the player, and the best LEADERBOARD_SIZE players.
+  | { type: "ranked"; rating: number; games: number; leaderboard: RankedPlayer[] }
+  | { type: "ranked_queue"; waiting: boolean }
+  // End of a ranked duel: the change of the player's rating, and the new one.
+  | { type: "ranked_result"; delta: number; rating: number };
+
+// A player of the ranked leaderboard; `avatar` is null until chosen.
+export type RankedPlayer = { pseudo: string; avatar: number | null; rating: number; games: number };
 
 // Wonder pick of the day. `cards` are shown face up in this order, then shuffled: face-down card `i` is `cards[shuffle[i]]`.
 // The server keeps `shuffle` to itself until the player picks `picked`, a face-down index.

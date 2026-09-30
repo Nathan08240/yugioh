@@ -7,6 +7,7 @@ import type { Bot } from "../src/bot.ts";
 import { KAIBA, YUGI } from "../src/decks.ts";
 import { EMOTE_DELAY } from "../src/emotes.ts";
 import { POOL, SETS } from "../src/pool.ts";
+import { elo } from "../src/ranked.ts";
 import type { CardInfo, ClientMessage, ServerMessage, Wire, WonderView } from "../src/protocol.ts";
 import { respond } from "../src/respond.ts";
 import { WISH_MAX } from "../src/wishlist.ts";
@@ -24,6 +25,8 @@ const decks = new Map<string, number[]>([["alice", YUGI], ["bob", KAIBA], ["caro
 const extras = new Map<string, number[]>();
 const wishes = new Map<string, Set<number>>();
 const wonderDraws = new Map<string, Exclude<WonderView, { status: "available" }>>();
+// Classements en mémoire, 1000 par défaut.
+const ratings = new Map<string, number>();
 
 // Token "jeton-<id>" identifies user <id>; "nouveau" has no profile yet and "pris" is a taken pseudo.
 const accounts: Accounts = {
@@ -90,6 +93,17 @@ const accounts: Accounts = {
   craftCard: async () => "points insuffisants : 40 nécessaires",
   // Seul "quotidien" reçoit la récompense du jour à cette connexion.
   claimDaily: async (userId) => userId === "quotidien",
+  rating: async (userId) => ({ rating: ratings.get(userId) ?? 1000, games: 0 }),
+  leaderboard: async () => [{ pseudo: "alice", avatar: null, rating: 1200, games: 3 }],
+  rateDuel: async ({ players, winner }) => {
+    const before = players.map((id) => ratings.get(id) ?? 1000) as [number, number];
+    const after = elo(before, winner);
+    players.forEach((id, index) => ratings.set(id, after[index]));
+    return [
+      { before: before[0], after: after[0] },
+      { before: before[1], after: after[1] },
+    ];
+  },
 };
 // "admin" peut s'ajouter des boosters.
 process.env.ADMIN_USER_IDS = "admin, autreadmin";
@@ -735,5 +749,69 @@ describe("revanche", () => {
     left.b.socket.close();
     await vi.waitFor(() => expect(left.a.received).toContainEqual({ type: "rematch_declined" }));
     expect(joins(left.a)).toHaveLength(total);
+  });
+});
+
+describe("mode classé", () => {
+  afterEach(() => vi.restoreAllMocks());
+  const joins = (client: Awaited<ReturnType<typeof connect>>) => client.received.filter((msg) => msg.type === "joined");
+  // Players of each test get a rating far from the others, so a player left in the queue never pairs with them.
+  async function queued(user: string, rating: number, answer?: Answer) {
+    decks.set(user, YUGI);
+    ratings.set(user, rating);
+    const client = await connect(user, answer);
+    client.send({ type: "ranked_queue" });
+    await vi.waitFor(() => expect(client.received).toContainEqual({ type: "ranked_queue", waiting: true }));
+    return client;
+  }
+
+  it("envoie le classement du joueur et les meilleurs joueurs", async () => {
+    ratings.set("classe-vue", 1100);
+    const client = await connect("classe-vue");
+    client.send({ type: "ranked" });
+    await vi.waitFor(() => expect(client.received).toContainEqual({ type: "ranked", rating: 1100, games: 0, leaderboard: [{ pseudo: "alice", avatar: null, rating: 1200, games: 3 }] }));
+  });
+
+  it("apparie deux joueurs en attente dans un duel en ligne, met à jour les deux classements une seule fois, sans revanche", { timeout: 30_000 }, async () => {
+    vi.spyOn(accounts, "rateDuel");
+    vi.spyOn(accounts, "creditBoosters");
+    const a = await queued("classe-a", 2000, () => undefined);
+    const b = await queued("classe-b", 2050, () => undefined);
+    await vi.waitFor(() => expect(joined(a.received)).toBeDefined());
+    await vi.waitFor(() => expect(joined(b.received)).toBeDefined());
+    expect(joined(b.received)?.room).toBe(joined(a.received)?.room);
+    await vi.waitFor(() => expect(a.received.some((msg) => msg.type === "question") || b.received.some((msg) => msg.type === "question")).toBe(true), { timeout: 20_000 });
+    // The player who waited the longest sits first. B, rated higher, wins less than half of K.
+    expect([joined(a.received)?.seat, joined(b.received)?.seat]).toEqual([0, 1]);
+    a.send({ type: "surrender" });
+    await vi.waitFor(() => expect(b.received).toContainEqual({ type: "ranked_result", delta: 14, rating: 2064 }));
+    await vi.waitFor(() => expect(a.received).toContainEqual({ type: "ranked_result", delta: -14, rating: 1986 }));
+    a.send({ type: "surrender" });
+    a.send({ type: "rematch" });
+    await vi.waitFor(() => expect(a.received).toContainEqual({ type: "error", error: "pas de revanche en classé" }));
+    expect(a.received).toContainEqual({ type: "error", error: "aucun duel en cours" });
+    const rated = vi.mocked(accounts.rateDuel).mock.calls.filter(([duel]) => duel.players.includes("classe-a"));
+    expect(rated).toEqual([[{ players: ["classe-a", "classe-b"], winner: 1, reason: 0 }]]);
+    expect(vi.mocked(accounts.creditBoosters).mock.calls.filter(([id]) => id.startsWith("classe-"))).toHaveLength(1);
+    a.socket.close();
+    b.socket.close();
+  });
+
+  it("retire de la file un joueur qui annule ou se déconnecte, et refuse une autre salle pendant l'attente", { timeout: 30_000 }, async () => {
+    const annule = await queued("file-annule", 3000);
+    annule.send({ type: "create" });
+    await vi.waitFor(() => expect(annule.received).toContainEqual({ type: "error", error: "recherche d'un adversaire classé en cours" }));
+    annule.send({ type: "ranked_cancel" });
+    await vi.waitFor(() => expect(annule.received).toContainEqual({ type: "ranked_queue", waiting: false }));
+    const parti = await queued("file-parti", 3000);
+    parti.socket.close();
+    await once(parti.socket, "close");
+    const b = await queued("file-b", 3000);
+    const c = await queued("file-c", 3000);
+    await vi.waitFor(() => expect(joined(c.received)).toBeDefined());
+    await vi.waitFor(() => expect(joined(b.received)).toBeDefined());
+    expect(joined(b.received)?.room).toBe(joined(c.received)?.room);
+    expect(joins(annule)).toEqual([]);
+    for (const client of [annule, b, c]) client.socket.close();
   });
 });

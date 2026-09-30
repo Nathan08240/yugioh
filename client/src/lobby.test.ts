@@ -93,3 +93,19 @@ it("suit la revanche en ligne jusqu'au nouveau duel, qui l'efface avec la conclu
   expect(replay).toMatchObject({ rematch: { from: 1 }, won: { duel: "d" } });
   expect(reduce(state, joined)).toMatchObject({ rematch: undefined, won: undefined });
 });
+
+it("suit la recherche classée jusqu'au duel, puis garde la variation du classement jusqu'au départ de la salle", () => {
+  vi.useFakeTimers({ now: 5000 });
+  let state = reduce(initialLobby, { type: "ranked", rating: 1000, games: 0, leaderboard: [] });
+  state = reduce(state, { type: "ranked_queue", waiting: true });
+  expect(state).toMatchObject({ ranked: { rating: 1000, games: 0 }, rankedSince: 5000 });
+  expect(reduce(state, { type: "ranked_queue", waiting: false }).rankedSince).toBeUndefined();
+  // A lost connection leaves the queue on the server.
+  expect(reduce(state, { type: "connecting" }).rankedSince).toBeUndefined();
+  state = reduce(state, { type: "joined", room: "ABCDE", seat: 0, lp: 8000, decks: [40, 40], extras: [0, 0], log: [] });
+  expect(state.rankedSince).toBeUndefined();
+  state = reduce(state, { type: "ranked_result", delta: 16, rating: 1016 });
+  expect(state.rankedResult).toEqual({ delta: 16, rating: 1016 });
+  expect(reduce(state, { type: "left" }).rankedResult).toBeUndefined();
+  vi.useRealTimers();
+});

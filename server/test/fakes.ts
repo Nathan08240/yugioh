@@ -34,6 +34,12 @@ export function fakeAccounts(overrides: Partial<Accounts> = {}): Accounts {
     convertDuplicates: async () => "aucun doublon à convertir",
     craftCard: async () => "points insuffisants",
     claimDaily: async () => false,
+    rating: async () => ({ rating: 1000, games: 0 }),
+    leaderboard: async () => [],
+    rateDuel: async () => [
+      { before: 1000, after: 1016 },
+      { before: 1000, after: 984 },
+    ],
     ...overrides,
   };
 }
