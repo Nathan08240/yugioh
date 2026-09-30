@@ -1,9 +1,10 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type Dispatch, type SetStateAction } from "react";
 import { COPIES_MAX, countBy, deckError, EXTRA_MAX, isFusion, MAIN_MAX, MAIN_MIN, NAME_MAX, type DeckCard, type DeckDraft } from "../../server/src/deckcheck.ts";
+import suggested from "../../server/data/suggested-decks.json";
 import type { ClientMessage, Deck } from "../../server/src/protocol.ts";
 import { CardDetail, CardView } from "./Card.tsx";
 import { attributeKey, cardName, DuelView, frame, useCards, useDuelView } from "./cards.ts";
-import { drawHand, formatYdk, importDeck, parseYdk, type Skipped } from "./deckTools.ts";
+import { drawHand, fitSuggestion, formatYdk, importDeck, parseYdk, type Skipped, type Suggestion } from "./deckTools.ts";
 import { filterCollection, kindCounts, noFilters, type Filters, type Kind } from "./collection.ts";
 import type { DeckList } from "./lobby.ts";
 import { D2, D3, duree, ELAN, FONDU, prefersReduced, RESSORT, SORTIE, type AnimOptions } from "./motion.ts";
@@ -22,6 +23,7 @@ const KINDS: [Kind, string][] = [
   ["trap", "Pièges"],
   ["fusion", "Fusions"],
 ];
+const SUGGESTIONS = suggested as Suggestion[];
 const newDeck = (): DeckDraft => ({ name: "Nouveau deck", main: [], extra: [] });
 const copy = ({ id, name, main, extra }: Deck): DeckDraft => ({ id, name, main: [...main], extra: [...extra] });
 const same = (a: DeckDraft, b: Deck) => a.name === b.name && a.main.join() === b.main.join() && a.extra.join() === b.extra.join();
@@ -54,7 +56,7 @@ export function DeckBuilder({ collection, decks, send }: Readonly<Props>) {
   return (
     <DuelView value={view}>
       <div className="atelier">
-        <CollectionPanel collection={collection} draft={draft} onAdd={(code) => draft && setDraft(add(draft, code, cards.get(code)))} />
+        <CollectionPanel collection={collection} draft={draft} onAdd={(code) => draft && setDraft(add(draft, code, cards.get(code)))} onCreate={setDraft} />
         <aside className="panneau atelier__detail" aria-label="Détail de la carte" data-entree>
           <CardDetail code={shown} />
         </aside>
@@ -97,9 +99,9 @@ const LEAVE: Keyframe[] = [
   { opacity: 0, translate: "24px 0" },
 ];
 
-type CollectionProps = { collection: [number, number][]; draft?: DeckDraft; onAdd: (code: number) => void };
+type CollectionProps = { collection: [number, number][]; draft?: DeckDraft; onAdd: (code: number) => void; onCreate: (draft: DeckDraft) => void };
 
-function CollectionPanel({ collection, draft, onAdd }: Readonly<CollectionProps>) {
+function CollectionPanel({ collection, draft, onAdd, onCreate }: Readonly<CollectionProps>) {
   const { cards, show } = useDuelView();
   const [filters, setFilters] = useState<Filters>(noFilters);
   const shownCards = useMemo(() => filterCollection(collection, cards, filters), [collection, cards, filters]);
@@ -108,6 +110,7 @@ function CollectionPanel({ collection, draft, onAdd }: Readonly<CollectionProps>
 
   return (
     <section className="atelier__collection" aria-label="Collection" data-entree>
+      <Suggestions collection={collection} onCreate={onCreate} />
       <FilterBar filters={filters} onChange={setFilters} />
       <p className="texte-3 atelier__resume">
         {shownCards.length} cartes affichées · {total} possédées · cliquez sur une carte pour l'ajouter au deck
@@ -152,6 +155,45 @@ function CollectionPanel({ collection, draft, onAdd }: Readonly<CollectionProps>
         })}
       </ul>
     </section>
+  );
+}
+
+type SuggestionsProps = { collection: [number, number][]; onCreate: (draft: DeckDraft) => void };
+
+const sum = (pairs: [number, number, ...unknown[]][]) => pairs.reduce((total, [, copies]) => total + copies, 0);
+
+// Ready-made lists from the pool: how many cards the player owns, the missing ones, and a new draft with the owned part.
+function Suggestions({ collection, onCreate }: Readonly<SuggestionsProps>) {
+  const { cards } = useDuelView();
+  const owned = useMemo(() => new Map(collection), [collection]);
+  const fits = useMemo(() => SUGGESTIONS.map((suggestion) => fitSuggestion(suggestion, (code) => cards.get(code), owned)), [cards, owned]);
+  return (
+    <details className="suggestions">
+      <summary>Decks suggérés</summary>
+      <ul className="suggestions__liste">
+        {SUGGESTIONS.map(({ id, title, description, main, extra }, index) => {
+          const { main: ownedMain, extra: ownedExtra, missing } = fits[index];
+          return (
+            <li key={id} className="suggestions__deck">
+              <strong>{title}</strong>
+              <p className="texte-3">{description}</p>
+              <p className="suggestions__compte">
+                {ownedMain.length + ownedExtra.length} / {sum([...main, ...extra])} cartes possédées
+              </p>
+              {missing.length > 0 && (
+                <details>
+                  <summary>Cartes manquantes ({sum(missing)})</summary>
+                  <p className="texte-3">{missing.map(([code, copies]) => `${cardName(cards, code)} ×${copies}`).join(", ")}</p>
+                </details>
+              )}
+              <button type="button" className="btn btn--fantome" onClick={() => onCreate({ name: title, main: ownedMain, extra: ownedExtra })}>
+                Créer ce deck
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </details>
   );
 }
 

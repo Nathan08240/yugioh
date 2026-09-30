@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 import type { DeckCard } from "../../server/src/deckcheck.ts";
-import { drawHand, formatYdk, importDeck, parseYdk } from "./deckTools.ts";
+import { drawHand, fitSuggestion, formatYdk, importDeck, parseYdk } from "./deckTools.ts";
 
 const pool = new Map<number, DeckCard>([
   [1, { name: "Dark Magician", type: 0x11, alias: 0 }],
@@ -41,4 +41,11 @@ it("tire la main sans toucher au deck, sans dépasser sa taille", () => {
   expect(drawHand([1, 2])).toHaveLength(2);
   expect(drawHand([])).toEqual([]);
   expect(main).toEqual([10, 11, 12, 13, 14, 15, 16]);
+});
+
+it("ajuste un deck suggéré à la collection : cartes possédées, manquantes à part, fusion dans l'extra", () => {
+  const suggestion = { main: [[1, 3, "Dark Magician"], [2, 1, "Dark Hole"]] as [number, number, string][], extra: [[3, 1, "Gaia"]] as [number, number, string][] };
+  const result = fitSuggestion(suggestion, card, new Map([[1, 2], [3, 1]]));
+  expect(result).toEqual({ main: [1, 1], extra: [3], missing: [[1, 1], [2, 1]] });
+  expect(fitSuggestion(suggestion, card, new Map([[1, 3], [2, 1], [3, 1]])).missing).toEqual([]);
 });

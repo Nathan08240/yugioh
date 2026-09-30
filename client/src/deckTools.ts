@@ -1,4 +1,4 @@
-import { isFusion, type DeckCard, type DeckDraft } from "../../server/src/deckcheck.ts";
+import { countBy, isFusion, type DeckCard, type DeckDraft } from "../../server/src/deckcheck.ts";
 
 export const HAND_SIZE = 5;
 
@@ -52,6 +52,21 @@ export function importDeck(
     }
   }
   return result;
+}
+
+// A suggested deck (server/data/suggested-decks.json): cards as [passcode, copies, French name].
+export type Suggestion = { id: string; title: string; description: string; main: [number, number, string][]; extra: [number, number, string][] };
+
+const expand = (cards: Suggestion["main"]) => cards.flatMap(([code, copies]) => Array<number>(copies).fill(code));
+
+// The part of a suggested deck the player owns, and the missing cards as [passcode, copies].
+export function fitSuggestion(
+  { main, extra }: Pick<Suggestion, "main" | "extra">,
+  card: (code: number) => DeckCard | undefined,
+  owned: ReadonlyMap<number, number>,
+) {
+  const fit = importDeck({ main: expand(main), extra: expand(extra) }, card, owned);
+  return { main: fit.main, extra: fit.extra, missing: [...countBy(fit.skipped.map(({ code }) => code))] };
 }
 
 // Partial Fisher-Yates on a copy: `random` returns [0, 1), injectable for tests.
