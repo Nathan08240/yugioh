@@ -22,7 +22,7 @@ const storyWith = (duel: Partial<StoryDuel>, anime: number[] = []): Story => ({ 
 describe("données du mode Histoire", () => {
   it("valide l'histoire livrée : cartes dans BabelCDB et autorisées, prérequis, règles, récompenses", () => {
     expect(validateStory(STORY)).toEqual([]);
-    expect(STORY.arcs[0].duels.map((duel) => duel.id)).toEqual(DK);
+    expect(STORY.arcs[0].duels.filter((duel) => !duel.optional).map((duel) => duel.id)).toEqual(DK);
   });
 
   it("refuse une carte inconnue, hors pool, un deck trop court, un prérequis manquant, une règle inconnue", () => {
@@ -56,7 +56,10 @@ describe("données du mode Histoire", () => {
   });
 
   it("déverrouille chaque duel quand ses prérequis sont gagnés, la conclusion seulement une fois gagné", () => {
-    const statuses = (done: string[]) => storyView(new Map(done.map((id) => [id, 1])))[0].duels.map((duel) => duel.status);
+    const statuses = (done: string[]) =>
+      storyView(new Map(done.map((id) => [id, 1])))[0]
+        .duels.filter((duel) => !duel.optional)
+        .map((duel) => duel.status);
     expect(statuses([])).toEqual(["available", ...DK.slice(1).map(() => "locked")]);
     expect(statuses(["dk-weevil"])).toEqual(["done", "available", ...DK.slice(2).map(() => "locked")]);
     expect(statuses(DK)).toEqual(DK.map(() => "done"));

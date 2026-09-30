@@ -63,6 +63,15 @@ it("suit la progression : arc en cours, état de chaque arc, position d'un duel"
   expect(duelLabel(arcs, "inconnu")).toBeUndefined();
 });
 
+it("un duel facultatif non joué ne rouvre pas un arc fini et est signalé", () => {
+  const side = duel("dk-side", "available", { requires: ["dk-1"], optional: true });
+  const withSide = [{ ...arcs[0], duels: [arcs[0].duels[0], side, arcs[0].duels[1]] }, ...arcs.slice(1)];
+  expect(currentArc(withSide)?.id).toBe("bc");
+  expect(arcState(withSide[0])).toBe("fini");
+  expect(render(<Story arcs={withSide} send={() => {}} />)).not.toContain("Facultatif");
+  expect(render(<Story arcs={[{ ...withSide[0], duels: [side] }]} send={() => {}} />)).toContain("Disponible · Facultatif");
+});
+
 it("montre les arcs et les duels de l'arc en cours, verrouillés, disponibles et gagnés", () => {
   const html = render(<Story arcs={arcs} send={() => {}} />);
   expect(html).toContain('<h1 class="titre">Battle City</h1>');

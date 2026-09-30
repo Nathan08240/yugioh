@@ -297,6 +297,8 @@ export type StoryDuelView = {
   outro?: string;
   rewards: Rewards;
   requires: string[];
+  // A side duel, not needed to finish the arc.
+  optional?: boolean;
   status: StoryStatus;
   // Best stars won, 0 until the duel is won.
   stars: number;

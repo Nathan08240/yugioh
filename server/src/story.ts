@@ -28,6 +28,8 @@ export type StoryDuel = {
   rewards: Rewards;
   // Ids of duels placed before this one, or of earlier arcs, met once every duel of the arc is won.
   requires: string[];
+  // A side duel: the arc counts as over without it, so adding one never re-locks the next arcs of players who finished.
+  optional?: boolean;
 };
 export type Arc = { id: string; title: string; duels: StoryDuel[] };
 // `anime`: unofficial cards the opponents may play, outside the pool.
@@ -161,11 +163,11 @@ export function storyStars(easy: boolean, lp: number, startLp: number): number {
 // Ids of the duels won: a Set, or the Map of their best stars.
 type Done = Pick<ReadonlySet<string>, "has">;
 
-// A duel requirement is won, an arc requirement once all its duels are.
+// A duel requirement is won, an arc requirement once all its duels but the optional ones are.
 function met(id: string, done: Done, story: Story): boolean {
   if (done.has(id)) return true;
   const arc = story.arcs.find((candidate) => candidate.id === id);
-  return arc !== undefined && arc.duels.every((duel) => done.has(duel.id));
+  return arc !== undefined && arc.duels.every((duel) => duel.optional || done.has(duel.id));
 }
 
 export const isUnlocked = (duel: StoryDuel, done: Done, story = STORY) => duel.requires.every((id) => met(id, done, story));
@@ -191,6 +193,7 @@ export function storyView(done: ReadonlyMap<string, number>, story = STORY): Sto
       outro: done.has(duel.id) ? duel.outro : undefined,
       rewards: duel.rewards,
       requires: duel.requires,
+      optional: duel.optional,
       status: statusOf(duel, done, story),
       stars: done.get(duel.id) ?? 0,
     })),

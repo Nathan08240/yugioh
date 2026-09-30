@@ -11,9 +11,10 @@ const SEEDS = [1n, 2n, 3n, 4n, 5n, 6n, 7n, 8n];
 const arc = STORY.arcs.find((candidate) => candidate.id === "duelist-kingdom");
 
 describe("arc du Royaume des Duellistes", () => {
-  it("compte 5 à 8 duels, tous aux règles de l'île sur 2000 LP", () => {
-    expect(arc?.duels.length).toBeGreaterThanOrEqual(5);
-    expect(arc?.duels.length).toBeLessThanOrEqual(8);
+  it("compte 5 à 8 duels de la trame (hors facultatifs), tous aux règles de l'île sur 2000 LP", () => {
+    const main = arc?.duels.filter((duel) => !duel.optional).length ?? 0;
+    expect(main).toBeGreaterThanOrEqual(5);
+    expect(main).toBeLessThanOrEqual(8);
     for (const duel of arc?.duels ?? []) expect(duel.rules).toMatchObject({ lp: 2000, special: ["duelist-kingdom"] });
   });
 
