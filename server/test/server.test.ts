@@ -528,3 +528,93 @@ describe("fins de duel décidées par le serveur", () => {
     expect(wins(human)).toEqual([]);
   });
 });
+
+describe("revanche", () => {
+  const joins = (client: Awaited<ReturnType<typeof connect>>) => client.received.filter((msg) => msg.type === "joined");
+  const hasQuestion = (client: Awaited<ReturnType<typeof connect>>, after: number) => client.received.slice(after).some((msg) => msg.type === "question");
+
+  async function ended(first: ClientMessage, user: string) {
+    decks.set(user, YUGI);
+    const human = await connect(user);
+    human.send(first);
+    await vi.waitFor(() => expect(human.received.some((msg) => msg.type === "question")).toBe(true), { timeout: 20_000 });
+    human.send({ type: "surrender" });
+    await vi.waitFor(() => expect(human.messages().some((msg) => msg.type === OcgMessageType.WIN)).toBe(true));
+    return human;
+  }
+
+  it.each([
+    ["contre le bot", { type: "bot", level: "expert" }, "rev-bot"],
+    ["en mode Histoire", { type: "story_duel", duel: "dk-weevil" }, "rev-histoire"],
+  ] satisfies [string, ClientMessage, string][])("relance un duel identique tout de suite %s", { timeout: 30_000 }, async (_name, first, user) => {
+    const human = await ended(first, user);
+    const before = joins(human).at(-1);
+    const count = human.received.length;
+    const total = joins(human).length;
+    human.send({ type: "rematch" });
+    await vi.waitFor(() => expect(hasQuestion(human, count + 1)).toBe(true), { timeout: 20_000 });
+    expect(joins(human)).toHaveLength(total + 1);
+    expect(joins(human).at(-1)).toEqual({ ...before, log: [] });
+    expect(human.received.slice(count + 1).flatMap((msg) => (msg.type === "messages" ? msg.messages : [])).some((msg) => msg.type === OcgMessageType.WIN)).toBe(false);
+  });
+
+  it("refuse une revanche tant que le duel n'est pas terminé", { timeout: 30_000 }, async () => {
+    decks.set("rev-tot", YUGI);
+    const human = await connect("rev-tot", () => undefined);
+    human.send({ type: "bot" });
+    await vi.waitFor(() => expect(human.received.some((msg) => msg.type === "question")).toBe(true), { timeout: 20_000 });
+    human.send({ type: "rematch" });
+    await vi.waitFor(() => expect(human.received).toContainEqual({ type: "error", error: "aucun duel terminé" }));
+  });
+
+  async function onlineEnded(host: string, guest: string) {
+    decks.set(host, YUGI);
+    decks.set(guest, KAIBA);
+    const a = await connect(host);
+    a.send({ type: "create" });
+    await vi.waitFor(() => expect(joined(a.received)).toBeDefined());
+    const b = await connect(guest);
+    b.send({ type: "join", room: joined(a.received)?.room ?? "" });
+    await vi.waitFor(() => expect(a.received.some((msg) => msg.type === "question") || b.received.some((msg) => msg.type === "question")).toBe(true), { timeout: 20_000 });
+    a.send({ type: "surrender" });
+    await vi.waitFor(() => expect(b.messages().some((msg) => msg.type === OcgMessageType.WIN)).toBe(true));
+    return { a, b };
+  }
+
+  it("en ligne, démarre un nouveau duel dans la salle quand les deux acceptent, avec les decks actifs du moment, sans double booster", { timeout: 30_000 }, async () => {
+    vi.spyOn(accounts, "creditBoosters");
+    const { a, b } = await onlineEnded("rev-a", "rev-b");
+    const first = [joins(a).length, joins(b).length];
+    decks.set("rev-b", Array<number>(45).fill(89631139));
+    a.send({ type: "rematch" });
+    await vi.waitFor(() => expect(b.received).toContainEqual({ type: "rematch", from: 0 }));
+    expect(a.received).toContainEqual({ type: "rematch", from: 0 });
+    b.send({ type: "rematch" });
+    await vi.waitFor(() => expect(joins(a)).toHaveLength(first[0] + 1));
+    await vi.waitFor(() => expect(joins(b)).toHaveLength(first[1] + 1));
+    expect(joins(a).at(-1)).toMatchObject({ room: joined(a.received)?.room, seat: 0, decks: [40, 45], log: [] });
+    expect(joins(b).at(-1)).toMatchObject({ seat: 1, decks: [40, 45], log: [] });
+    a.send({ type: "surrender" });
+    await vi.waitFor(() => expect(a.messages().filter((msg) => msg.type === OcgMessageType.WIN)).toHaveLength(2));
+    const rewards = vi.mocked(accounts.creditBoosters).mock.calls.filter(([id]) => id.startsWith("rev-"));
+    expect(rewards).toEqual([["rev-b", 1], ["rev-b", 1]]);
+  });
+
+  it("en ligne, un refus ou un départ donne « revanche refusée » et aucun nouveau duel", { timeout: 30_000 }, async () => {
+    const refused = await onlineEnded("ref-a", "ref-b");
+    const count = joins(refused.a).length;
+    refused.a.send({ type: "rematch" });
+    await vi.waitFor(() => expect(refused.b.received).toContainEqual({ type: "rematch", from: 0 }));
+    refused.b.send({ type: "rematch", accept: false });
+    await vi.waitFor(() => expect(refused.a.received).toContainEqual({ type: "rematch_declined" }));
+    refused.a.send({ type: "rematch" });
+    await vi.waitFor(() => expect(refused.a.received).toContainEqual({ type: "error", error: "revanche refusée" }));
+    expect(joins(refused.a)).toHaveLength(count);
+
+    const left = await onlineEnded("dep-a", "dep-b");
+    const total = joins(left.a).length;
+    left.b.socket.close();
+    await vi.waitFor(() => expect(left.a.received).toContainEqual({ type: "rematch_declined" }));
+    expect(joins(left.a)).toHaveLength(total);
+  });
+});

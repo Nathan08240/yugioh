@@ -1,6 +1,6 @@
 import { OcgMessageType } from "@n1xx1/ocgcore-wasm";
 import { expect, it, vi } from "vitest";
-import { initialLobby, inviteLink, minutes, reduce, roomFromUrl } from "./lobby.ts";
+import { initialLobby, inviteLink, minutes, reduce, roomFromUrl, type Action } from "./lobby.ts";
 
 it("passe du pseudo à l'attente puis au plateau quand le duel démarre", () => {
   let state = reduce(initialLobby, { type: "profile", pseudo: null, needsStarter: false });
@@ -59,4 +59,16 @@ it("suit les délais d'un duel en ligne jusqu'à leur arrêt ou la fin du duel",
 it("garde le droit admin annoncé par le profil", () => {
   expect(reduce(initialLobby, { type: "profile", pseudo: "nathan", needsStarter: false, admin: true }).admin).toBe(true);
   expect(reduce(initialLobby, { type: "profile", pseudo: "dave", needsStarter: false }).admin).toBeUndefined();
+});
+
+it("suit la revanche en ligne jusqu'au nouveau duel, qui l'efface avec la conclusion de l'histoire", () => {
+  const joined: Extract<Action, { type: "joined" }> = { type: "joined", room: "ABCDE", seat: 0, lp: 4000, decks: [40, 40], extras: [0, 0], log: [] };
+  let state = reduce(reduce(initialLobby, joined), { type: "story_won", duel: "d", outro: "Fin.", rewards: null });
+  state = reduce(state, { type: "rematch", from: 1 });
+  expect(state.rematch).toEqual({ from: 1 });
+  expect(reduce(state, { type: "rematch_declined" }).rematch).toBe("declined");
+  // A reconnection replays the finished duel: it keeps both.
+  const replay = reduce(state, { ...joined, log: [{ type: OcgMessageType.DRAW, player: 0, drawn: [{ code: 1, position: 10 }] }] });
+  expect(replay).toMatchObject({ rematch: { from: 1 }, won: { duel: "d" } });
+  expect(reduce(state, joined)).toMatchObject({ rematch: undefined, won: undefined });
 });

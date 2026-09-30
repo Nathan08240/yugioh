@@ -24,6 +24,9 @@ export type ClientMessage =
   | { type: "surrender" }
   // A phrase of the fixed list (emotes.ts) for the other seat. One per EMOTE_DELAY: the server ignores the others.
   | { type: "emote"; id: EmoteId }
+  // After a duel: against the bot, starts an identical one at once. Online, asks for a rematch (or accepts the one asked,
+  // or refuses it with `accept: false`): it starts, with each player's active deck, once both seats asked.
+  | { type: "rematch"; accept?: boolean }
   // Collection and decks: each deck message is answered with `decks`. `save_deck` creates a deck without `id`.
   | { type: "collection" }
   | { type: "decks" }
@@ -63,6 +66,9 @@ export type ServerMessage =
   | { type: "error"; error: string }
   // An emote of `seat`, sent to both seats.
   | { type: "emote"; seat: Seat; id: EmoteId }
+  // Online: `from` asked for a rematch. `rematch_declined`: refused or left, no rematch in this room. A new duel starts with `joined`.
+  | { type: "rematch"; from: Seat }
+  | { type: "rematch_declined" }
   // Owned cards as [passcode, quantity].
   | { type: "collection"; cards: [number, number][] }
   // `saved` is the deck a `save_deck` just stored.

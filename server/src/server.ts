@@ -41,6 +41,11 @@ export type Room = {
   question?: Question;
   decision?: Clock;
   timer?: NodeJS.Timeout;
+  // The duel has ended: a rematch may start. `rematch`: the seat that asked for one online, or "declined" for good.
+  over?: boolean;
+  rematch?: Seat | "declined";
+  // Level of the bot of the room, kept for a rematch.
+  level?: BotLevel;
   // Rewards of the room: a booster for an online duel, the story progression against the bot.
   onWin?: (winner: number) => void;
 };
@@ -212,6 +217,7 @@ function parse(data: string): ClientMessage | undefined {
     (msg.type === "join" && typeof msg.room === "string") ||
     (msg.type === "respond" && typeof msg.response === "object" && msg.response !== null) ||
     msg.type === "surrender" ||
+    (msg.type === "rematch" && (msg.accept === undefined || typeof msg.accept === "boolean")) ||
     msg.type === "booster_state" ||
     (msg.type === "open_booster" && typeof msg.set === "string") ||
     (msg.type === "admin_boosters" && typeof msg.count === "number" && Number.isInteger(msg.count) && msg.count >= 1 && msg.count <= ADMIN_BOOSTERS_MAX) ||
@@ -263,6 +269,7 @@ function broadcast(room: Room, duel: NonNullable<Room["duel"]>, messages: OcgMes
 }
 
 function endDuel(room: Room) {
+  room.over = true;
   room.duel?.lib.destroyDuel(room.duel.handle);
   room.duel = undefined;
   room.question = undefined;
@@ -360,6 +367,17 @@ export function creditWinner(room: Room, seat: Seat, accounts: Pick<Accounts, "c
   if (winnerId && !room.players.some((player) => player.bot)) {
     accounts.creditBoosters(winnerId, WIN_BOOSTER_REWARD).catch((error: unknown) => console.error(error));
   }
+}
+
+// The online rematch pending, if any, for a seat that comes back.
+function rematchMessage(room: Room): ServerMessage | undefined {
+  if (room.rematch === undefined) return undefined;
+  return room.rematch === "declined" ? { type: "rematch_declined" } : { type: "rematch", from: room.rematch };
+}
+
+function declineRematch(room: Room) {
+  room.rematch = "declined";
+  sendAll(room, { type: "rematch_declined" });
 }
 
 function sendJoined(room: Room, seat: Seat) {
@@ -472,6 +490,8 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
     // The host's first `joined` guessed the guest's deck size as 0: correct it once they arrive.
     if (isNew && seat === 1) sendJoined(room, 0);
     if (room.question?.player === seat) ask(room, false);
+    const pending = rematchMessage(room);
+    if (pending) send(player.socket, pending);
     if (isNew && seat === 1) start(room, newSeed()).catch((error: unknown) => console.error(error));
     return seat;
   }
@@ -479,8 +499,24 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
   function addBot(room: Room, deck: ActiveDeck, name: string, level?: BotLevel) {
     const player: Player = { id: "bot", name, log: [], deck: deck.main, extra: deck.extra };
     room.players.push(player);
-    player.bot = new Bot(1, rulesOf(room).lp, deckSizes(room), botDelay, extraSizes(room), level);
+    room.level = level;
+    player.bot = newBot(room);
     sendJoined(room, 0);
+    start(room, newSeed()).catch((error: unknown) => console.error(error));
+  }
+
+  const newBot = (room: Room) => new Bot(1, rulesOf(room).lp, deckSizes(room), botDelay, extraSizes(room), room.level);
+
+  // A new duel in the same room, from empty logs. The caller has checked `room.over`.
+  function restart(room: Room) {
+    room.over = false;
+    room.rematch = undefined;
+    for (const player of room.players) {
+      player.log = [];
+      player.stats = undefined;
+      if (player.bot) player.bot = newBot(room);
+    }
+    room.players.forEach((_player, index) => sendJoined(room, index as Seat));
     start(room, newSeed()).catch((error: unknown) => console.error(error));
   }
 
@@ -489,6 +525,7 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
     if (seat !== -1) {
       room.players[seat].socket = undefined;
       away(room, seat as Seat);
+      if (room.over && online(room) && room.rematch !== "declined") declineRematch(room);
     }
     if (room.players.some((player) => player.socket)) return;
     room.timer = setTimeout(() => {
@@ -627,6 +664,46 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
       return enter(userId, room, deck, { deck: { main: storyDeck(duel), extra: storyExtra(duel) }, name: duel.opponent });
     }
 
+    // Against the bot, a rematch starts at once. Online, it starts once both seats asked, with their active decks of the moment.
+    async function rematch(room: Room, index: Seat, accept: boolean): Promise<string | undefined> {
+      if (!room.over) return "aucun duel terminé";
+      const bot = room.players.some((player) => player.bot);
+      if (room.rematch === "declined") return "revanche refusée";
+      if (!accept) {
+        if (!bot) declineRematch(room);
+        return undefined;
+      }
+      if (bot) {
+        restart(room);
+        return undefined;
+      }
+      if (!room.players[1 - index]?.socket) {
+        declineRematch(room);
+        return undefined;
+      }
+      if (room.rematch === undefined) {
+        room.rematch = index;
+        sendAll(room, { type: "rematch", from: index });
+        return undefined;
+      }
+      if (room.rematch === index) return undefined;
+      room.over = false;
+      const decks = await Promise.all(room.players.map((player) => duelDeck(player.id)));
+      const invalid = decks.find((deck): deck is string => typeof deck === "string");
+      if (invalid !== undefined) {
+        room.over = true;
+        declineRematch(room);
+        return invalid;
+      }
+      room.players.forEach((player, seatIndex) => {
+        const deck = decks[seatIndex] as ActiveDeck;
+        player.deck = deck.main;
+        player.extra = deck.extra;
+      });
+      restart(room);
+      return undefined;
+    }
+
     // Returns an error for the sender, if any.
     function handle(msg: ClientMessage): string | undefined | Promise<string | undefined> {
       if (msg.type === "auth") return identify(msg.token);
@@ -642,6 +719,7 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
       if (msg.type === "respond") return seat ? answer(seat.room, seat.index, msg.response) : "pas dans une salle";
       if (msg.type === "surrender") return seat ? surrender(seat.room, seat.index) : "pas dans une salle";
       if (msg.type === "emote") return seat ? emote(seat.room, seat.index, msg.id) : "pas dans une salle";
+      if (msg.type === "rematch") return seat ? rematch(seat.room, seat.index, msg.accept !== false) : "pas dans une salle";
       if (seat) return "déjà dans une salle";
       if (msg.type === "story_duel") return playStory(user.id, msg.duel);
       return enterRoom(user.id, msg);

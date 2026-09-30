@@ -59,6 +59,8 @@ export type LobbyState = {
   storyOpen: boolean;
   story?: StoryArcView[];
   won?: StoryWon;
+  // Online rematch: the seat that asked, or declined for good.
+  rematch?: { from: Seat } | "declined";
 };
 
 export const initialLobby: LobbyState = { started: false, asked: 0, emotes: {}, closed: false, needsStarter: false, openedCount: 0, storyOpen: false };
@@ -70,7 +72,7 @@ export function reduce(state: LobbyState, action: Action): LobbyState {
     case "closed":
       return { ...state, closed: true };
     case "left":
-      return { ...state, room: undefined, seat: undefined, board: undefined, started: false, question: undefined, error: undefined, won: undefined, answerBy: undefined, away: undefined, emotes: {} };
+      return { ...state, room: undefined, seat: undefined, board: undefined, started: false, question: undefined, error: undefined, won: undefined, rematch: undefined, answerBy: undefined, away: undefined, emotes: {} };
     case "profile":
       return { ...state, pseudo: action.pseudo, needsStarter: action.needsStarter, admin: action.admin, error: undefined };
     case "joined":
@@ -87,6 +89,9 @@ export function reduce(state: LobbyState, action: Action): LobbyState {
         answerBy: undefined,
         away: undefined,
         emotes: {},
+        // An empty log is a new duel (the first, or a rematch): a reconnection replays the old one.
+        won: action.log.length === 0 ? undefined : state.won,
+        rematch: action.log.length === 0 ? undefined : state.rematch,
       };
     case "messages":
       return {
@@ -123,6 +128,10 @@ export function reduce(state: LobbyState, action: Action): LobbyState {
       return { ...state, story: action.arcs };
     case "story_won":
       return { ...state, won: action };
+    case "rematch":
+      return { ...state, rematch: { from: action.from } };
+    case "rematch_declined":
+      return { ...state, rematch: "declined" };
   }
 }
 

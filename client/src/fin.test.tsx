@@ -32,7 +32,7 @@ const messages: Message[] = [
   { type: OcgMessageType.LPUPDATE, player: 0, lp: 0 },
 ];
 const finished = (reason: number, winner = 1) => playAll(newBoard(1500, [40, 40]), [...messages, { type: OcgMessageType.WIN, player: winner, reason }]);
-const fin = (board: ReturnType<typeof finished>, special?: string[], seat = 0) => render(<Fin board={board} seat={seat} room="r" vsBot story={{ title: "Duel", special }} leave={() => {}} go={() => {}} />);
+const fin = (board: ReturnType<typeof finished>, special?: string[], seat = 0) => render(<Fin board={board} seat={seat} room="r" vsBot story={{ title: "Duel", special }} leave={() => {}} go={() => {}} onRematch={() => {}} />);
 
 it("explique la défaite par la règle de destruction du Royaume : la carte, le monstre détruit, la moitié de l'ATK", () => {
   const html = fin(finished(1), ["duelist-kingdom"]);
@@ -42,14 +42,14 @@ it("explique la défaite par la règle de destruction du Royaume : la carte, le 
 
 it("nomme l'adversaire dans l'écran de défaite, avec un repli neutre", () => {
   const board = finished(1);
-  const named = (opponent?: string) => render(<Fin board={board} seat={0} room="r" vsBot={false} opponent={opponent} leave={() => {}} go={() => {}} />);
+  const named = (opponent?: string) => render(<Fin board={board} seat={0} room="r" vsBot={false} opponent={opponent} leave={() => {}} go={() => {}} onRematch={() => {}} />);
   expect(named("Seto Kaiba")).toContain("Seto Kaiba l&#x27;emporte au tour");
   expect(named()).toContain("L&#x27;adversaire l&#x27;emporte au tour");
 });
 
 it("nomme l'adversaire dans la cause de fin, avec un repli neutre", () => {
   const board = finished(0, 0);
-  const cause = (opponent?: string) => render(<Fin board={board} seat={0} room="r" vsBot={false} opponent={opponent} leave={() => {}} go={() => {}} />);
+  const cause = (opponent?: string) => render(<Fin board={board} seat={0} room="r" vsBot={false} opponent={opponent} leave={() => {}} go={() => {}} onRematch={() => {}} />);
   expect(cause("Seto Kaiba")).toContain("Seto Kaiba a abandonné.");
   expect(cause()).toContain("L&#x27;adversaire a abandonné.");
 });
@@ -80,4 +80,16 @@ it("montre le badge « Règles spéciales » d'un duel d'histoire seulement", ()
   for (const text of ["Règles spéciales", "Règles du Royaume des Duellistes", "Pas d&#x27;attaque directe."]) expect(html).toContain(text);
   expect(duel(specialRules([]))).not.toContain("Règles spéciales");
   expect(duel()).not.toContain("Règles spéciales");
+});
+
+it("propose la revanche selon son état : à demander, en attente, à accepter ou refuser, refusée", () => {
+  const board = finished(1);
+  const online = (rematch?: Parameters<typeof Fin>[0]["rematch"]) => render(<Fin board={board} seat={0} room="r" vsBot={false} opponent="Seto Kaiba" rematch={rematch} leave={() => {}} go={() => {}} onRematch={() => {}} />);
+  expect(online()).toContain("Revanche</button>");
+  expect(online({ from: 0 })).toContain("Revanche demandée");
+  const offered = online({ from: 1 });
+  for (const text of ["Seto Kaiba propose une revanche", "Accepter", "Refuser"]) expect(offered).toContain(text);
+  expect(online("declined")).toContain("Revanche refusée");
+  // Against the bot the button restarts at once, whatever the online state.
+  expect(fin(board)).toContain("Revanche</button>");
 });
