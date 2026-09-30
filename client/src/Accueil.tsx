@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
-import type { ClientMessage, StoryArcView } from "../../server/src/protocol.ts";
+import type { BotLevel, ClientMessage, StoryArcView } from "../../server/src/protocol.ts";
 import { CardView } from "./Card.tsx";
 import { cardName, stat, strongest, useDuelView } from "./cards.ts";
 import { countdown, inviteLink, type DeckList, type LobbyState } from "./lobby.ts";
@@ -8,6 +8,12 @@ import "./styles/accueil.css";
 import { Icon } from "./ui.tsx";
 
 type Send = (msg: ClientMessage) => void;
+
+const BOT_LEVELS: [BotLevel, string][] = [
+  ["debutant", "Débutant"],
+  ["normal", "Normal"],
+  ["expert", "Expert"],
+];
 
 const activeDeck = (decks?: DeckList) => decks?.decks.find((deck) => deck.id === decks.active);
 
@@ -38,6 +44,7 @@ export function Accueil({ state, send, go }: Readonly<{ state: LobbyState; send:
     send({ type: "decks" });
   }, []);
 
+  const [choosingLevel, setChoosingLevel] = useState(false);
   const deck = activeDeck(state.decks);
   const [star] = useMemo(() => strongest(deck?.main ?? [], cards, 1), [deck, cards]);
   const hour = new Date().getHours();
@@ -80,9 +87,29 @@ export function Accueil({ state, send, go }: Readonly<{ state: LobbyState; send:
             </form>
           </div>
         </article>
-        <Mode icon="ui-bot" title="Contre le bot" onClick={() => send({ type: "bot" })}>
-          Entraînement sans enjeu, à votre rythme.
-        </Mode>
+        {choosingLevel ? (
+          <article className="mode" data-entree>
+            <Icon id="ui-bot" className="mode__ic" />
+            <span>
+              <span className="mode__titre">Contre le bot</span>
+              <span className="mode__desc">Choisissez son niveau.</span>
+            </span>
+            <span className="mode__niveaux">
+              {BOT_LEVELS.map(([level, label]) => (
+                <button key={level} type="button" className="btn" onClick={() => send({ type: "bot", level })}>
+                  {label}
+                </button>
+              ))}
+              <button type="button" className="btn btn--fantome" onClick={() => setChoosingLevel(false)}>
+                Retour
+              </button>
+            </span>
+          </article>
+        ) : (
+          <Mode icon="ui-bot" title="Contre le bot" onClick={() => setChoosingLevel(true)}>
+            Entraînement sans enjeu, à votre rythme.
+          </Mode>
+        )}
         <Mode icon="ui-histoire" title="Mode Histoire" onClick={() => go("histoire")}>
           <StoryLine arcs={state.story} />
         </Mode>

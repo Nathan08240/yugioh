@@ -70,6 +70,12 @@ button.mode:hover {
   color: var(--holo);
 }
 
+.mode__niveaux {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--e-2);
+}
+
 .mode__fleche {
   color: var(--texte-3);
 }

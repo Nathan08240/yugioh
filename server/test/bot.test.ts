@@ -1,13 +1,13 @@
 import { once } from "node:events";
 import type { AddressInfo } from "node:net";
-import { OcgLocation, OcgMessageType, OcgPosition, SelectBattleCMDAction, type OcgMessage } from "@n1xx1/ocgcore-wasm";
+import { OcgLocation, OcgMessageType, OcgPosition, SelectBattleCMDAction, SelectIdleCMDAction, type OcgMessage } from "@n1xx1/ocgcore-wasm";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { WebSocket } from "ws";
 import type { Board, Card } from "../../client/src/board.ts";
 import { Bot } from "../src/bot.ts";
 import { KAIBA, YUGI } from "../src/decks.ts";
 import { runDuel, STARTING_LP, type Player, type Seed } from "../src/duel.ts";
-import type { ClientMessage, Seat, ServerMessage, Wire } from "../src/protocol.ts";
+import type { BotLevel, ClientMessage, Seat, ServerMessage, Wire } from "../src/protocol.ts";
 import { respond } from "../src/respond.ts";
 import { startServer } from "../src/server.ts";
 import { hideCards, visibleTo } from "../src/visibility.ts";
@@ -16,8 +16,8 @@ import { fakeAccounts } from "./fakes.ts";
 const seeds: Seed[] = Array.from({ length: 40 }, (_, i) => [BigInt(i + 1), 2n, 3n, 4n]);
 const firstOption: Player = (question) => respond(question);
 
-function bot(seat: Seat): Player {
-  const player = new Bot(seat, STARTING_LP, [YUGI.length, KAIBA.length], 0);
+function bot(seat: Seat, level?: BotLevel): Player {
+  const player = new Bot(seat, STARTING_LP, [YUGI.length, KAIBA.length], 0, undefined, level);
   return (question, log) => player.answer(question, log);
 }
 
@@ -115,5 +115,119 @@ describe("bot : ATK et DEF actuelles", () => {
   it("attaque avec son propre monstre boosté au-dessus de l'ATK imprimée de la cible", () => {
     expect(attacks(faceUpAttack(CELTIC_GUARDIAN), faceUpAttack(GAIA))).toBe(false);
     expect(attacks(faceUpAttack(CELTIC_GUARDIAN, 2600), faceUpAttack(GAIA))).toBe(true);
+  });
+});
+
+describe("bot : niveaux", () => {
+  const CELTIC_GUARDIAN = 91152256; // 1400 / 1200
+  const BEAVER_WARRIOR = 32452818; // 1200 / 1500
+  const GAIA = 6368038; // 2300 / 2100, level 7
+  const SUMMONED_SKULL = 70781052; // 2500 / 1200
+  const KURIBOH = 40640057; // 300 / 200
+  const POT_OF_GREED = 55144522;
+  const TRAP_HOLE = 4206964;
+  const always = () => 0;
+  const never = () => 0.99;
+  const faceUp = (code: number): Card => ({ code, position: OcgPosition.FACEUP_ATTACK });
+  const faceDown: Card = { code: 0, position: OcgPosition.FACEDOWN_DEFENSE };
+  const at = (code: number, sequence: number) => ({ code, controller: 0 as const, location: OcgLocation.MZONE, sequence });
+
+  function make(level: BotLevel, random = never, own: Card[] = [], opponent: Card[] = []) {
+    const player = new Bot(0, STARTING_LP, [YUGI.length, KAIBA.length], 0, undefined, level, random);
+    const { players } = (player as unknown as { board: Board }).board;
+    for (const [sequence, card] of own.entries()) players[0].monsters[sequence] = card;
+    for (const [sequence, card] of opponent.entries()) players[1].monsters[sequence] = card;
+    return player;
+  }
+
+  // The attacker (index in the attack list) and the opponent monster (sequence) chosen, undefined when the bot does not attack.
+  function attackPick(player: Bot, attackers: number[], targets: number): { attacker: number; target: number } | undefined {
+    const own = (player as unknown as { board: Board }).board.players[0].monsters;
+    const battle: OcgMessage = {
+      type: OcgMessageType.SELECT_BATTLECMD,
+      player: 0,
+      chains: [],
+      attacks: attackers.map((sequence) => ({ ...at(own[sequence]?.code ?? 0, sequence), can_direct: false })),
+      to_m2: true,
+      to_ep: true,
+    };
+    const first = player.answer(battle, []) as { action: SelectBattleCMDAction; index: number };
+    if (first.action !== SelectBattleCMDAction.SELECT_BATTLE) return undefined;
+    const selects = Array.from({ length: targets }, (_, sequence) => ({ ...at(0, sequence), controller: 1 as const, position: OcgPosition.FACEUP_ATTACK }));
+    const pick = player.answer({ type: OcgMessageType.SELECT_CARD, player: 0, can_cancel: false, min: 1, max: 1, selects }, []) as { indicies: number[] };
+    return { attacker: first.index, target: pick.indicies[0] };
+  }
+
+  function idle(player: Bot, fields: Partial<Extract<OcgMessage, { type: OcgMessageType.SELECT_IDLECMD }>>): SelectIdleCMDAction {
+    const question = { type: OcgMessageType.SELECT_IDLECMD, player: 0, summons: [], special_summons: [], pos_changes: [], monster_sets: [], spell_sets: [], activates: [], to_bp: true, to_ep: true, ...fields };
+    return (player.answer(question as unknown as OcgMessage, []) as { action: SelectIdleCMDAction }).action;
+  }
+
+  const hand = (code: number) => ({ code, controller: 0 as const, location: OcgLocation.HAND, sequence: 0 });
+
+  it("débutant : attaque parfois un monstre plus fort, là où le niveau normal s'abstient", () => {
+    const attack = (level: BotLevel, random: () => number) => attackPick(make(level, random, [faceUp(CELTIC_GUARDIAN)], [faceUp(GAIA)]), [0], 1);
+    expect(attack("normal", always)).toBeUndefined();
+    expect(attack("debutant", never)).toBeUndefined();
+    expect(attack("debutant", always)).toEqual({ attacker: 0, target: 0 });
+  });
+
+  it("débutant : n'active pas toujours ses cartes", () => {
+    const pot = { activates: [{ ...hand(POT_OF_GREED), description: 0n, client_mode: 0 }] };
+    expect(idle(make("normal"), pot)).toBe(SelectIdleCMDAction.SELECT_ACTIVATE);
+    expect(idle(make("debutant", never), pot)).toBe(SelectIdleCMDAction.SELECT_ACTIVATE);
+    expect(idle(make("debutant", always), pot)).toBe(SelectIdleCMDAction.TO_BP);
+  });
+
+  it("débutant : ne pose pas de pièges", () => {
+    const sets = { spell_sets: [hand(TRAP_HOLE)] };
+    expect(idle(make("normal"), sets)).toBe(SelectIdleCMDAction.SELECT_SPELL_SET);
+    expect(idle(make("debutant", never), sets)).toBe(SelectIdleCMDAction.TO_BP);
+  });
+
+  it("expert : n'attaque pas un monstre face cachée quand il peut attaquer ailleurs", () => {
+    const attack = (level: BotLevel) => attackPick(make(level, never, [faceUp(GAIA)], [faceDown, faceUp(KURIBOH)]), [0], 2)?.target;
+    expect(attack("normal")).toBe(0);
+    expect(attack("expert")).toBe(1);
+  });
+
+  it("expert : attaque un monstre face cachée avec son plus faible attaquant qui le bat", () => {
+    const attacker = (level: BotLevel) => attackPick(make(level, never, [faceUp(GAIA), faceUp(SUMMONED_SKULL)], [faceDown]), [0, 1], 1)?.attacker;
+    expect(attacker("normal")).toBe(1);
+    expect(attacker("expert")).toBe(0);
+  });
+
+  it("expert : préfère poser un monstre en défense quand ses LP sont menacés", () => {
+    const summon = (level: BotLevel) => {
+      const player = make(level, never, [], [faceUp(CELTIC_GUARDIAN)]);
+      (player as unknown as { board: Board }).board.players[0].lp = 1000;
+      return idle(player, { summons: [at(GAIA, 0)], monster_sets: [at(BEAVER_WARRIOR, 1)] });
+    };
+    expect(summon("normal")).toBe(SelectIdleCMDAction.SELECT_SUMMON);
+    expect(summon("expert")).toBe(SelectIdleCMDAction.SELECT_MONSTER_SET);
+  });
+
+  it.each(["debutant", "expert"] as const)("niveau %s : mène un duel contre le niveau normal jusqu'au bout, sans réponse refusée", { timeout: 60_000 }, async (level) => {
+    for (const seed of seeds.slice(0, 6)) {
+      const state = await runDuel(seed, 500, [bot(0, level), bot(1)]);
+      expect(state.winner, `seed ${seed[0]}`).not.toBeNull();
+      expect(state.errors).toEqual([]);
+    }
+  });
+
+  it("le message bot accepte un niveau connu et refuse les autres", { timeout: 30_000 }, async () => {
+    const wss = startServer(0, fakeAccounts(), () => [5n, 2n, 3n, 4n], 0);
+    onTestFinished(() => wss.close());
+    await once(wss, "listening");
+    const socket = new WebSocket(`ws://localhost:${(wss.address() as AddressInfo).port}`);
+    onTestFinished(() => socket.close());
+    const received: Wire<ServerMessage>[] = [];
+    socket.on("message", (data) => received.push(JSON.parse(String(data))));
+    await once(socket, "open");
+    socket.send(JSON.stringify({ type: "auth", token: "alice" }));
+    socket.send(JSON.stringify({ type: "bot", level: "impossible" }));
+    await vi.waitFor(() => expect(received).toContainEqual({ type: "error", error: "message invalide" }), { timeout: 10_000 });
+    socket.send(JSON.stringify({ type: "bot", level: "expert" }));
+    await vi.waitFor(() => expect(received).toContainEqual(expect.objectContaining({ type: "joined", opponent: "Bot" })), { timeout: 10_000 });
   });
 });
