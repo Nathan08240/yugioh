@@ -1,5 +1,5 @@
 import type { EmoteId } from "../../server/src/emotes.ts";
-import type { DeckResult, Seat, ServerMessage, StoryArcView, Wire } from "../../server/src/protocol.ts";
+import type { DeckResult, Friend, Seat, ServerMessage, StoryArcView, Wire } from "../../server/src/protocol.ts";
 import { newBoard, playAll, type Board, type EngineMessage, type Message } from "./board.ts";
 
 export type DeckList = Extract<Wire<ServerMessage>, { type: "decks" }>;
@@ -82,9 +82,15 @@ export type LobbyState = {
   rematch?: { from: Seat } | "declined";
   // Bug reports the server has stored.
   reported: number;
+  // Friends and requests, loaded by the friends screen and kept up to date by the server.
+  friends?: Friend[];
+  // Challenges received, shown on every screen until answered or `until` (ms since the epoch).
+  challenges: { from: string; until: number }[];
+  // Last friend notice; `n` tells two successive ones apart.
+  notice?: { text: string; n: number };
 };
 
-export const initialLobby: LobbyState = { started: false, asked: 0, emotes: {}, closed: false, needsStarter: false, openedCount: 0, storyOpen: false, reported: 0 };
+export const initialLobby: LobbyState = { started: false, asked: 0, emotes: {}, closed: false, needsStarter: false, openedCount: 0, storyOpen: false, reported: 0, challenges: [] };
 
 export function reduce(state: LobbyState, action: Action): LobbyState {
   switch (action.type) {
@@ -167,6 +173,16 @@ export function reduce(state: LobbyState, action: Action): LobbyState {
       return { ...state, rematch: "declined" };
     case "report_sent":
       return { ...state, reported: state.reported + 1 };
+    case "friends":
+      return { ...state, friends: action.friends, error: undefined };
+    case "friend_status":
+      return { ...state, friends: state.friends?.map((friend) => (friend.pseudo === action.pseudo ? { ...friend, status: action.status } : friend)) };
+    case "friend_notice":
+      return { ...state, notice: { text: action.text, n: (state.notice?.n ?? 0) + 1 } };
+    case "challenged":
+      return { ...state, challenges: [...state.challenges.filter((challenge) => challenge.from !== action.from), { from: action.from, until: Date.now() + action.ms }] };
+    case "challenge_gone":
+      return { ...state, challenges: state.challenges.filter((challenge) => challenge.from !== action.from) };
   }
 }
 

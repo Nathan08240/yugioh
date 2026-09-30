@@ -34,6 +34,10 @@ export function fakeAccounts(overrides: Partial<Accounts> = {}): Accounts {
     convertDuplicates: async () => "aucun doublon à convertir",
     craftCard: async () => "points insuffisants",
     claimDaily: async () => false,
+    friendList: async () => [],
+    requestFriend: async () => "joueur introuvable",
+    acceptFriend: async () => undefined,
+    removeFriend: async () => undefined,
     ...overrides,
   };
 }
