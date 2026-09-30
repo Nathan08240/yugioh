@@ -22,6 +22,8 @@ export type LobbyState = {
   pseudo?: string | null;
   // Has a pseudo but no active deck yet: must pick a starter before playing.
   needsStarter: boolean;
+  // Account listed in the server's ADMIN_USER_IDS: sees the admin commands.
+  admin?: boolean;
   room?: string;
   seat?: Seat;
   // Name of the other seat, once known.
@@ -64,7 +66,7 @@ export function reduce(state: LobbyState, action: Action): LobbyState {
     case "left":
       return { ...state, room: undefined, seat: undefined, board: undefined, started: false, question: undefined, error: undefined, won: undefined, answerBy: undefined, away: undefined };
     case "profile":
-      return { ...state, pseudo: action.pseudo, needsStarter: action.needsStarter, error: undefined };
+      return { ...state, pseudo: action.pseudo, needsStarter: action.needsStarter, admin: action.admin, error: undefined };
     case "joined":
       return {
         ...state,

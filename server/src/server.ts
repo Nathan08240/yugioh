@@ -183,6 +183,10 @@ function send(socket: WebSocket | undefined, data: ServerMessage) {
   socket?.send(JSON.stringify(data, (_key, value) => (typeof value === "bigint" ? value.toString() : value)));
 }
 
+export const ADMIN_BOOSTERS_MAX = 50;
+// Comma-separated Supabase user ids allowed to use the admin commands.
+const adminIds = (value = "") => new Set(value.split(",").map((id) => id.trim()).filter(Boolean));
+
 const BOT_LEVELS = new Set<unknown>(["debutant", "normal", "expert"] satisfies BotLevel[]);
 
 function parse(data: string): ClientMessage | undefined {
@@ -206,6 +210,7 @@ function parse(data: string): ClientMessage | undefined {
     msg.type === "surrender" ||
     msg.type === "booster_state" ||
     (msg.type === "open_booster" && typeof msg.set === "string") ||
+    (msg.type === "admin_boosters" && typeof msg.count === "number" && Number.isInteger(msg.count) && msg.count >= 1 && msg.count <= ADMIN_BOOSTERS_MAX) ||
     validDeckMessage(msg);
   return valid ? (msg as ClientMessage) : undefined;
 }
@@ -429,6 +434,8 @@ const validDeck = ({ main, extra }: ActiveDeck) =>
 export function startServer(port: number, accounts: Accounts, newSeed = randomSeed, botDelay = BOT_DELAY): WebSocketServer {
   const rooms = new Map<string, Room>();
   const http = createServer(serveHttp);
+  const admins = adminIds(process.env.ADMIN_USER_IDS);
+  const adminFlag = (id: string) => (admins.has(id) ? { admin: true as const } : {});
   const wss = new WebSocketServer({ server: http, maxPayload: 64 * 1024 });
   wss.on("close", () => http.close());
   http.listen(port);
@@ -484,7 +491,7 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
       if (!id) return "jeton invalide";
       const profile = await accounts.findProfile(id);
       user = { id, pseudo: profile?.pseudo };
-      send(socket, { type: "profile", pseudo: user.pseudo ?? null, needsStarter: profile !== undefined && profile.activeDeckId === null });
+      send(socket, { type: "profile", pseudo: user.pseudo ?? null, needsStarter: profile !== undefined && profile.activeDeckId === null, ...adminFlag(id) });
       return undefined;
     }
 
@@ -494,14 +501,14 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
       const profile = await accounts.createProfile(player.id, pseudo);
       if (!profile) return "pseudo déjà pris";
       player.pseudo = profile.pseudo;
-      send(socket, { type: "profile", pseudo: profile.pseudo, needsStarter: profile.activeDeckId === null });
+      send(socket, { type: "profile", pseudo: profile.pseudo, needsStarter: profile.activeDeckId === null, ...adminFlag(player.id) });
       return undefined;
     }
 
     async function pickStarter(player: { id: string; pseudo?: string }, starter: Starter): Promise<string | undefined> {
       const chosen = await accounts.chooseStarter(player.id, starter);
       if (!chosen) return "starter déjà choisi";
-      send(socket, { type: "profile", pseudo: player.pseudo ?? null, needsStarter: false });
+      send(socket, { type: "profile", pseudo: player.pseudo ?? null, needsStarter: false, ...adminFlag(player.id) });
       return undefined;
     }
 
@@ -510,6 +517,12 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
       if (typeof reply === "string") return reply;
       send(socket, reply);
       return undefined;
+    }
+
+    async function grantBoosters(player: { id: string }, count: number): Promise<string | undefined> {
+      if (!admins.has(player.id)) return "commande réservée";
+      await accounts.creditBoosters(player.id, count);
+      return sendBoosterState(player);
     }
 
     async function sendBoosterState(player: { id: string }): Promise<string | undefined> {
@@ -595,6 +608,7 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
       if (isDeckMessage(msg)) return manageDecks(user, msg);
       if (msg.type === "booster_state") return sendBoosterState(user);
       if (msg.type === "open_booster") return openBoosterFor(user, msg.set);
+      if (msg.type === "admin_boosters") return grantBoosters(user, msg.count);
       if (msg.type === "story") return showStory(user.id);
       if (msg.type === "respond") return seat ? answer(seat.room, seat.index, msg.response) : "pas dans une salle";
       if (msg.type === "surrender") return seat ? surrender(seat.room, seat.index) : "pas dans une salle";
