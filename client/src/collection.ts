@@ -5,9 +5,9 @@ import { has, type Cards } from "./cards.ts";
 export type Kind = "" | "monster" | "spell" | "trap" | "fusion";
 
 // Empty fields do not filter. Attribute, level and stats keep monsters only.
-export type Filters = { name: string; kind: Kind; attribute: number; level: number; atk: [string, string]; def: [string, string] };
+export type Filters = { name: string; text: boolean; kind: Kind; attribute: number; level: number; atk: [string, string]; def: [string, string] };
 
-export const noFilters: Filters = { name: "", kind: "", attribute: 0, level: 0, atk: ["", ""], def: ["", ""] };
+export const noFilters: Filters = { name: "", text: false, kind: "", attribute: 0, level: 0, atk: ["", ""], def: ["", ""] };
 
 export function kindOf(type: number): "monster" | "spell" | "trap" {
   if (has(type, OcgType.SPELL)) return "spell";
@@ -40,8 +40,20 @@ function monsterMatches(card: CardInfo, filters: Filters): boolean {
   return inRange(card.atk, filters.atk) && inRange(card.def, filters.def);
 }
 
+// Lowercase without diacritics: "Éléments" and "elements" compare equal. The folded form of a card is computed once.
+const fold = (text: string) => [...text.toLowerCase().normalize("NFD")].filter((char) => char < "̀" || char > "ͯ").join("");
+const foldedCards = new WeakMap<CardInfo, [name: string, desc: string]>();
+
+function textMatches(card: CardInfo, { name, text }: Filters): boolean {
+  const query = fold(name.trim());
+  if (query === "") return true;
+  const folded = foldedCards.get(card) ?? ([fold(card.name), fold(card.desc)] as [string, string]);
+  foldedCards.set(card, folded);
+  return folded[0].includes(query) || (text && folded[1].includes(query));
+}
+
 export function matches(card: CardInfo, filters: Filters): boolean {
-  if (!card.name.toLowerCase().includes(filters.name.trim().toLowerCase())) return false;
+  if (!textMatches(card, filters)) return false;
   if (filters.kind && !kindMatches(card.type, filters.kind)) return false;
   return monsterMatches(card, filters);
 }

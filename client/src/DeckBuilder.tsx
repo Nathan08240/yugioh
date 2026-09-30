@@ -3,6 +3,7 @@ import { COPIES_MAX, countBy, deckError, EXTRA_MAX, isFusion, MAIN_MAX, MAIN_MIN
 import type { ClientMessage, Deck } from "../../server/src/protocol.ts";
 import { CardDetail, CardView } from "./Card.tsx";
 import { attributeKey, cardName, DuelView, frame, useCards, useDuelView } from "./cards.ts";
+import { drawHand, formatYdk, importDeck, parseYdk, type Skipped } from "./deckTools.ts";
 import { filterCollection, kindCounts, noFilters, type Filters, type Kind } from "./collection.ts";
 import type { DeckList } from "./lobby.ts";
 import { D2, D3, duree, ELAN, FONDU, prefersReduced, RESSORT, SORTIE, type AnimOptions } from "./motion.ts";
@@ -170,6 +171,10 @@ function FilterBar({ filters, onChange }: Readonly<{ filters: Filters; onChange:
         <span className="sr">Rechercher par nom</span>
         <input type="search" placeholder="Rechercher par nom…" value={filters.name} onChange={(event) => set({ name: event.target.value })} />
       </label>
+      <label className="filtres__texte">
+        <input type="checkbox" checked={filters.text} onChange={(event) => set({ text: event.target.checked })} />
+        Chercher aussi dans le texte
+      </label>
       <div className="segments" role="group" aria-label="Genre de carte">
         {KINDS.map(([kind, label]) => (
           <button key={kind} type="button" aria-pressed={filters.kind === kind} onClick={() => set({ kind })}>
@@ -236,7 +241,7 @@ function DeckPanel({ decks, draft, owned, setDraft, send }: Readonly<DeckPanelPr
   return (
     <aside className="panneau atelier__deck" aria-label="Deck en cours" data-entree>
       {draft ? (
-        <DeckEditor key={draft.id ?? "new"} decks={decks} draft={draft} error={deckError(draft, (code) => cards.get(code), ownedMap)} setDraft={setDraft} send={send} />
+        <DeckEditor key={draft.id ?? "new"} decks={decks} draft={draft} error={deckError(draft, (code) => cards.get(code), ownedMap)} owned={ownedMap} setDraft={setDraft} send={send} />
       ) : (
         <>
           <p className="texte-2">Aucun deck pour l'instant.</p>
@@ -249,9 +254,9 @@ function DeckPanel({ decks, draft, owned, setDraft, send }: Readonly<DeckPanelPr
   );
 }
 
-type EditorProps = { decks: DeckList; draft: DeckDraft; error?: string; setDraft: SetDraft; send: Send };
+type EditorProps = { decks: DeckList; draft: DeckDraft; error?: string; owned: ReadonlyMap<number, number>; setDraft: SetDraft; send: Send };
 
-function DeckEditor({ decks, draft, error, setDraft, send }: Readonly<EditorProps>) {
+function DeckEditor({ decks, draft, error, owned, setDraft, send }: Readonly<EditorProps>) {
   const { cards } = useDuelView();
   const saved = decks.decks.find((deck) => deck.id === draft.id);
   const dirty = !saved || !same(draft, saved);
@@ -333,6 +338,7 @@ function DeckEditor({ decks, draft, error, setDraft, send }: Readonly<EditorProp
           Nouveau deck
         </button>
       </div>
+      <DeckTools draft={draft} owned={owned} setDraft={setDraft} />
       {saved && (
         <button
           type="button"
@@ -345,6 +351,91 @@ function DeckEditor({ decks, draft, error, setDraft, send }: Readonly<EditorProp
         </button>
       )}
     </>
+  );
+}
+
+type ToolsProps = { draft: DeckDraft; owned: ReadonlyMap<number, number>; setDraft: SetDraft };
+
+// Export and import (.ydk, EDOPro), and a hand of five cards drawn from the main deck.
+function DeckTools({ draft, owned, setDraft }: Readonly<ToolsProps>) {
+  const { cards } = useDuelView();
+  const [pasted, setPasted] = useState("");
+  const [report, setReport] = useState<{ imported: number; skipped: Skipped[]; invalid: string[] }>();
+  const [hand, setHand] = useState<number[]>();
+  const [copied, setCopied] = useState(false);
+  const ydk = () => formatYdk(draft);
+
+  const download = () => {
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(new Blob([ydk()], { type: "text/plain" }));
+    link.download = `${draft.name.trim() || "deck"}.ydk`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+  };
+  const copyText = async () => {
+    await navigator.clipboard.writeText(ydk()).then(() => setCopied(true), () => setCopied(false));
+    setTimeout(() => setCopied(false), 2000);
+  };
+  const load = (text: string) => {
+    const parsed = parseYdk(text);
+    const { main, extra, skipped } = importDeck(parsed, (code) => cards.get(code), owned);
+    setDraft((current) => (current && current.id === draft.id ? { ...current, main, extra } : current));
+    setReport({ imported: main.length + extra.length, skipped, invalid: parsed.invalid });
+  };
+  const readFile = async (input: HTMLInputElement) => {
+    const file = input.files?.[0];
+    input.value = "";
+    if (file) load(await file.text());
+  };
+  const lost = [...(report?.skipped.map(({ code, reason }) => `${cardName(cards, code)} (${reason})`) ?? []), ...(report?.invalid.map((line) => `« ${line} » (ligne invalide)`) ?? [])];
+
+  return (
+    <section className="deck-outils" aria-label="Outils du deck">
+      <div className="deck-actions">
+        <button type="button" className="btn btn--fantome" onClick={download}>
+          Exporter (.ydk)
+        </button>
+        <button type="button" className="btn btn--fantome" onClick={copyText}>
+          {copied ? "Copié" : "Copier le texte"}
+        </button>
+      </div>
+      <details>
+        <summary>Importer un deck</summary>
+        <label className="champ">
+          Fichier .ydk
+          <input type="file" accept=".ydk,text/plain" onChange={(event) => readFile(event.target)} />
+        </label>
+        <label className="champ">
+          Ou coller la liste
+          <textarea rows={4} value={pasted} onChange={(event) => setPasted(event.target.value)} />
+        </label>
+        <button type="button" className="btn" disabled={pasted.trim() === ""} onClick={() => load(pasted)}>
+          Importer le texte
+        </button>
+        {report && (
+          <p className={lost.length > 0 ? "message message--erreur" : "message message--succes"} role="status">
+            Cartes importées : {report.imported}.{lost.length > 0 && ` Écartées : ${lost.join(", ")}.`}
+          </p>
+        )}
+      </details>
+      <button
+        type="button"
+        className="btn btn--fantome"
+        disabled={draft.main.length === 0}
+        onClick={() => setHand(drawHand(draft.main))}
+      >
+        {hand ? "Nouvelle main" : "Main de test"}
+      </button>
+      {hand && (
+        <ul className="main-test" aria-label="Main de test">
+          {hand.map((code, index) => (
+            <li key={`${code}-${hand.slice(0, index).filter((other) => other === code).length}`}>
+              <CardView code={code} />
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }
 

@@ -403,6 +403,33 @@
   padding-inline: var(--e-3);
 }
 
+.deck-outils {
+  display: grid;
+  gap: var(--e-2);
+}
+
+.deck-outils textarea {
+  inline-size: 100%;
+  font: inherit;
+}
+
+.main-test {
+  --carte-l: 56px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--e-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.filtres__texte {
+  display: flex;
+  gap: var(--e-1);
+  align-items: center;
+  font-size: var(--taille-s);
+}
+
 .deck-supprimer {
   align-self: center;
   font-size: var(--taille-s);

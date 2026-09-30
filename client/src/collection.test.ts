@@ -30,6 +30,15 @@ it("filtre la collection par nom, type, attribut, niveau et ATK/DEF", () => {
   expect(filterCollection(owned, cards, { ...noFilters, name: "elf" })).toEqual([[3, 1]]);
 });
 
+it("cherche aussi dans le texte, sans tenir compte de la casse ni des accents", () => {
+  const withText = new Map(cards).set(8, card("Sangan", OcgType.MONSTER | OcgType.EFFECT, { desc: "Envoie cette carte au Cimetière : ajoutez un monstre à votre main." }));
+  const found = (filters: Partial<Filters>) => filterCollection([...owned, [8, 1]], withText, { ...noFilters, ...filters }).map(([code]) => code);
+  expect(found({ name: "cimetiere" })).toEqual([]);
+  expect(found({ name: "cimetiere", text: true })).toEqual([8]);
+  expect(found({ name: "CIMETIÈRE", text: true })).toEqual([8]);
+  expect(found({ name: "sangan" })).toEqual([8]);
+});
+
 it("compte les monstres, magies et pièges d'un deck", () => {
   expect(kindCounts([1, 1, 2, 4, 5, 5, 7], cards)).toEqual({ monster: 4, spell: 1, trap: 2 });
 });
