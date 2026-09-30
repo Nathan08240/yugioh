@@ -62,7 +62,7 @@
 - [x] F-ui-collection-deck : collection et deck builder (feat/F-ui-collection-deck)
 - [x] F-ui-boosters : écran et ouverture des boosters (feat/F-ui-boosters)
 - [x] F-ui-histoire : écrans du mode Histoire (feat/F-ui-histoire)
-- [ ] Rareté des exemplaires dans la collection (le serveur ne l'envoie pas ; `yugioh.collection` ne garde que passcode et quantité, donc migration)
+- [x] Rareté des exemplaires dans la collection (feat/F-rarete-exemplaires)
 - [x] Nom de l'adversaire en fin de duel, noms français des Dieux anime (feat/F-nom-adversaire, fix/F-dieux-anime-noms-fr)
 
 ## Retours de jeu
@@ -79,6 +79,28 @@
 - [x] F-alerte-fin-tour-royaume : confirmation avant End Phase sans monstre sous la règle du Royaume (feat/F-alerte-fin-tour-royaume)
 - [x] F-apercu-combat : estimation du combat au glisser et au choix de la cible (feat/F-apercu-combat)
 - [ ] Nom français du Noyau de Diabound (511000118)
+
+## Grand lot du 2026-09-30
+
+Migrations appliquées en production avant chaque fusion (schéma `yugioh`, ajouts seulement).
+
+- [x] Paramètres, vitesse des animations, sons synthétisés, réglage des chaînes (feat/F-parametres, feat/F-sons-et-chaines)
+- [x] Deck builder : import/export .ydk, main de test, recherche dans le texte, decks suggérés, construction automatique (feat/F-outils-deck, feat/F-decks-suggeres, feat/F-constructeur-auto)
+- [x] Collection : classeur par booster, rareté et reflets, liste de souhaits, points de collection (feat/F-completion-sets, feat/F-rarete-exemplaires, feat/F-liste-souhaits, feat/F-economie)
+- [x] Boosters : garantie Ultra, récompense du jour, pioche miracle ; commande admin (feat/F-economie, feat/F-pioche-miracle, feat/F-admin-boosters)
+- [x] Duel : abandon, temps par décision, victoire sur déconnexion, revanche, émotes, signalement avec rejeu, écrans de toutes les questions du moteur (feat/F-fin-duel-serveur, feat/F-revanche, feat/F-emotes, feat/F-signaler-bug, feat/F-ecrans-questions, fix/F-declarer-carte)
+- [x] Plateau 3D : nouveaux effets, rendu à la demande (feat/F-effets-3d, perf/F-3d-economie)
+- [x] Bot : niveaux Débutant / Normal / Expert (feat/F-bot-niveaux)
+- [x] Histoire : mode facile, étoiles et rejeu plafonné (feat/F-difficulte-histoire, feat/F-etoiles-histoire)
+- [x] Modes : Scellé, Tour, Puzzles, événement de la semaine, tutoriel, classé Elo (feat/F-mode-scelle, feat/F-mode-tour, feat/F-puzzles, feat/F-evenements, feat/F-tutoriel, feat/F-mode-classe)
+- [x] Social : profil, amis et défis, spectateur, regarder un ami, lien d'invitation (feat/F-profil, feat/F-amis, feat/F-spectateur, feat/F-amis-regarder, feat/F-lien-invitation)
+- [x] Aide : page des règles et mots-clés (feat/F-aide-regles)
+- [x] Téléphones et petits écrans (feat/F-mobile, fix du bloc du tour)
+- [x] Outillage : tests navigateur Playwright, test de charge du serveur (chore/F-tests-navigateur, chore/F-test-charge)
+- [ ] Saisons du mode classé
+- [ ] Liste des cartes limitées du format Goat (aujourd'hui : 3 exemplaires pour toutes)
+- [ ] Draft (choix carte par carte), en plus du Scellé
+- [ ] Musique
 
 ## Mise en ligne
 
