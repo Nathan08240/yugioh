@@ -1,4 +1,5 @@
 import { OcgHintTiming, OcgLocation, OcgMessageType, OcgPosition, OcgResponseType, OcgType, SelectBattleCMDAction } from "@n1xx1/ocgcore-wasm";
+import { renderToStaticMarkup } from "react-dom/server";
 import { expect, it } from "vitest";
 import type { CardInfo } from "../../server/src/protocol.ts";
 import { newBoard, type EngineMessage, type Message } from "./board.ts";
@@ -166,4 +167,14 @@ it("retient l'attaquant choisi jusqu'à la question de la cible", () => {
   const directe: EngineMessage = { type: OcgMessageType.SELECT_YESNO, player: 0, description: "31" };
   expect(attaquantChoisi(directe, { type: OcgResponseType.SELECT_YESNO, yes: false }, "0:4:3")).toBe("0:4:3");
   expect(attaquantChoisi(undefined, attaque)).toBeUndefined();
+});
+
+it("propose de déclarer un nom parmi les cartes envoyées par le serveur", () => {
+  const question = { type: OcgMessageType.ANNOUNCE_CARD, player: 0, opcodes: [] } as unknown as EngineMessage;
+  const named: Cards = new Map([[10, { name: "Magicien Sombre", type: OcgType.MONSTER } as CardInfo]]);
+  const ctx = { board: newBoard(8000, [40, 40]), cards: named, strings: new Map(), picked: [], setPicked: () => {}, respond: () => {} };
+  const panel = renderToStaticMarkup(<>{interaction(question, { ...ctx, announce: [10] }).panel}</>);
+  expect(panel).toContain("Déclarez un nom de carte");
+  expect(panel).toContain("Magicien Sombre");
+  expect(renderToStaticMarkup(<>{interaction(question, ctx).panel}</>)).not.toContain("Déclarez");
 });

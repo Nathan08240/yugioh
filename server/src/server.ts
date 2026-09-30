@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { OcgMessageType, OcgProcessResult, OcgResponseType, type OcgMessage, type OcgResponse } from "@n1xx1/ocgcore-wasm";
 import postgres from "postgres";
 import { WebSocketServer, type WebSocket } from "ws";
-import { announceCard } from "./announce.ts";
+import { announceCard, declarable } from "./announce.ts";
 import { verifySession } from "./auth.ts";
 import { boosterState, BOOSTERS, creditBoosters, openBooster, WIN_BOOSTER_REWARD } from "./boosters.ts";
 import { Bot } from "./bot.ts";
@@ -237,7 +237,10 @@ function ask(room: Room, retry: boolean) {
   const player = room.players[question.player];
   const hidden = hideCards(question, question.player);
   if (player?.bot) play(room, player, hidden, retry);
-  else send(player?.socket, { type: "question", question: hidden, retry });
+  else {
+    const announce = question.type === OcgMessageType.ANNOUNCE_CARD ? { announce: declarable(question.opcodes) } : {};
+    send(player?.socket, { type: "question", question: hidden, retry, ...announce });
+  }
 }
 
 // A response the engine refused is replaced by the first valid option, so the bot never blocks the duel.

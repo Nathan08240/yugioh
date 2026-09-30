@@ -61,7 +61,8 @@ export type ServerMessage =
   | { type: "profile"; pseudo: string | null; needsStarter: boolean; admin?: true }
   | { type: "joined"; room: string; seat: Seat; lp: number; opponentLp?: number; decks: [number, number]; extras: [number, number]; opponent?: string; log: DuelEvent[] }
   | { type: "messages"; messages: DuelEvent[] }
-  | { type: "question"; question: OcgMessage; retry: boolean }
+  // `announce`: for ANNOUNCE_CARD, the pool cards the engine accepts.
+  | { type: "question"; question: OcgMessage; retry: boolean; announce?: number[] }
   // Online duel between two players: ms left before `seat` loses, to answer the engine or to come back after a lost connection.
   // null: that clock stopped. Sent to both players, and again to a player who comes back.
   | { type: "timer"; kind: "answer" | "reconnect"; seat: Seat; ms: number | null }
