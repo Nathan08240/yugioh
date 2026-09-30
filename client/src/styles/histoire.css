@@ -338,6 +338,16 @@
   font-size: var(--taille-m);
 }
 
+/* Page Règles (Regles dans regles.tsx) */
+.regles-page {
+  display: grid;
+  gap: var(--e-3);
+  inline-size: 100%;
+  max-inline-size: var(--largeur-max);
+  margin-inline: auto;
+  padding: var(--e-4) var(--marge-ecran) var(--e-6);
+}
+
 .regles {
   inline-size: 100%;
   padding: var(--e-3) var(--e-4);

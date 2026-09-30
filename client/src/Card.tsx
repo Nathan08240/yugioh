@@ -3,6 +3,7 @@ import type { PointerEvent } from "react";
 import type { CardInfo } from "../../server/src/protocol.ts";
 import { attributeKey, frame, has, ICONS, rarityKey, stat, statChange, useDuelView } from "./cards.ts";
 import { prefersReduced } from "./motion.ts";
+import { KeywordChips } from "./motscles.tsx";
 
 type Props = {
   code: number;
@@ -142,6 +143,7 @@ function Text({ info, name, monster, atk, def }: Readonly<{ info?: CardInfo; nam
         </p>
       )}
       <p className={flavor ? "detail__desc saveur" : "detail__desc"}>{info.desc}</p>
+      <KeywordChips typeLine={info.typeLine} desc={info.desc} />
     </div>
   );
 }
