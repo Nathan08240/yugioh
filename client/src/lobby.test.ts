@@ -1,6 +1,6 @@
 import { OcgMessageType } from "@n1xx1/ocgcore-wasm";
 import { expect, it } from "vitest";
-import { initialLobby, reduce } from "./lobby.ts";
+import { initialLobby, inviteLink, reduce, roomFromUrl } from "./lobby.ts";
 
 it("passe du pseudo à l'attente puis au plateau quand le duel démarre", () => {
   let state = reduce(initialLobby, { type: "profile", pseudo: null, needsStarter: false });
@@ -35,4 +35,12 @@ it("garde le mode Histoire ouvert pendant ses duels et oublie la conclusion en q
   state = reduce(state, won);
   expect(state).toMatchObject({ storyOpen: true, story: [], won });
   expect(reduce(state, { type: "left" })).toMatchObject({ storyOpen: true, room: undefined, won: undefined });
+});
+
+it("extrait le code de salle d'un lien d'invitation", () => {
+  expect(roomFromUrl("https://site.fr/?salle=abcd2")).toBe("ABCD2");
+  expect(roomFromUrl("https://site.fr/?salle=ABCD")).toBeUndefined();
+  expect(roomFromUrl("https://site.fr/?salle=ABCD0")).toBeUndefined();
+  expect(roomFromUrl("https://site.fr/")).toBeUndefined();
+  expect(roomFromUrl(inviteLink("https://site.fr", "K7M2P"))).toBe("K7M2P");
 });

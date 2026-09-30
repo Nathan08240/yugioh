@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from
 import type { ClientMessage, StoryArcView } from "../../server/src/protocol.ts";
 import { CardView } from "./Card.tsx";
 import { cardName, stat, strongest, useDuelView } from "./cards.ts";
-import { countdown, type DeckList, type LobbyState } from "./lobby.ts";
+import { countdown, inviteLink, type DeckList, type LobbyState } from "./lobby.ts";
 import type { Page } from "./Shell.tsx";
 import "./styles/accueil.css";
 import { Icon } from "./ui.tsx";
@@ -178,12 +178,17 @@ type SalleProps = { room: string; pseudo: string; decks?: DeckList; leave: () =>
 
 // Private room waiting for the second player.
 export function Salle({ room, pseudo, decks, leave }: Readonly<SalleProps>) {
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState("");
+  const [fallback, setFallback] = useState(false);
   const deck = activeDeck(decks);
-  const copy = () => {
-    navigator.clipboard.writeText(room).then(
-      () => setCopied(true),
-      () => setCopied(false),
+  const link = inviteLink(location.origin, room);
+  const copy = (text: string, done: string) => {
+    navigator.clipboard.writeText(text).then(
+      () => setCopied(done),
+      () => {
+        setCopied("");
+        setFallback(true);
+      },
     );
   };
   return (
@@ -206,13 +211,20 @@ export function Salle({ room, pseudo, decks, leave }: Readonly<SalleProps>) {
             </span>
           ))}
         </span>
-        <button type="button" className="btn btn--holo" onClick={copy}>
+        <button type="button" className="btn btn--holo" onClick={() => copy(room, "Code copié.")}>
           <Icon id="ui-copier" />
           Copier le code
         </button>
+        <button type="button" className="btn btn--holo" onClick={() => copy(link, "Lien copié.")}>
+          <Icon id="ui-copier" />
+          Copier le lien
+        </button>
       </div>
+      {fallback && (
+        <input className="saisie-code" readOnly value={link} aria-label="Lien d'invitation" onFocus={(event) => event.currentTarget.select()} />
+      )}
       <p className={copied ? "message message--succes" : "sr"} role="status">
-        {copied ? "Code copié." : ""}
+        {copied}
       </p>
       <div className="face-a-face" data-entree>
         <div className="duelliste">

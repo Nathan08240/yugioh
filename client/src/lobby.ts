@@ -113,3 +113,14 @@ export function countdown(nextFreeAt: string, now: number): string {
   const totalSeconds = Math.floor(remaining / 1000);
   return `${pad(Math.floor(totalSeconds / 3600))}:${pad(Math.floor(totalSeconds / 60) % 60)}:${pad(totalSeconds % 60)}`;
 }
+
+// Same alphabet as the server's room codes.
+const ROOM_CODE = /^[A-HJ-NP-Z2-9]{5}$/;
+
+// The room code carried by an invitation link (?salle=ABCDE), if valid.
+export function roomFromUrl(href: string): string | undefined {
+  const code = new URL(href).searchParams.get("salle")?.trim().toUpperCase() ?? "";
+  return ROOM_CODE.test(code) ? code : undefined;
+}
+
+export const inviteLink = (origin: string, room: string) => `${origin}/?salle=${room}`;
