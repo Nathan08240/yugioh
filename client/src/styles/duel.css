@@ -219,7 +219,9 @@
   box-shadow: 0 0 0 1px rgb(255 106 136 / 0.5), var(--ombre-2);
 }
 
+/* Au-dessus de la colonne de droite : la confirmation de l'abandon déborde sur le Journal */
 .tour {
+  z-index: 2;
   display: grid;
   grid-area: 1 / 3;
   gap: var(--e-2);

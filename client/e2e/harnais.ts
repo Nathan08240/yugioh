@@ -1,0 +1,66 @@
+import { OcgType } from "@n1xx1/ocgcore-wasm";
+import type { Page, WebSocketRoute } from "@playwright/test";
+import type { CardInfo, ClientMessage, ServerMessage, Wire } from "../../server/src/protocol.ts";
+import recorded from "../src/fixtures/duel.json" with { type: "json" };
+
+// The cards of the opening hand of the recorded duel (src/fixtures/duel.json).
+const carte = (name: string, type: number): CardInfo => ({ name, alias: 0, desc: "", type, level: 4, attribute: 0, race: 0, atk: 1000, def: 1000, strings: [], attributeName: "", typeLine: "", image: false });
+const { MONSTER, NORMAL, SPELL, TRAP } = OcgType;
+export const CARTES: Record<number, CardInfo> = {
+  90357090: carte("Monstre invocable", MONSTER | NORMAL),
+  46986414: carte("Monstre niveau 7", MONSTER | NORMAL),
+  55144522: carte("Magie à activer", SPELL),
+  50045299: carte("Piège à poser", TRAP),
+  6368038: carte("Autre monstre niveau 7", MONSTER | NORMAL),
+  12580477: carte("Autre magie", SPELL),
+};
+
+// Up to the first SELECT_IDLECMD: the player's hand is dealt, Main Phase 1 of turn 1.
+export const DEBUT_DU_DUEL = recorded.received.slice(0, 9);
+
+// A session that supabase-js takes from localStorage as is: not expired, it asks the network for nothing.
+const SESSION = {
+  access_token: "e2e",
+  refresh_token: "e2e",
+  token_type: "bearer",
+  expires_in: 3600,
+  expires_at: 4_102_444_800,
+  user: { id: "e2e", aud: "authenticated", role: "authenticated", app_metadata: {}, user_metadata: {}, created_at: "2026-01-01T00:00:00Z" },
+};
+
+type Options = { duel?: boolean };
+
+// Opens the app logged in, against a fake game server that records what the client sends; `duel` replays the recorded duel, animations instant.
+export async function lancer(page: Page, { duel = false }: Options = {}) {
+  const envoyes: ClientMessage[] = [];
+  let serveur: WebSocketRoute | undefined;
+  const envoyer = (msg: Wire<ServerMessage> | object) => serveur?.send(JSON.stringify(msg));
+  await page.addInitScript(
+    ({ session, instantane }) => {
+      localStorage.setItem("sb-supabase-auth-token", JSON.stringify(session));
+      if (instantane) localStorage.setItem("yugioh.reglages", JSON.stringify({ vitesse: "instantanee" }));
+    },
+    { session: SESSION, instantane: duel },
+  );
+  await page.route(/fonts\.(googleapis|gstatic)\.com/, (route) => route.abort());
+  await page.route("**/api/**", (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === "/api/cards") return route.fulfill({ json: CARTES });
+    if (path === "/api/strings") return route.fulfill({ json: {} });
+    return route.fulfill({ status: 404 });
+  });
+  await page.routeWebSocket("**/ws", (ws) => {
+    serveur = ws;
+    ws.onMessage((data) => {
+      const msg = JSON.parse(String(data)) as ClientMessage;
+      envoyes.push(msg);
+      if (msg.type !== "auth") return;
+      envoyer({ type: "profile", pseudo: "Yugi", needsStarter: false });
+      if (!duel) return;
+      envoyer({ type: "joined", room: "E2E42", seat: 0, lp: recorded.lp, decks: recorded.decks, extras: [0, 0], opponent: "Kaiba", log: [] });
+      for (const message of DEBUT_DU_DUEL) envoyer(message);
+    });
+  });
+  await page.goto("/");
+  return { envoyes, envoyer };
+}

@@ -9,6 +9,7 @@
     "vendor": "pnpm --filter server vendor",
     "import-sets": "pnpm --filter server import-sets",
     "images": "pnpm --filter server images",
-    "test:db": "pnpm --filter server test:db"
+    "test:db": "pnpm --filter server test:db",
+    "test:e2e": "pnpm --filter client test:e2e"
   }
 }
