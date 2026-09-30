@@ -219,24 +219,24 @@
   box-shadow: 0 0 0 1px rgb(255 106 136 / 0.5), var(--ombre-2);
 }
 
-/* Au-dessus de la colonne de droite : la confirmation de l'abandon déborde sur le Journal */
+/* En tête de la colonne de droite : l'abandon, les phases et le signalement la poussent vers le bas sans la recouvrir */
 .tour {
-  z-index: 2;
   display: grid;
-  grid-area: 1 / 3;
+  flex: none;
   gap: var(--e-2);
   align-content: start;
 }
 
 .tour__ligne {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--e-2);
   align-items: center;
 }
 
 .tour__ligne p {
   display: grid;
-  flex: 1;
+  flex: 1 1 7rem;
   line-height: 1.2;
 }
 
@@ -276,6 +276,7 @@
 
 .phases {
   display: flex;
+  flex-wrap: wrap;
   gap: 3px;
 }
 
@@ -320,7 +321,7 @@
 }
 
 .colonne--droite {
-  grid-area: 2 / 3 / 4 / 4;
+  grid-area: 1 / 3 / 4 / 4;
 }
 
 .colonne .plaque {

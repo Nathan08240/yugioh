@@ -85,3 +85,12 @@ test("signaler un problème envoie le texte au serveur, Annuler ferme le formula
   envoyer({ type: "report_sent" });
   await expect(page.getByText("Signalement envoyé, merci.")).toBeVisible();
 });
+
+test("le bloc du tour pousse la colonne de droite sans la recouvrir, même sur un petit écran", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await lancer(page, { duel: true });
+  await aLaMain(page);
+  const tour = await page.locator(".tour").boundingBox();
+  const suivant = await page.locator(".colonne--droite > .panneau").first().boundingBox();
+  expect(tour && suivant && tour.y + tour.height <= suivant.y).toBe(true);
+});

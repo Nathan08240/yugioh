@@ -239,7 +239,6 @@ export function Duel({ board, seat, asked, respond, leave, surrender, answerBy, 
               <CardView key={i} code={0} />
             ))}
           </section>
-          <Turn board={shown} seat={seat} leave={leave} surrender={surrender} report={report} names={spectateur ? [moi ?? "", nom] : undefined} spectators={spectators} />
           <aside className="colonne colonne--gauche">
             <div className="panneau colonne__detail">
               <CardDetail code={detail?.code} atk={stats?.atk} def={stats?.def} />
@@ -251,6 +250,7 @@ export function Duel({ board, seat, asked, respond, leave, surrender, answerBy, 
           </aside>
           <Hand hand={shown.players[seat].hand} seat={seat} ui={targets} main={hud.refs.mains[seat]} appui={appui} conseil={conseil} />
           <aside className="colonne colonne--droite">
+          <Turn board={shown} seat={seat} leave={leave} surrender={surrender} report={report} names={spectateur ? [moi ?? "", nom] : undefined} spectators={spectators} />
             {easy && <p className="puce puce--holo niveau-duel">Facile</p>}
             {rules?.length ? <RulesBadge rules={rules} /> : null}
             {shown.chain.length > 0 && <Chain chain={shown.chain} seat={seat} opponent={opponent} />}
