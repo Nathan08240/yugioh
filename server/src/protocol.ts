@@ -79,10 +79,16 @@ export type ServerMessage =
   | { type: "booster_state"; nextFreeAt: string; pending: number }
   | { type: "booster_opened"; set: string; cards: Printing[] }
   | { type: "story"; arcs: StoryArcView[] }
-  // A won story duel, recorded. `rewards` is null when the duel had already been won.
-  | { type: "story_won"; duel: string; outro: string; rewards: Rewards | null };
+  // A won story duel, recorded.
+  | ({ type: "story_won"; duel: string; outro: string } & StoryResult);
 
 export type Rewards = { boosters?: number; cards?: number[] };
+// A booster for every REPLAY_WINS wins of story duels already won.
+export const REPLAY_WINS = 3;
+// `rewards` of a first win, null for a duel already won. `stars` of this win (1: won, 2: at "normal", 3: at "normal" with at
+// least half the starting LP left), `best` kept for the duel; `starBooster`: the booster of the first 3 stars of the duel.
+// `replays`, for a duel already won: wins of the current series of REPLAY_WINS, the last one gives a booster.
+export type StoryResult = { rewards: Rewards | null; stars: number; best: number; starBooster: boolean; replays?: number };
 // Locked until every duel of `requires` is won.
 export type StoryStatus = "locked" | "available" | "done";
 export type StoryDuelView = {
@@ -97,6 +103,8 @@ export type StoryDuelView = {
   rewards: Rewards;
   requires: string[];
   status: StoryStatus;
+  // Best stars won, 0 until the duel is won.
+  stars: number;
 };
 export type StoryArcView = { id: string; title: string; duels: StoryDuelView[] };
 

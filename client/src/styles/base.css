@@ -254,6 +254,18 @@ a {
   gap: var(--e-2);
 }
 
+/* Étoiles d'un duel d'histoire, sur 3 */
+.etoiles {
+  display: inline-flex;
+  gap: 2px;
+  color: var(--texte-3);
+}
+
+.etoile--gagnee {
+  color: var(--or);
+  text-shadow: 0 0 8px rgb(255 197 61 / 0.5);
+}
+
 .puce {
   display: inline-flex;
   align-items: center;

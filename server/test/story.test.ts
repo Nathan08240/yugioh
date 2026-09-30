@@ -9,7 +9,7 @@ import { openDuel, runDuel, type Player } from "../src/duel.ts";
 import type { ClientMessage, ServerMessage, Wire } from "../src/protocol.ts";
 import { respond } from "../src/respond.ts";
 import { startServer } from "../src/server.ts";
-import { isUnlocked, STORY, STORY_DUELS, storyDeck, storyExtra, storyRules, storyView, validateStory, type Story, type StoryDuel } from "../src/story.ts";
+import { isUnlocked, STORY, STORY_DUELS, storyDeck, storyExtra, storyRules, storyStars, storyView, validateStory, type Story, type StoryDuel } from "../src/story.ts";
 import { fakeAccounts } from "./fakes.ts";
 
 const DK = ["dk-weevil", "dk-mako", "dk-mai", "dk-keith", "dk-bakura", "dk-kaiba", "dk-pegasus"];
@@ -56,14 +56,22 @@ describe("données du mode Histoire", () => {
   });
 
   it("déverrouille chaque duel quand ses prérequis sont gagnés, la conclusion seulement une fois gagné", () => {
-    const statuses = (done: string[]) => storyView(new Set(done))[0].duels.map((duel) => duel.status);
+    const statuses = (done: string[]) => storyView(new Map(done.map((id) => [id, 1])))[0].duels.map((duel) => duel.status);
     expect(statuses([])).toEqual(["available", ...DK.slice(1).map(() => "locked")]);
     expect(statuses(["dk-weevil"])).toEqual(["done", "available", ...DK.slice(2).map(() => "locked")]);
     expect(statuses(DK)).toEqual(DK.map(() => "done"));
-    const [first, second] = storyView(new Set(["dk-weevil"]))[0].duels;
-    expect(first).toMatchObject({ opponent: "Weevil Underwood", lp: 2000, hand: 5, special: ["duelist-kingdom"], outro: weevil.outro });
+    const [first, second] = storyView(new Map([["dk-weevil", 2]]))[0].duels;
+    expect(first).toMatchObject({ opponent: "Weevil Underwood", lp: 2000, hand: 5, special: ["duelist-kingdom"], outro: weevil.outro, stars: 2 });
     expect(second.outro).toBeUndefined();
+    expect(second.stars).toBe(0);
     expect(second).not.toHaveProperty("deck");
+  });
+
+  it("donne 1 étoile en facile, 2 en normal, 3 en normal avec au moins la moitié des LP de départ", () => {
+    expect(storyStars(true, 8000, 4000)).toBe(1);
+    expect(storyStars(false, 1999, 4000)).toBe(2);
+    expect(storyStars(false, 2000, 4000)).toBe(3);
+    expect(storyStars(false, 1000, 2001)).toBe(2);
   });
 
   it("déverrouille un arc une fois tous les duels de l'arc précédent gagnés, jamais un arc placé après", () => {
@@ -113,15 +121,15 @@ describe("difficulté des duels d'histoire", () => {
 
 describe("duel d'histoire sur le serveur", () => {
   type Received = Wire<ServerMessage>;
-  const won: string[] = [];
-  const completed = new Set<string>();
+  const won: [string, number][] = [];
+  const completed = new Map<string, number>();
   const accounts = fakeAccounts({
     storyProgress: async () => completed,
-    completeStory: async (_userId, duel) => {
-      won.push(duel.id);
+    completeStory: async (_userId, duel, stars) => {
+      won.push([duel.id, stars]);
       const first = !completed.has(duel.id);
-      completed.add(duel.id);
-      return first ? duel.rewards : undefined;
+      completed.set(duel.id, stars);
+      return first ? { rewards: duel.rewards, stars, best: stars, starBooster: false } : { rewards: null, stars, best: stars, starBooster: false, replays: 1 };
     },
   });
 
@@ -156,7 +164,7 @@ describe("duel d'histoire sur le serveur", () => {
     expect(received.slice(1)).toEqual([
       { type: "error", error: "duel verrouillé : gagnez d'abord les duels précédents" },
       { type: "error", error: "duel d'histoire inconnu" },
-      { type: "story", arcs: storyView(new Set()) },
+      { type: "story", arcs: storyView(new Map()) },
     ]);
   });
 
@@ -166,8 +174,8 @@ describe("duel d'histoire sur le serveur", () => {
     const received = await play(10n, (socket) => story(socket, { type: "story_duel", duel: "dk-weevil", level: "facile" }));
     await vi.waitFor(() => expect(received.some((msg) => msg.type === "story_won")).toBe(true), { timeout: 25_000 });
     expect(received).toContainEqual(expect.objectContaining({ type: "joined", seat: 0, lp: weevil.rules.lp * 2, opponentLp: weevil.rules.lp }));
-    expect(received).toContainEqual({ type: "story_won", duel: "dk-weevil", outro: weevil.outro, rewards: weevil.rewards });
-    expect(won).toEqual(["dk-weevil"]);
+    expect(received).toContainEqual({ type: "story_won", duel: "dk-weevil", outro: weevil.outro, rewards: weevil.rewards, stars: 1, best: 1, starBooster: false });
+    expect(won).toEqual([["dk-weevil", 1]]);
     won.length = 0;
     completed.clear();
   });
@@ -180,19 +188,21 @@ describe("duel d'histoire sur le serveur", () => {
 
   it("joue un duel complet contre le bot aux règles de l'île, enregistre la victoire, rien de plus au second passage", { timeout: 60_000 }, async () => {
     const finished = (received: Received[]) => received.some((msg) => msg.type === "story_won");
+    // Seed 10 wins at "normal" with 400 LP of 2000 left: 2 stars.
+    const STARS = 2;
     // With seed 10 the first valid option beats the bot on this duel: pick another seed if the bot changes.
     const first = await play(10n, (socket) => story(socket, { type: "story_duel", duel: "dk-weevil" }));
     await vi.waitFor(() => expect(finished(first)).toBe(true), { timeout: 25_000 });
     expect(first).toContainEqual(expect.objectContaining({ type: "joined", seat: 0, lp: 2000, decks: [41, 40], opponent: weevil.opponent }));
     expect(messages(first)).toContainEqual(expect.objectContaining({ type: OcgMessageType.WIN, player: 0 }));
-    expect(first).toContainEqual({ type: "story_won", duel: "dk-weevil", outro: weevil.outro, rewards: { boosters: 1 } });
+    expect(first).toContainEqual({ type: "story_won", duel: "dk-weevil", outro: weevil.outro, rewards: { boosters: 1 }, stars: STARS, best: STARS, starBooster: false });
     // The rule agreement is answered by the server, never asked to the player.
     const agreement = String((4014n << 20n) | 6n);
     expect(first.filter((msg) => msg.type === "question" && "description" in msg.question && msg.question.description === agreement)).toEqual([]);
 
     const again = await play(10n, (socket) => story(socket, { type: "story_duel", duel: "dk-weevil" }));
     await vi.waitFor(() => expect(finished(again)).toBe(true), { timeout: 25_000 });
-    expect(again).toContainEqual({ type: "story_won", duel: "dk-weevil", outro: weevil.outro, rewards: null });
-    expect(won).toEqual(["dk-weevil", "dk-weevil"]);
+    expect(again).toContainEqual({ type: "story_won", duel: "dk-weevil", outro: weevil.outro, rewards: null, stars: STARS, best: STARS, starBooster: false, replays: 1 });
+    expect(won).toEqual([["dk-weevil", STARS], ["dk-weevil", STARS]]);
   });
 });

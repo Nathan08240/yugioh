@@ -3,11 +3,11 @@ import { join } from "node:path";
 import { OcgType } from "@n1xx1/ocgcore-wasm";
 import { creditBoosters } from "./boosters.ts";
 import { readCard } from "./cards.ts";
-import type { Db } from "./db.ts";
+import type { Db, Sql } from "./db.ts";
 import { EXTRA_MAX } from "./deckcheck.ts";
 import type { Rules } from "./duel.ts";
 import { isAllowed } from "./pool.ts";
-import type { Rewards, StoryArcView, StoryLevel, StoryStatus } from "./protocol.ts";
+import { REPLAY_WINS, type Rewards, type StoryArcView, type StoryLevel, type StoryResult, type StoryStatus } from "./protocol.ts";
 
 // Format of each data/story/*.json file, version STORY_VERSION. Texts are short summaries written by us, never anime dialogue.
 export type StoryDuel = {
@@ -150,22 +150,31 @@ export const storyRules = ({ rules }: StoryDuel, level: StoryLevel = "normal"): 
   cards: (rules.special ?? []).map((name) => EXTRA_RULES.get(name) as number),
 });
 
+// 1 star for a win, 2 at "normal", 3 at "normal" with at least half the starting LP left.
+export function storyStars(easy: boolean, lp: number, startLp: number): number {
+  if (easy) return 1;
+  return lp * 2 >= startLp ? 3 : 2;
+}
+
+// Ids of the duels won: a Set, or the Map of their best stars.
+type Done = Pick<ReadonlySet<string>, "has">;
+
 // A duel requirement is won, an arc requirement once all its duels are.
-function met(id: string, done: ReadonlySet<string>, story: Story): boolean {
+function met(id: string, done: Done, story: Story): boolean {
   if (done.has(id)) return true;
   const arc = story.arcs.find((candidate) => candidate.id === id);
   return arc !== undefined && arc.duels.every((duel) => done.has(duel.id));
 }
 
-export const isUnlocked = (duel: StoryDuel, done: ReadonlySet<string>, story = STORY) => duel.requires.every((id) => met(id, done, story));
+export const isUnlocked = (duel: StoryDuel, done: Done, story = STORY) => duel.requires.every((id) => met(id, done, story));
 
-function statusOf(duel: StoryDuel, done: ReadonlySet<string>, story: Story): StoryStatus {
+function statusOf(duel: StoryDuel, done: Done, story: Story): StoryStatus {
   if (done.has(duel.id)) return "done";
   return isUnlocked(duel, done, story) ? "available" : "locked";
 }
 
-// What the player sees: the conclusion only once the duel is won, no opponent deck.
-export function storyView(done: ReadonlySet<string>, story = STORY): StoryArcView[] {
+// What the player sees: the conclusion only once the duel is won, no opponent deck. `done`: best stars of the duels won.
+export function storyView(done: ReadonlyMap<string, number>, story = STORY): StoryArcView[] {
   return story.arcs.map((arc) => ({
     id: arc.id,
     title: arc.title,
@@ -181,34 +190,60 @@ export function storyView(done: ReadonlySet<string>, story = STORY): StoryArcVie
       rewards: duel.rewards,
       requires: duel.requires,
       status: statusOf(duel, done, story),
+      stars: done.get(duel.id) ?? 0,
     })),
   }));
 }
 
-export async function completedDuels(db: Db, userId: string): Promise<Set<string>> {
-  const rows = await db<{ duelId: string }[]>`select duel_id as "duelId" from yugioh.story_duels where user_id = ${userId}`;
-  return new Set(rows.map((row) => row.duelId));
+// Best stars of each duel won.
+export async function completedDuels(db: Db, userId: string): Promise<Map<string, number>> {
+  const rows = await db<{ duelId: string; stars: number }[]>`
+    select duel_id as "duelId", stars from yugioh.story_duels where user_id = ${userId}`;
+  return new Map(rows.map((row) => [row.duelId, row.stars]));
 }
 
-// Records a won duel. Only the first win of a duel grants its rewards, and a card only once: resolves to what
-// was granted, undefined for a duel already won.
-export async function completeDuel(db: Db, userId: string, duel: StoryDuel): Promise<Rewards | undefined> {
+// True the first time only: an unlock is recorded once per player.
+async function unlock(sql: Sql, userId: string, id: string): Promise<boolean> {
+  const [row] = await sql`
+    insert into yugioh.story_unlocks (user_id, unlock_id) values (${userId}, ${id}) on conflict do nothing returning unlock_id`;
+  return row !== undefined;
+}
+
+// The rewards of a first win, a card only once.
+async function grantRewards(sql: Sql, userId: string, { boosters, cards = [] }: Rewards): Promise<Rewards> {
+  if (boosters) await creditBoosters(sql, userId, boosters);
+  const granted: number[] = [];
+  for (const code of cards) {
+    if (!(await unlock(sql, userId, `card:${code}`))) continue;
+    await sql`
+      insert into yugioh.collection (user_id, card_code, quantity) values (${userId}, ${code}, 1)
+      on conflict (user_id, card_code) do update set quantity = collection.quantity + 1`;
+    granted.push(code);
+  }
+  return { boosters, cards: granted };
+}
+
+// One more win of a duel already won, a booster every REPLAY_WINS: resolves to the place of this win in its series.
+async function replayWin(sql: Sql, userId: string): Promise<number> {
+  const [{ replays }] = await sql<{ replays: number }[]>`
+    update yugioh.profiles set story_replays = story_replays + 1 where user_id = ${userId} returning story_replays as replays`;
+  if (replays % REPLAY_WINS === 0) await creditBoosters(sql, userId, 1);
+  return ((replays - 1) % REPLAY_WINS) + 1;
+}
+
+// Records a won duel with its stars (storyStars), keeping the best. The first win grants the duel's rewards, the first
+// 3 stars a booster, and a win of a duel already won counts towards a replay booster.
+export async function completeDuel(db: Db, userId: string, duel: StoryDuel, stars: number): Promise<StoryResult> {
   return db.begin(async (sql) => {
     const [first] = await sql`
-      insert into yugioh.story_duels (user_id, duel_id) values (${userId}, ${duel.id}) on conflict do nothing returning duel_id`;
-    if (!first) return undefined;
-    const { boosters, cards = [] } = duel.rewards;
-    if (boosters) await creditBoosters(sql, userId, boosters);
-    const granted: number[] = [];
-    for (const code of cards) {
-      const [unlocked] = await sql`
-        insert into yugioh.story_unlocks (user_id, unlock_id) values (${userId}, ${`card:${code}`}) on conflict do nothing returning unlock_id`;
-      if (!unlocked) continue;
-      await sql`
-        insert into yugioh.collection (user_id, card_code, quantity) values (${userId}, ${code}, 1)
-        on conflict (user_id, card_code) do update set quantity = collection.quantity + 1`;
-      granted.push(code);
-    }
-    return { boosters, cards: granted };
+      insert into yugioh.story_duels (user_id, duel_id, stars) values (${userId}, ${duel.id}, ${stars}) on conflict do nothing returning duel_id`;
+    const [{ best }] = first
+      ? [{ best: stars }]
+      : await sql<{ best: number }[]>`
+          update yugioh.story_duels set stars = greatest(stars, ${stars}) where user_id = ${userId} and duel_id = ${duel.id} returning stars as best`;
+    const starBooster = stars === 3 && (await unlock(sql, userId, `stars:${duel.id}`));
+    if (starBooster) await creditBoosters(sql, userId, 1);
+    if (!first) return { rewards: null, stars, best, starBooster, replays: await replayWin(sql, userId) };
+    return { rewards: await grantRewards(sql, userId, duel.rewards), stars, best, starBooster };
   });
 }

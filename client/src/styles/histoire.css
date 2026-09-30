@@ -547,3 +547,25 @@
 .difficulte p {
   margin-block: var(--e-2) 0;
 }
+
+/* Étoiles : total de l'arc, conditions au briefing */
+
+.arc__etoiles {
+  margin-inline-start: var(--e-2);
+  color: var(--or);
+}
+
+.etoiles-regles ol {
+  display: grid;
+  gap: var(--e-1);
+  padding: 0;
+  margin-block: var(--e-2);
+  list-style: none;
+}
+
+.etoiles-regles li {
+  display: flex;
+  gap: var(--e-2);
+  align-items: center;
+  color: var(--texte-2);
+}

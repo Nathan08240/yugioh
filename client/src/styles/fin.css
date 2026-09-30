@@ -133,3 +133,14 @@
     corner-shape: bevel;
   }
 }
+
+.fin__etoiles {
+  display: grid;
+  gap: var(--e-1);
+  justify-items: center;
+  font-size: var(--taille-l);
+}
+
+.fin__etoiles .etoiles {
+  font-size: 2em;
+}

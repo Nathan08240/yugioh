@@ -17,8 +17,8 @@ export function fakeAccounts(overrides: Partial<Accounts> = {}): Accounts {
     boosterState: async () => ({ nextFreeAt: new Date(0).toISOString(), pending: 0 }),
     openBooster: async () => [],
     creditBoosters: async () => {},
-    storyProgress: async () => new Set(),
-    completeStory: async () => undefined,
+    storyProgress: async () => new Map(),
+    completeStory: async (_userId, _duel, stars) => ({ rewards: null, stars, best: stars, starBooster: false, replays: 1 }),
     ...overrides,
   };
 }
