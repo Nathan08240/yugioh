@@ -8,7 +8,7 @@ import type { Page } from "./Shell.tsx";
 import { Signaler, type Report } from "./Signaler.tsx";
 import { jouer as jouerSon } from "./son.ts";
 import "./styles/fin.css";
-import { PUZZLE_FAILED, REPLAY_BOOSTERS_MAX, REPLAY_WINS, TOWER_FLOORS } from "../../server/src/protocol.ts";
+import { PUZZLE_FAILED, REPLAY_BOOSTERS_MAX, REPLAY_WINS, SEALED_LOSSES, SEALED_WINS, TOWER_FLOORS, type SealedRun } from "../../server/src/protocol.ts";
 import { nextStar, Rewards, Stars } from "./ui.tsx";
 
 type Props = {
@@ -34,6 +34,8 @@ type Props = {
   report?: Report;
   leave: () => void;
   go: (page: Page) => void;
+  // A Sealed duel: its session, updated once the server has counted the duel. No rematch: the next duel starts from its screen.
+  sealed?: SealedRun;
 };
 
 const RISE: Keyframe[] = [
@@ -85,7 +87,7 @@ const defeat =
   };
 
 // Victory or defeat screen over the board, once the engine has named the winner.
-export function Fin({ board, seat, room, vsBot, opponent, story, eventBooster, puzzle, tower, rematch, onRematch, report, leave, go }: Readonly<Props>) {
+export function Fin({ board, seat, room, vsBot, opponent, story, eventBooster, puzzle, tower, rematch, onRematch, report, leave, go, sealed }: Readonly<Props>) {
   const root = useRef<HTMLDivElement>(null);
   const won = board.winner === seat;
   const lost = board.winner === 1 - seat;
@@ -101,9 +103,12 @@ export function Fin({ board, seat, room, vsBot, opponent, story, eventBooster, p
   if (story) context = `${story.title ?? "Mode Histoire"}${story.easy ? " · Facile" : ""}`;
   else if (puzzle) context = `Puzzle · ${puzzle.title}`;
   else if (tower) context = `La Tour · Étage ${tower.floor} sur ${TOWER_FLOORS}`;
+  else if (sealed) context = `Mode Scellé · ${sealed.wins}/${SEALED_WINS} victoires · ${sealed.losses}/${SEALED_LOSSES} défaites`;
   else if (vsBot) context = "Duel contre le bot";
   let back = backLabel(Boolean(story), Boolean(tower));
   if (puzzle) back = "Retour aux puzzles";
+  if (sealed) back = sealed.status === "playing" ? "Retour au Scellé" : "Voir le bilan";
+  const onBack = sealed ? () => go("scelle") : leave;
   const eventGain = won && eventBooster ? 1 : 0;
   let boosters = (won && !vsBot && !story ? 1 : storyBoosters(story?.won)) + eventGain + (tower?.won?.boosters ?? 0);
   if (puzzle) boosters = won && puzzle.booster ? 1 : 0;
@@ -129,17 +134,17 @@ export function Fin({ board, seat, room, vsBot, opponent, story, eventBooster, p
               Ouvrir mes boosters
             </button>
           ) : (
-            <button type="button" className={won ? "btn btn--grand" : "btn btn--grand btn--holo"} onClick={leave}>
+            <button type="button" className={won ? "btn btn--grand" : "btn btn--grand btn--holo"} onClick={onBack}>
               {back}
             </button>
           )}
           {boosters > 0 && (
-            <button type="button" className="btn btn--fantome" onClick={leave}>
+            <button type="button" className="btn btn--fantome" onClick={onBack}>
               {back}
             </button>
           )}
-          <Rematch online={!vsBot} seat={seat} rematch={rematch} opponent={opponent} onRematch={onRematch} label={rematchLabel(Boolean(puzzle), tower, won)} />
-          {lost && !puzzle && (
+          {!sealed && <Rematch online={!vsBot} seat={seat} rematch={rematch} opponent={opponent} onRematch={onRematch} label={rematchLabel(Boolean(puzzle), tower, won)} />}
+          {lost && !puzzle && !sealed && (
             <button type="button" className="btn btn--fantome" onClick={() => go("collection")}>
               Modifier mon deck
             </button>

@@ -121,6 +121,9 @@ export function Accueil({ state, send, go }: Readonly<{ state: LobbyState; send:
             Entraînement sans enjeu, à votre rythme.
           </Mode>
         )}
+        <Mode icon="ui-booster" title="Mode Scellé" onClick={() => go("scelle")}>
+          Six boosters rien que pour la session, un deck, jusqu'à 3 victoires ou 2 défaites.
+        </Mode>
         <Mode icon="ui-histoire" title="Mode Histoire" onClick={() => go("histoire")}>
           <StoryLine arcs={state.story} />
         </Mode>

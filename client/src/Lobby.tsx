@@ -15,6 +15,7 @@ import { puzzleRule, Puzzles } from "./Puzzles.tsx";
 import { autoAnswer } from "./question.ts";
 import { reglages } from "./reglages.ts";
 import { Regles, specialRules } from "./regles.tsx";
+import { Scelle } from "./Scelle.tsx";
 import { Shell, type Page } from "./Shell.tsx";
 import { duelLabel, duelLp, duelSpecial, Story } from "./Story.tsx";
 import { supabase } from "./supabase.ts";
@@ -39,6 +40,7 @@ export function Lobby() {
   const storyDuel = useRef<string>(undefined);
   const storyEasy = useRef(false);
   const puzzleId = useRef<string>(undefined);
+  const sealedDuel = useRef(false);
   const cards = useCards();
   const view = useMemo(() => ({ cards, show: () => {}, seat: 0 }), [cards]);
 
@@ -78,13 +80,19 @@ export function Lobby() {
   }, [ready]);
 
   const send: Send = (msg) => {
-    if (msg.type === "bot" || msg.type === "story_duel" || msg.type === "puzzle" || msg.type === "tower_duel") vsBot.current = true;
+    if (msg.type === "bot" || msg.type === "story_duel" || msg.type === "puzzle" || msg.type === "tower_duel" || msg.type === "sealed_duel") {
+      vsBot.current = true;
+      sealedDuel.current = msg.type === "sealed_duel";
+    }
     if (msg.type === "puzzle") puzzleId.current = msg.id;
     if (msg.type === "story_duel") {
       storyDuel.current = msg.duel;
       storyEasy.current = msg.level === "facile";
     }
-    if (msg.type === "create" || msg.type === "join") vsBot.current = false;
+    if (msg.type === "create" || msg.type === "join") {
+      vsBot.current = false;
+      sealedDuel.current = false;
+    }
     // The races of an ANNOUNCE_RACE response are bigints: they travel as strings.
     socket.current?.send(JSON.stringify(msg, (_key, value: unknown) => (typeof value === "bigint" ? String(value) : value)));
   };
@@ -120,7 +128,7 @@ export function Lobby() {
           {state.error}
         </p>
       )}
-      <Screen state={state} page={shown} send={send} reconnect={reconnect} leave={leave} respond={respond} go={go} vsBot={vsBot.current} storyDuel={storyDuel.current} easy={storyEasy.current} puzzle={puzzle} />
+      <Screen state={state} page={shown} send={send} reconnect={reconnect} leave={leave} respond={respond} go={go} vsBot={vsBot.current} storyDuel={storyDuel.current} easy={storyEasy.current} puzzle={puzzle} sealedDuel={sealedDuel.current} />
     </DuelView>
   );
 }
@@ -137,13 +145,14 @@ type ScreenProps = {
   storyDuel?: string;
   easy: boolean;
   puzzle?: PuzzleView;
+  sealedDuel: boolean;
 };
 
 const signOut = () => {
   supabase.auth.signOut();
 };
 
-function Screen({ state, page, send, reconnect, leave, respond, go, vsBot, storyDuel, easy, puzzle }: Readonly<ScreenProps>) {
+function Screen({ state, page, send, reconnect, leave, respond, go, vsBot, storyDuel, easy, puzzle, sealedDuel }: Readonly<ScreenProps>) {
   if (state.closed) {
     return (
       <Shell id="perdu">
@@ -189,7 +198,7 @@ function Screen({ state, page, send, reconnect, leave, respond, go, vsBot, story
     return (
       <>
         <Duel board={state.board} seat={state.seat ?? 0} asked={state.question} respond={respond} leave={leave} surrender={() => send({ type: "surrender" })} emotes={state.emotes} sendEmote={(id) => send({ type: "emote", id })} report={report} answerBy={state.answerBy} away={state.away} feed={state.feed} lp={state.lp} opponentLp={state.opponentLp} pseudo={state.pseudo} opponent={state.opponent} avatar={state.profile?.avatar ?? undefined} opponentAvatar={state.opponentAvatar} rules={puzzle ? puzzleRule(puzzle) : specialRules(special)} easy={state.storyOpen && easy} kingdom={special.includes("duelist-kingdom")} />
-        {state.board.winner !== undefined && <Fin board={state.board} seat={state.seat ?? 0} room={state.room} vsBot={vsBot} opponent={state.opponent} story={story} eventBooster={state.eventWon} puzzle={puzzle && { title: puzzle.title, booster: state.solved?.booster }} tower={tower} rematch={state.rematch} onRematch={(accept) => send({ type: "rematch", accept })} report={report} leave={leave} go={leaveFor} />}
+        {state.board.winner !== undefined && <Fin board={state.board} seat={state.seat ?? 0} room={state.room} vsBot={vsBot} opponent={state.opponent} story={story} eventBooster={state.eventWon} puzzle={puzzle && { title: puzzle.title, booster: state.solved?.booster }} tower={tower} rematch={state.rematch} onRematch={(accept) => send({ type: "rematch", accept })} sealed={sealedDuel ? (state.sealed ?? undefined) : undefined} report={report} leave={leave} go={leaveFor} />}
       </>
     );
   }
@@ -211,6 +220,7 @@ function Screen({ state, page, send, reconnect, leave, respond, go, vsBot, story
       {page === "regles" && <Regles />}
       {page === "profil" && <Profil state={state} send={send} />}
       {page === "parametres" && <Parametres />}
+      {page === "scelle" && <Scelle run={state.sealed} send={send} go={go} />}
     </Shell>
   );
 }

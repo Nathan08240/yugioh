@@ -82,7 +82,14 @@ export type ClientMessage =
   // Tower mode: `tower` asks for the floors and progression, `tower_duel` starts the next floor against the bot. After a
   // tower duel, `rematch` starts the next one: the next floor after a win, floor 1 after a loss.
   | { type: "tower" }
-  | { type: "tower_duel" };
+  | { type: "tower_duel" }
+  // Sealed mode (sealed.ts), each answered with `sealed`: the latest session, a new one (or the one in progress), its deck
+  // (once, from the reserve only), or giving it up without reward. `sealed_duel` starts its next duel against the bot.
+  | { type: "sealed" }
+  | { type: "sealed_start" }
+  | { type: "sealed_deck"; main: number[]; extra: number[] }
+  | { type: "sealed_abandon" }
+  | { type: "sealed_duel" };
 
 export type DuelMode = "online" | "bot" | "story";
 // Wins and losses of a player with a deck in a mode (and at a level, against the bot or in Story mode); `deck` is null for a deck deleted since.
@@ -151,7 +158,9 @@ export type ServerMessage =
   | { type: "puzzle_won"; id: string; booster: boolean }
   | ({ type: "tower" } & TowerView)
   // A won tower duel, recorded: `boosters` earned by the first win of a reward floor, 0 otherwise.
-  | { type: "tower_won"; floor: number; best: number; boosters: number };
+  | { type: "tower_won"; floor: number; best: number; boosters: number }
+  // null before the first session.
+  | { type: "sealed"; run: SealedRun | null };
 
 // Wonder pick of the day. `cards` are shown face up in this order, then shuffled: face-down card `i` is `cards[shuffle[i]]`.
 // The server keeps `shuffle` to itself until the player picks `picked`, a face-down index.
@@ -180,6 +189,15 @@ export const REPLAY_BOOSTERS_MAX = 2;
 // `replays`, for a duel already won: wins of the current series of REPLAY_WINS, the last one gives a booster.
 // `replayLimit`: REPLAY_BOOSTERS_MAX replay boosters already earned today, this win does not count.
 export type StoryResult = { rewards: Rewards | null; stars: number; best: number; starBooster: boolean; replays?: number; replayLimit?: true };
+// A Sealed session ends at SEALED_WINS wins or SEALED_LOSSES losses; SEALED_REWARDS[wins] boosters at its end.
+export const SEALED_WINS = 3;
+export const SEALED_LOSSES = 2;
+export const SEALED_REWARDS = [0, 1, 2, 4];
+export type SealedStatus = "building" | "playing" | "done" | "abandoned";
+// `pool`: the reserve of the 6 boosters of `set` (`setName`), one printing per copy. `main` and `extra`: the deck, null until validated.
+// `boosters`: earned once done.
+export type SealedRun = { id: number; set: string; setName: string; pool: Printing[]; main: number[] | null; extra: number[] | null; wins: number; losses: number; status: SealedStatus; boosters: number };
+
 // Locked until every duel of `requires` is won.
 export type StoryStatus = "locked" | "available" | "done";
 export type StoryDuelView = {

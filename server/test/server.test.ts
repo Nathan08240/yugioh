@@ -12,6 +12,7 @@ import { respond } from "../src/respond.ts";
 import { WISH_MAX } from "../src/wishlist.ts";
 import { drawWonder } from "../src/wonder.ts";
 import { advance, creditWinner, DECISION_TIME, RECONNECT_TIME, startServer, towerFloor, type Accounts, type Room } from "../src/server.ts";
+import { noSealed } from "./fakes.ts";
 
 const FLAME_SWORDSMAN = 45231177;
 
@@ -97,6 +98,7 @@ const accounts: Accounts = {
   towerView: async () => ({ floors: [], floor: 0, best: 0, claimed: [] }),
   startTower: async () => 1,
   winTower: async (_userId, floor) => ({ floor, best: floor, boosters: 0 }),
+  ...noSealed,
 };
 // "admin" peut s'ajouter des boosters.
 process.env.ADMIN_USER_IDS = "admin, autreadmin";

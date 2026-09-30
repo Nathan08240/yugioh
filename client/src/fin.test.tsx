@@ -142,3 +142,13 @@ it("en mode Tour, propose l'étage suivant après une victoire et l'étage 1 apr
   for (const text of ["Recommencer à l&#x27;étage 1", "votre record est gardé"]) expect(defeat).toContain(text);
   expect(defeat).not.toContain("Revanche");
 });
+
+it("renvoie un duel Scellé à son écran, sans revanche, avec le bilan de la session", () => {
+  const run = { id: 1, set: "LOB", setName: "LOB", pool: [], main: [], extra: [], wins: 1, losses: 1, boosters: 0 };
+  const sealed = (status: "playing" | "done") => render(<Fin board={finished(1)} seat={0} room="r" vsBot leave={() => {}} go={() => {}} onRematch={() => {}} sealed={{ ...run, status }} />);
+  expect(sealed("playing")).toContain("Mode Scellé · 1/3 victoires · 1/2 défaites");
+  expect(sealed("playing")).toContain("Retour au Scellé");
+  expect(sealed("done")).toContain("Voir le bilan");
+  expect(sealed("playing")).not.toContain("Revanche");
+  expect(sealed("playing")).not.toContain("Modifier mon deck");
+});
