@@ -2,13 +2,13 @@ import { useLayoutEffect, useRef } from "react";
 import { NO_MONSTER, type Board } from "./board.ts";
 import { CardView } from "./Card.tsx";
 import { cardName, useDuelView } from "./cards.ts";
-import type { LobbyState, StoryWon } from "./lobby.ts";
+import type { LobbyState, StoryWon, TowerWon } from "./lobby.ts";
 import { D1, D2, D3, D4, RESSORT, sequences, type AnimOptions, type Sequence, type Step } from "./motion.ts";
 import type { Page } from "./Shell.tsx";
 import { Signaler, type Report } from "./Signaler.tsx";
 import { jouer as jouerSon } from "./son.ts";
 import "./styles/fin.css";
-import { PUZZLE_FAILED, REPLAY_BOOSTERS_MAX, REPLAY_WINS } from "../../server/src/protocol.ts";
+import { PUZZLE_FAILED, REPLAY_BOOSTERS_MAX, REPLAY_WINS, TOWER_FLOORS } from "../../server/src/protocol.ts";
 import { nextStar, Rewards, Stars } from "./ui.tsx";
 
 type Props = {
@@ -25,6 +25,8 @@ type Props = {
   eventBooster?: boolean;
   // A puzzle, and once the server has recorded its success, whether it earned a booster (the first time only).
   puzzle?: { title: string; booster?: boolean };
+  // A tower duel: its floor, and its win once the server has recorded it. The rematch starts the next floor.
+  tower?: { floor: number; won?: TowerWon };
   // Online rematch state; against the bot, asking starts a new duel at once.
   rematch?: LobbyState["rematch"];
   onRematch: (accept: boolean) => void;
@@ -83,7 +85,7 @@ const defeat =
   };
 
 // Victory or defeat screen over the board, once the engine has named the winner.
-export function Fin({ board, seat, room, vsBot, opponent, story, eventBooster, puzzle, rematch, onRematch, report, leave, go }: Readonly<Props>) {
+export function Fin({ board, seat, room, vsBot, opponent, story, eventBooster, puzzle, tower, rematch, onRematch, report, leave, go }: Readonly<Props>) {
   const root = useRef<HTMLDivElement>(null);
   const won = board.winner === seat;
   const lost = board.winner === 1 - seat;
@@ -98,11 +100,12 @@ export function Fin({ board, seat, room, vsBot, opponent, story, eventBooster, p
   let context = `Duel en ligne · salle ${room}`;
   if (story) context = `${story.title ?? "Mode Histoire"}${story.easy ? " · Facile" : ""}`;
   else if (puzzle) context = `Puzzle · ${puzzle.title}`;
+  else if (tower) context = `La Tour · Étage ${tower.floor} sur ${TOWER_FLOORS}`;
   else if (vsBot) context = "Duel contre le bot";
-  let back = story ? "Retour à l'histoire" : "Retour à l'accueil";
+  let back = backLabel(Boolean(story), Boolean(tower));
   if (puzzle) back = "Retour aux puzzles";
   const eventGain = won && eventBooster ? 1 : 0;
-  let boosters = (won && !vsBot && !story ? 1 : storyBoosters(story?.won)) + eventGain;
+  let boosters = (won && !vsBot && !story ? 1 : storyBoosters(story?.won)) + eventGain + (tower?.won?.boosters ?? 0);
   if (puzzle) boosters = won && puzzle.booster ? 1 : 0;
 
   return (
@@ -114,10 +117,11 @@ export function Fin({ board, seat, room, vsBot, opponent, story, eventBooster, p
           {puzzle ? puzzleTitle(won) : title(won, lost)}
         </h1>
         <Score board={board} seat={seat} won={won} lost={lost} opponent={opponent} />
-        {won && <Gains story={story} boosters={boosters} />}
+        {won && (tower ? <TowerGains won={tower.won} /> : <Gains story={story} boosters={boosters} />)}
         {won && eventBooster && <p className="texte-2">Première victoire de l'événement de la semaine : 1 booster gagné.</p>}
         {won && puzzle?.booster === false && <p className="texte-2 fin__recit">Puzzle déjà réussi : la récompense a été obtenue.</p>}
         {(won || lost) && <Cause board={board} seat={seat} won={won} kingdom={story?.special?.includes("duelist-kingdom") ?? false} opponent={opponent} />}
+        {lost && tower && <p className="texte-2 fin__note">Une défaite renvoie à l'étage 1 ; votre record est gardé.</p>}
         {lost && !story && !vsBot && <p className="texte-2 fin__note">Le vainqueur d'un duel en ligne reçoit un booster. Retentez votre chance avec un deck ajusté.</p>}
         <div className="fin__actions">
           {boosters > 0 ? (
@@ -134,7 +138,7 @@ export function Fin({ board, seat, room, vsBot, opponent, story, eventBooster, p
               {back}
             </button>
           )}
-          <Rematch online={!vsBot} seat={seat} rematch={rematch} opponent={opponent} onRematch={onRematch} label={puzzle ? "Réessayer" : "Revanche"} />
+          <Rematch online={!vsBot} seat={seat} rematch={rematch} opponent={opponent} onRematch={onRematch} label={rematchLabel(Boolean(puzzle), tower, won)} />
           {lost && !puzzle && (
             <button type="button" className="btn btn--fantome" onClick={() => go("collection")}>
               Modifier mon deck
@@ -185,6 +189,40 @@ function Rematch({ online, seat, rematch, opponent, onRematch, label }: RematchP
 }
 
 const puzzleTitle = (won: boolean) => (won ? "Puzzle réussi" : "Puzzle échoué");
+
+function backLabel(story: boolean, tower: boolean): string {
+  if (story) return "Retour à l'histoire";
+  return tower ? "Retour à la Tour" : "Retour à l'accueil";
+}
+
+// What the rematch of a tower duel starts.
+function towerNext(floor: number, won: boolean): string {
+  if (!won) return "Recommencer à l'étage 1";
+  return floor < TOWER_FLOORS ? "Étage suivant" : "Recommencer la Tour";
+}
+
+function TowerGains({ won }: Readonly<{ won?: TowerWon }>) {
+  if (!won) return <p className="texte-2 fin__recit">Enregistrement de la victoire…</p>;
+  const cleared = won.floor < TOWER_FLOORS ? `Étage ${won.floor} franchi.` : "Sommet de la Tour atteint !";
+  return (
+    <>
+      <p className="fin__recit">
+        {cleared} Record : {won.best} étage{won.best > 1 ? "s" : ""}.
+      </p>
+      {won.boosters > 0 && (
+        <div className="fin__gains">
+          <Rewards rewards={{ boosters: won.boosters }} />
+        </div>
+      )}
+    </>
+  );
+}
+
+// The rematch button: retry a puzzle, the next floor of the tower, or a rematch.
+function rematchLabel(puzzle: boolean, tower: { floor: number } | undefined, won: boolean): string {
+  if (puzzle) return "Réessayer";
+  return tower ? towerNext(tower.floor, won) : "Revanche";
+}
 
 function title(won: boolean, lost: boolean): string {
   if (won) return "Victoire";

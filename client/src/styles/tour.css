@@ -1,0 +1,61 @@
+/* Mode Tour (Tour.tsx) : les étages du plus haut au plus bas, l'étage à jouer mis en avant */
+
+.tour {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--e-5);
+  inline-size: 100%;
+  max-inline-size: var(--largeur-max);
+  margin-inline: auto;
+  padding: var(--e-4) var(--marge-ecran) var(--e-6);
+}
+
+.tour__tete {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--e-3);
+  align-items: end;
+  justify-content: space-between;
+}
+
+.tour__etages {
+  display: grid;
+  gap: var(--e-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tour__etage {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: var(--e-3);
+  align-items: center;
+  padding: var(--e-2) var(--e-3);
+  border-radius: var(--r-2);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--trait);
+}
+
+.tour__etage > span:first-of-type {
+  display: grid;
+}
+
+.tour__etage--franchi {
+  opacity: 0.6;
+}
+
+.tour__etage--actuel {
+  box-shadow: inset 0 0 0 1px var(--holo), var(--lueur-holo);
+}
+
+.tour__numero {
+  min-inline-size: 2ch;
+  font-size: var(--taille-l);
+  text-align: center;
+}
+
+.tour > .btn {
+  align-self: center;
+}

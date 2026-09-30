@@ -21,7 +21,7 @@ import { EMOTE_DELAY, EMOTE_IDS, type EmoteId } from "./emotes.ts";
 import { claimEvent, eventOf, eventRules, eventWon, type WeeklyEvent } from "./event.ts";
 import { isAllowed, POOL, SETS, type Printing } from "./pool.ts";
 import { dbProfileStore, isProfileMessage, profileReply, validProfileMessage, type ProfileMessage, type ProfileStore } from "./profile.ts";
-import { PUZZLE_FAILED, REPORT_MAX, type BotLevel, type CardInfo, type ClientMessage, type DeckResult, type DuelEvent, type Seat, type ServerMessage, type StoryLevel, type StoryResult } from "./protocol.ts";
+import { PUZZLE_FAILED, REPORT_MAX, type BotLevel, type CardInfo, type ClientMessage, type DeckResult, type DuelEvent, type Seat, type ServerMessage, type StoryLevel, type StoryResult, type TowerView } from "./protocol.ts";
 import { PUZZLE_IDS, PUZZLE_TURNS, puzzleField, puzzleRules, puzzleView, solvedPuzzles, solvePuzzle } from "./puzzles.ts";
 import { REPORT_BYTES, RESPONSE_BYTES, saveReport, type Report } from "./report.ts";
 import { engineForm, respond } from "./respond.ts";
@@ -30,6 +30,7 @@ import { serveClient } from "./site.ts";
 import { chooseStarter, starterCards, type Starter } from "./starter.ts";
 import { completeDuel, completedDuels, isUnlocked, STORY, STORY_DUELS, storyDeck, storyExtra, storyRules, storyStars, storyView, type StoryDuel } from "./story.ts";
 import { systemStrings } from "./strings.ts";
+import { startTower, TOWER, towerLevel, towerRules, towerView, winTower, type TowerWin } from "./tower.ts";
 import { hideCards, visibleTo } from "./visibility.ts";
 import { dbWishStore, isWishMessage, validWishMessage, wishReply, type WishMessage, type WishStore } from "./wishlist.ts";
 import { dbWonderStore, isWonderMessage, validWonderMessage, wonderReply, type WonderMessage, type WonderStore } from "./wonder.ts";
@@ -67,6 +68,8 @@ export type Room = {
   onEnd?: (winner: Seat, reason: number) => void;
   // What a bug report needs to replay the current (or last) duel: its seed, decks, turn and every response the engine accepted.
   record?: { seed: Seed; decks: Report["decks"]; turn: number; responses: OcgResponse[] };
+  // Tower mode: the floor of the duel, and the recording of its win once seat 0 won.
+  tower?: { floor: number; saved?: Promise<void> };
 };
 
 const rulesOf = (room: Room) => room.rules ?? STANDARD_RULES;
@@ -105,6 +108,10 @@ export type Accounts = DeckStore & WishStore & EconomyStore & WonderStore & Prof
   // Event of the week (event.ts): whether its booster was taken, and taking it (resolves to false when it already was).
   eventWon: (userId: string, eventId: string) => Promise<boolean>;
   claimEvent: (userId: string, eventId: string) => Promise<boolean>;
+  // Tower mode (tower.ts): progression, the floor of the next duel, the win of a floor.
+  towerView: (userId: string) => Promise<TowerView>;
+  startTower: (userId: string) => Promise<number>;
+  winTower: (userId: string, floor: number) => Promise<TowerWin>;
 };
 
 export function dbAccounts(db: Db): Accounts {
@@ -130,6 +137,9 @@ export function dbAccounts(db: Db): Accounts {
     saveReport: (userId, message, report) => saveReport(db, userId, message, report),
     eventWon: (userId, eventId) => eventWon(db, userId, eventId),
     claimEvent: (userId, eventId) => claimEvent(db, userId, eventId),
+    towerView: (userId) => towerView(db, userId),
+    startTower: (userId) => startTower(db, userId),
+    winTower: (userId, floor) => winTower(db, userId, floor),
     ...dbDeckStore(db),
     ...dbWishStore(db),
     ...dbEconomyStore(db),
@@ -266,6 +276,8 @@ function parse(data: string): ClientMessage | undefined {
     msg.type === "event" ||
     msg.type === "puzzles" ||
     (msg.type === "puzzle" && typeof msg.id === "string") ||
+    msg.type === "tower" ||
+    msg.type === "tower_duel" ||
     (msg.type === "story_duel" && typeof msg.duel === "string" && (msg.level === undefined || STORY_LEVELS.has(msg.level))) ||
     (msg.type === "emote" && EMOTE_IDS.has(msg.id)) ||
     (msg.type === "join" && typeof msg.room === "string") ||
@@ -443,6 +455,35 @@ export function creditWinner(room: Room, seat: Seat, accounts: Pick<Accounts, "c
   }
 }
 
+// Tower mode: sets the room up for `floor`, with its opponent once the bot is seated. Only a win of seat 0 is recorded:
+// startTower already counted anything else as a loss.
+export function towerFloor(room: Room, floor: number, accounts: Pick<Accounts, "winTower">) {
+  const level = towerLevel(floor);
+  const tower: NonNullable<Room["tower"]> = { floor };
+  const opponent = TOWER[floor - 1];
+  room.rules = towerRules(floor);
+  room.level = level;
+  room.mode = { mode: "bot", level };
+  room.tower = tower;
+  const bot = room.players[1];
+  if (bot) {
+    bot.name = opponent.name;
+    bot.deck = opponent.main;
+    bot.extra = opponent.extra;
+  }
+  room.onWin = (winner) => {
+    const player = room.players[0];
+    if (winner !== 0 || !player) return;
+    tower.saved = accounts.winTower(player.id, floor).then(
+      (won) => send(room.players[0]?.socket, { type: "tower_won", ...won }),
+      (error: unknown) => {
+        console.error(error);
+        send(room.players[0]?.socket, { type: "error", error: "victoire non enregistrée, l'étage est à rejouer" });
+      },
+    );
+  };
+}
+
 // The online rematch pending, if any, for a seat that comes back.
 function rematchMessage(room: Room): ServerMessage | undefined {
   if (room.rematch === undefined) return undefined;
@@ -458,7 +499,7 @@ function sendJoined(room: Room, seat: Seat) {
   const player = room.players[seat];
   if (!player) return;
   const [lp, opponentLp] = [lpOf(rulesOf(room), seat), lpOf(rulesOf(room), 1 - seat)];
-  send(player.socket, { type: "joined", room: room.code, seat, lp, opponentLp: opponentLp === lp ? undefined : opponentLp, decks: deckSizes(room), extras: extraSizes(room), opponent: room.players[1 - seat]?.name, opponentAvatar: room.players[1 - seat]?.avatar, special: room.event && [room.event.rule], log: player.log });
+  send(player.socket, { type: "joined", room: room.code, seat, lp, opponentLp: opponentLp === lp ? undefined : opponentLp, decks: deckSizes(room), extras: extraSizes(room), opponent: room.players[1 - seat]?.name, opponentAvatar: room.players[1 - seat]?.avatar, special: room.event && [room.event.rule], log: player.log, floor: room.tower?.floor });
 }
 
 // The events up to the start of the turn after room.turnLimit, replaced by a win of seat 1: the puzzle is failed.
@@ -617,6 +658,12 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
     }
     room.players.forEach((_player, index) => sendJoined(room, index as Seat));
     start(room, newSeed()).catch((error: unknown) => console.error(error));
+  }
+
+  // After a tower duel: the next floor once its win is recorded, floor 1 after a loss.
+  async function climb(room: Room, tower: NonNullable<Room["tower"]>) {
+    await tower.saved;
+    towerFloor(room, await accounts.startTower(room.players[0].id), accounts);
   }
 
   function leave(room: Room, socket: WebSocket) {
@@ -848,7 +895,7 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
       return undefined;
     }
 
-    // Against the bot, a rematch starts at once. Online, it starts once both seats asked, with their active decks of the moment.
+    // Against the bot, a rematch starts at once (the next floor of the tower). Online, it starts once both seats asked, with their active decks of the moment.
     async function rematch(room: Room, index: Seat, accept: boolean): Promise<string | undefined> {
       if (!room.over) return "aucun duel terminé";
       const bot = room.players.some((player) => player.bot);
@@ -858,6 +905,9 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
         return undefined;
       }
       if (bot) {
+        // Set first: a second rematch cannot climb twice.
+        room.over = false;
+        if (room.tower) await climb(room, room.tower);
         restart(room);
         return undefined;
       }
@@ -913,6 +963,22 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
       return enter(userId, room, empty, { deck: empty, name: "Bot", level: "normal" });
     }
 
+    async function showTower(userId: string): Promise<undefined> {
+      send(socket, { type: "tower", ...(await accounts.towerView(userId)) });
+      return undefined;
+    }
+
+    // The player keeps seat 0 against the bot of the floor. The deck is checked first: an invalid one keeps the progression.
+    async function playTower(userId: string): Promise<string | undefined> {
+      const deck = await duelDeck(userId);
+      if (typeof deck === "string") return deck;
+      const room: Room = { code: newCode(rooms), players: [] };
+      const floor = await accounts.startTower(userId);
+      towerFloor(room, floor, accounts);
+      const { name, main, extra } = TOWER[floor - 1];
+      return enter(userId, room, deck, { deck: { main, extra }, name, level: room.level });
+    }
+
     async function sendResults(userId: string): Promise<undefined> {
       send(socket, { type: "duel_results", results: await accounts.duelResults(userId) });
       return undefined;
@@ -937,6 +1003,7 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
       if (msg.type === "duel_results") return sendResults(user.id);
       if (msg.type === "event") return showEvent(user.id);
       if (msg.type === "puzzles") return showPuzzles(user.id);
+      if (msg.type === "tower") return showTower(user.id);
       if (msg.type === "respond") return seat ? answer(seat.room, seat.index, msg.response) : "pas dans une salle";
       if (msg.type === "surrender") return seat ? surrender(seat.room, seat.index) : "pas dans une salle";
       if (msg.type === "emote") return seat ? emote(seat.room, seat.index, msg.id) : "pas dans une salle";
@@ -945,6 +1012,7 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
       if (seat) return "déjà dans une salle";
       if (msg.type === "story_duel") return playStory(user.id, msg.duel, msg.level);
       if (msg.type === "puzzle") return playPuzzle(user.id, msg.id);
+      if (msg.type === "tower_duel") return playTower(user.id);
       return enterRoom(user.id, msg);
     }
 

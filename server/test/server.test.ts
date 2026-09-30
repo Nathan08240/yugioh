@@ -11,7 +11,7 @@ import type { CardInfo, ClientMessage, ServerMessage, Wire, WonderView } from ".
 import { respond } from "../src/respond.ts";
 import { WISH_MAX } from "../src/wishlist.ts";
 import { drawWonder } from "../src/wonder.ts";
-import { advance, creditWinner, DECISION_TIME, RECONNECT_TIME, startServer, type Accounts, type Room } from "../src/server.ts";
+import { advance, creditWinner, DECISION_TIME, RECONNECT_TIME, startServer, towerFloor, type Accounts, type Room } from "../src/server.ts";
 
 const FLAME_SWORDSMAN = 45231177;
 
@@ -94,6 +94,9 @@ const accounts: Accounts = {
   claimDaily: async (userId) => userId === "quotidien",
   eventWon: async () => false,
   claimEvent: async () => true,
+  towerView: async () => ({ floors: [], floor: 0, best: 0, claimed: [] }),
+  startTower: async () => 1,
+  winTower: async (_userId, floor) => ({ floor, best: floor, boosters: 0 }),
 };
 // "admin" peut s'ajouter des boosters.
 process.env.ADMIN_USER_IDS = "admin, autreadmin";
@@ -739,5 +742,60 @@ describe("revanche", () => {
     left.b.socket.close();
     await vi.waitFor(() => expect(left.a.received).toContainEqual({ type: "rematch_declined" }));
     expect(joins(left.a)).toHaveLength(total);
+  });
+});
+
+describe("mode Tour", () => {
+  it("prépare l'étage : adversaire, niveau, LP ; seule une victoire du joueur est enregistrée", async () => {
+    const socket = { send: vi.fn() } as unknown as WebSocket;
+    const winTower = vi.fn(async (_userId: string, floor: number) => ({ floor, best: floor, boosters: 2 }));
+    const room: Room = { code: "TOUR", players: [{ id: "p0", socket, log: [], deck: [] }, { id: "bot", name: "Bot", log: [], deck: [], bot: {} as Bot }] };
+
+    towerFloor(room, 6, { winTower });
+    expect(room.rules).toEqual({ lp: 4500, playerLp: 4000, hand: 5, cards: [] });
+    expect(room.level).toBe("normal");
+    expect(room.players[1]).toMatchObject({ name: "Machines de guerre", deck: expect.any(Array) });
+    expect(room.players[1].deck).toHaveLength(40);
+    room.onWin?.(1);
+    expect(winTower).not.toHaveBeenCalled();
+    room.onWin?.(0);
+    await room.tower?.saved;
+    expect(winTower).toHaveBeenCalledWith("p0", 6);
+    expect(vi.mocked(socket.send)).toHaveBeenCalledWith(JSON.stringify({ type: "tower_won", floor: 6, best: 6, boosters: 2 }));
+
+    towerFloor(room, 3, { winTower });
+    expect(room.rules?.lp).toBe(4000);
+    expect(room.level).toBe("debutant");
+  });
+
+  it("joue l'étage donné par le serveur ; après un abandon, la revanche repart de l'étage donné", { timeout: 30_000 }, async () => {
+    const start = vi.spyOn(accounts, "startTower").mockResolvedValueOnce(8).mockResolvedValueOnce(1);
+    const win = vi.spyOn(accounts, "winTower");
+    decks.set("tour-a", YUGI);
+    const human = await connect("tour-a");
+    const joins = () => human.received.filter((msg) => msg.type === "joined");
+    human.send({ type: "tower_duel" });
+    await vi.waitFor(() => expect(human.received.some((msg) => msg.type === "question")).toBe(true), { timeout: 20_000 });
+    expect(joins().at(-1)).toMatchObject({ opponent: "Yugi, Magicien Sombre", lp: 4000, opponentLp: 5500, floor: 8 });
+    const count = joins().length;
+    human.send({ type: "surrender" });
+    await vi.waitFor(() => expect(human.messages().some((msg) => msg.type === OcgMessageType.WIN)).toBe(true));
+    human.send({ type: "rematch" });
+    await vi.waitFor(() => expect(joins()).toHaveLength(count + 1));
+    expect(joins().at(-1)).toMatchObject({ opponent: "Marées d'Umi", lp: 4000, floor: 1, log: [] });
+    expect(joins().at(-1)).not.toHaveProperty("opponentLp");
+    expect(start.mock.calls.filter(([id]) => id === "tour-a")).toHaveLength(2);
+    expect(win.mock.calls.filter(([id]) => id === "tour-a")).toEqual([]);
+    start.mockRestore();
+    win.mockRestore();
+  });
+
+  it("refuse la Tour sans deck valide, sans toucher à la progression", async () => {
+    const start = vi.spyOn(accounts, "startTower");
+    const human = await connect("sansdeck");
+    human.send({ type: "tower_duel" });
+    await vi.waitFor(() => expect(human.received).toContainEqual({ type: "error", error: "deck actif requis" }));
+    expect(start.mock.calls.filter(([id]) => id === "sansdeck")).toEqual([]);
+    start.mockRestore();
   });
 });

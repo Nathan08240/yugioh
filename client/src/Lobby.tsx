@@ -18,6 +18,7 @@ import { Regles, specialRules } from "./regles.tsx";
 import { Shell, type Page } from "./Shell.tsx";
 import { duelLabel, duelLp, duelSpecial, Story } from "./Story.tsx";
 import { supabase } from "./supabase.ts";
+import { Tour } from "./Tour.tsx";
 
 // Same origin as the page: Vite proxies /ws to the game server in dev.
 const SERVER_URL = `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws`;
@@ -77,7 +78,7 @@ export function Lobby() {
   }, [ready]);
 
   const send: Send = (msg) => {
-    if (msg.type === "bot" || msg.type === "story_duel" || msg.type === "puzzle") vsBot.current = true;
+    if (msg.type === "bot" || msg.type === "story_duel" || msg.type === "puzzle" || msg.type === "tower_duel") vsBot.current = true;
     if (msg.type === "puzzle") puzzleId.current = msg.id;
     if (msg.type === "story_duel") {
       storyDuel.current = msg.duel;
@@ -183,11 +184,12 @@ function Screen({ state, page, send, reconnect, leave, respond, go, vsBot, story
       leave();
       go(next);
     };
+    const tower = state.floor === undefined ? undefined : { floor: state.floor, won: state.towerWon };
     const report = { send: (message: string) => send({ type: "report", message: message || undefined }), sent: state.reported };
     return (
       <>
         <Duel board={state.board} seat={state.seat ?? 0} asked={state.question} respond={respond} leave={leave} surrender={() => send({ type: "surrender" })} emotes={state.emotes} sendEmote={(id) => send({ type: "emote", id })} report={report} answerBy={state.answerBy} away={state.away} feed={state.feed} lp={state.lp} opponentLp={state.opponentLp} pseudo={state.pseudo} opponent={state.opponent} avatar={state.profile?.avatar ?? undefined} opponentAvatar={state.opponentAvatar} rules={puzzle ? puzzleRule(puzzle) : specialRules(special)} easy={state.storyOpen && easy} kingdom={special.includes("duelist-kingdom")} />
-        {state.board.winner !== undefined && <Fin board={state.board} seat={state.seat ?? 0} room={state.room} vsBot={vsBot} opponent={state.opponent} story={story} eventBooster={state.eventWon} puzzle={puzzle && { title: puzzle.title, booster: state.solved?.booster }} rematch={state.rematch} onRematch={(accept) => send({ type: "rematch", accept })} report={report} leave={leave} go={leaveFor} />}
+        {state.board.winner !== undefined && <Fin board={state.board} seat={state.seat ?? 0} room={state.room} vsBot={vsBot} opponent={state.opponent} story={story} eventBooster={state.eventWon} puzzle={puzzle && { title: puzzle.title, booster: state.solved?.booster }} tower={tower} rematch={state.rematch} onRematch={(accept) => send({ type: "rematch", accept })} report={report} leave={leave} go={leaveFor} />}
       </>
     );
   }
@@ -205,6 +207,7 @@ function Screen({ state, page, send, reconnect, leave, respond, go, vsBot, story
       {page === "boosters" && <Boosters state={state} send={send} go={go} />}
       {page === "histoire" && <Story arcs={state.story} send={send} />}
       {page === "puzzles" && <Puzzles puzzles={state.puzzles} send={send} />}
+      {page === "tour" && <Tour tower={state.tower} send={send} />}
       {page === "regles" && <Regles />}
       {page === "profil" && <Profil state={state} send={send} />}
       {page === "parametres" && <Parametres />}

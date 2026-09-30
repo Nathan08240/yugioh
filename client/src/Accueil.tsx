@@ -5,6 +5,7 @@ import { cardName, stat, strongest, useDuelView } from "./cards.ts";
 import { countdown, inviteLink, type DeckList, type LobbyState } from "./lobby.ts";
 import { RuleBlock, specialRules } from "./regles.tsx";
 import type { Page } from "./Shell.tsx";
+import { towerLine } from "./Tour.tsx";
 import "./styles/accueil.css";
 import { Icon } from "./ui.tsx";
 
@@ -42,6 +43,7 @@ export function Accueil({ state, send, go }: Readonly<{ state: LobbyState; send:
     send({ type: "booster_state" });
     send({ type: "story" });
     send({ type: "puzzles" });
+    send({ type: "tower" });
     send({ type: "collection" });
     send({ type: "decks" });
     send({ type: "event" });
@@ -124,6 +126,9 @@ export function Accueil({ state, send, go }: Readonly<{ state: LobbyState; send:
         </Mode>
         <Mode icon="ui-eclair" title="Puzzles" onClick={() => go("puzzles")}>
           <PuzzleLine puzzles={state.puzzles} />
+        </Mode>
+        <Mode icon="ui-trophee" title="La Tour" onClick={() => go("tour")}>
+          {state.tower ? towerLine(state.tower) : "10 étages contre le bot, de plus en plus difficiles."}
         </Mode>
         <Mode icon="ui-booster" title="Boosters" badge={state.boosters?.pending} onClick={() => go("boosters")}>
           <BoosterLine boosters={state.boosters} />
