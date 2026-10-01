@@ -62,24 +62,33 @@ type Props = { arcs?: StoryArcView[]; send: (msg: ClientMessage) => void };
 export function Story({ arcs, send }: Readonly<Props>) {
   const [picked, setPicked] = useState<string>();
   const [chosen, setChosen] = useState<string>();
+  // The briefing of the revenge of the arc, instead of one of its duels.
+  const [rematch, setRematch] = useState(false);
   const view = useRef<HTMLDivElement>(null);
   const entered = useRef(false);
   // Progression may have changed since the last visit (a duel just won).
   useEffect(() => send({ type: "story" }), []);
 
   const arc = arcs && (arcs.find((candidate) => candidate.id === chosen) ?? currentArc(arcs));
+  const briefing = picked !== undefined || rematch;
   // The Shell plays the entrance of the screen; then each new view rises in cascade.
   useLayoutEffect(() => {
     const root = view.current;
-    if (entered.current && root) views.play(entrance(picked ? root : (root.querySelector<HTMLElement>(".parcours") ?? root)));
+    if (entered.current && root) views.play(entrance(briefing ? root : (root.querySelector<HTMLElement>(".parcours") ?? root)));
     entered.current = true;
-    if (picked) root?.querySelector("button")?.focus({ preventScroll: true });
-  }, [picked, arc?.id]);
+    if (briefing) root?.querySelector("button")?.focus({ preventScroll: true });
+  }, [briefing, arc?.id]);
 
   if (!arcs || !arc) return <p className="ecran-message">Chargement de l'histoire…</p>;
-  const duel = arc.duels.find((candidate) => candidate.id === picked);
+  const duel = rematch ? arc.revenge : arc.duels.find((candidate) => candidate.id === picked);
   if (duel) {
-    return <Briefing ref={view} duel={duel} label={duelLabel(arcs, duel.id)} back={() => setPicked(undefined)} start={(level) => send({ type: "story_duel", duel: duel.id, level })} />;
+    const label = rematch ? `${arc.title} · Revanche` : duelLabel(arcs, duel.id);
+    const back = () => {
+      setPicked(undefined);
+      setRematch(false);
+    };
+    const start = (level: StoryLevel) => send(rematch ? { type: "story_duel", duel: duel.id, revenge: true } : { type: "story_duel", duel: duel.id, level });
+    return <Briefing ref={view} duel={duel} label={label} revenge={rematch} back={back} start={start} />;
   }
   const all = arcs.flatMap((candidate) => candidate.duels);
   const won = wins(all);
@@ -96,7 +105,41 @@ export function Story({ arcs, send }: Readonly<Props>) {
       </div>
       <Arcs arcs={arcs} selected={arc.id} choose={setChosen} />
       <Path arc={arc} arcs={arcs} pick={setPicked} />
+      {arc.revenge && <Revenge duel={arc.revenge} pick={() => setRematch(true)} />}
     </div>
+  );
+}
+
+// The rematch of the boss of a finished arc: its reward is a single Ultra Rare booster, then it can be replayed for nothing.
+function Revenge({ duel, pick }: Readonly<{ duel: StoryDuelView; pick: () => void }>) {
+  const won = duel.status === "done";
+  let action = <p className="texte-3">Terminez l'arc pour défier de nouveau {duel.opponent}.</p>;
+  if (duel.status !== "locked") {
+    action = (
+      <button type="button" className={won ? "lien" : "btn"} onClick={pick}>
+        {won ? "Rejouer la revanche" : "Défier en revanche"}
+      </button>
+    );
+  }
+  return (
+    <section className={`panneau revanche revanche--${duel.status}`} aria-labelledby="revanche-titre" data-entree>
+      <div>
+        <p className="etape__etat">
+          {won && <Icon id="ui-coche" />}
+          {duel.status === "locked" && <Icon id="ui-cadenas" />}
+          {won ? "Revanche gagnée" : "Revanche"}
+        </p>
+        <h2 id="revanche-titre">{duel.title}</h2>
+        <p className="texte-2">
+          contre {duel.opponent}, deck renforcé, niveau Expert
+        </p>
+      </div>
+      <p className="etape__gain">
+        <Icon id="ui-booster" />
+        <span className="etape__libelle">{won ? "Booster à Ultra Rare garantie déjà obtenu" : "1 booster à Ultra Rare garantie, une seule fois"}</span>
+      </p>
+      {action}
+    </section>
   );
 }
 
@@ -243,7 +286,7 @@ const initials = (name: string) =>
     .map((word) => word[0])
     .join("");
 
-type BriefingProps = { ref?: Ref<HTMLDivElement>; duel: StoryDuelView; label?: string; back: () => void; start: (level: StoryLevel) => void };
+type BriefingProps = { ref?: Ref<HTMLDivElement>; duel: StoryDuelView; label?: string; revenge?: boolean; back: () => void; start: (level: StoryLevel) => void };
 
 const LEVELS: readonly (readonly [StoryLevel, string])[] = [
   ["normal", "Normal"],
@@ -265,6 +308,19 @@ function Difficulty({ duel, level, choose }: Readonly<{ duel: StoryDuelView; lev
       </div>
       <p className="texte-2">{level === "facile" ? `Vos LP de départ sont doublés (${duel.lp * 2} LP). Récompenses et progression identiques, 1 étoile au plus.` : "Le duel tel qu'il a été écrit."}</p>
     </fieldset>
+  );
+}
+
+// The revenge has no difficulty choice and no stars: the boss comes back with a reinforced deck, played by the Expert bot.
+function RevengeRules({ replay }: Readonly<{ replay: boolean }>) {
+  return (
+    <div className="etoiles-regles" data-entree>
+      <h2 className="titre-bloc">Revanche</h2>
+      <p className="texte-2">Deck renforcé et adversaire au niveau Expert, sans étoiles ni niveau Facile.</p>
+      <p className="texte-3">
+        {replay ? "La récompense a déjà été obtenue : la revanche se rejoue sans gain." : "Première victoire : 1 booster contenant au moins une Ultra Rare. Ensuite, la revanche se rejoue sans récompense."}
+      </p>
+    </div>
   );
 }
 
@@ -291,7 +347,7 @@ function StarRules({ duel }: Readonly<{ duel: StoryDuelView }>) {
 }
 
 // Before the duel: the opponent projected by the Duel Disk, the story so far, the rules, what can be won.
-export function Briefing({ ref, duel, label, back, start }: Readonly<BriefingProps>) {
+export function Briefing({ ref, duel, label, revenge = false, back, start }: Readonly<BriefingProps>) {
   const { cards } = useDuelView();
   const rules = specialRules(duel.special);
   const star = duel.rewards.cards?.find((code) => cards.get(code)?.image);
@@ -332,8 +388,8 @@ export function Briefing({ ref, duel, label, back, start }: Readonly<BriefingPro
         {rules.map((rule) => (
           <RuleBlock key={rule.title} rule={rule} open />
         ))}
-        <Difficulty duel={duel} level={level} choose={setLevel} />
-        <StarRules duel={duel} />
+        {revenge ? <RevengeRules replay={replay} /> : <Difficulty duel={duel} level={level} choose={setLevel} />}
+        {!revenge && <StarRules duel={duel} />}
         <div className="briefing__bas" data-entree>
           <div className="briefing__gains">
             <h2 className="titre-bloc">{replay ? "Récompenses déjà obtenues" : "Récompenses"}</h2>

@@ -1,7 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { boosterState, hasUltra, openBooster } from "../src/boosters.ts";
 import { createProfile, type Db } from "../src/db.ts";
 import type { StoryResult } from "../src/protocol.ts";
-import { completeDuel, completedDuels, STORY_DUELS, type StoryDuel } from "../src/story.ts";
+import { completeDuel, completedDuels, completeRevenge, REVENGE_REWARD, revengesWon, STORY_DUELS, type StoryDuel } from "../src/story.ts";
 import { type Pg, startPostgres } from "./pg.ts";
 
 const [weevil, mako, mai] = ["dk-weevil", "dk-mako", "dk-mai"].map((id) => STORY_DUELS.get(id) as StoryDuel);
@@ -73,6 +74,39 @@ describe("progression et récompenses sur Postgres jetable", () => {
     await admin`insert into yugioh.story_duels (user_id, duel_id) values (${id}, 'dk-weevil')`;
     expect(await completedDuels(server, id)).toEqual(new Map([["dk-weevil", 1]]));
     expect(await completeDuel(server, id, weevil, 2)).toEqual({ rewards: null, stars: 2, best: 2, starBooster: false, replays: 1 });
+  });
+
+  it("verse le booster à Ultra Rare de la revanche une fois par arc, la revanche rejouée ne donne rien", async () => {
+    const id = await newPlayer("Pegasus");
+    expect(await revengesWon(server, id)).toEqual(new Set());
+    expect(await completeRevenge(server, id, "duelist-kingdom")).toEqual({ revenge: true, rewards: REVENGE_REWARD });
+    expect(await completeRevenge(server, id, "duelist-kingdom")).toEqual({ revenge: true, rewards: null });
+    expect(await revengesWon(server, id)).toEqual(new Set(["duelist-kingdom"]));
+    expect(await completeRevenge(server, id, "battle-city")).toEqual({ revenge: true, rewards: REVENGE_REWARD });
+    expect(await revengesWon(server, id)).toEqual(new Set(["duelist-kingdom", "battle-city"]));
+    expect(await holdings(id)).toMatchObject({ pending: 2, unlocks: ["revenge:battle-city", "revenge:duelist-kingdom"] });
+    // The revenge is not a story duel: no progression, and another player has none.
+    expect(await completedDuels(server, id)).toEqual(new Map());
+    expect(await revengesWon(server, await newPlayer("Kaiba"))).toEqual(new Set());
+  });
+
+  it("n'accorde qu'une fois des revanches gagnées en même temps", async () => {
+    const id = await newPlayer("Marik");
+    await Promise.all(Array.from({ length: 10 }, () => server`select pg_sleep(0.2)`));
+    const results = await Promise.all(Array.from({ length: 10 }, () => completeRevenge(server, id, "doma")));
+    expect(results.filter((result) => result.rewards)).toHaveLength(1);
+    expect((await holdings(id)).pending).toBe(1);
+    expect((await admin`select ultra_pending from yugioh.booster_state where user_id = ${id}`)[0].ultra_pending).toBe(1);
+  });
+
+  it("garantit une Ultra Rare à l'ouverture du booster de la revanche, avant le compteur habituel", { timeout: 30_000 }, async () => {
+    const id = await newPlayer("Dartz");
+    await openBooster(server, id, "LOB");
+    await completeRevenge(server, id, "doma");
+    expect((await boosterState(server, id)).ultraIn).toBe(1);
+    expect(hasUltra(await openBooster(server, id, "LOB"))).toBe(true);
+    expect((await admin`select ultra_pending, pending from yugioh.booster_state where user_id = ${id}`)[0]).toEqual({ ultra_pending: 0, pending: 0 });
+    expect((await boosterState(server, id)).ultraIn).toBeGreaterThan(1);
   });
 
   it("n'accorde qu'une fois des victoires simultanées sur le même duel", async () => {

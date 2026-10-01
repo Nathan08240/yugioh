@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { OcgType } from "@n1xx1/ocgcore-wasm";
-import { creditBoosters } from "./boosters.ts";
+import { creditBoosters, creditUltraBooster } from "./boosters.ts";
 import { readCard } from "./cards.ts";
 import { addCards } from "./collection.ts";
 import type { Db, Sql } from "./db.ts";
@@ -9,7 +9,7 @@ import { EXTRA_MAX } from "./deckcheck.ts";
 import type { Rules } from "./duel.ts";
 import { parisDay } from "./economy.ts";
 import { isAllowed } from "./pool.ts";
-import { REPLAY_BOOSTERS_MAX, REPLAY_WINS, type Rewards, type StoryArcView, type StoryLevel, type StoryResult, type StoryStatus } from "./protocol.ts";
+import { REPLAY_BOOSTERS_MAX, REPLAY_WINS, type RevengeResult, type Rewards, type StoryArcView, type StoryDuelView, type StoryLevel, type StoryResult, type StoryStatus } from "./protocol.ts";
 
 // Format of each data/story/*.json file, version STORY_VERSION. Texts are short summaries written by us, never anime dialogue.
 export type StoryDuel = {
@@ -29,7 +29,10 @@ export type StoryDuel = {
   // Ids of duels placed before this one, or of earlier arcs, met once every duel of the arc is won.
   requires: string[];
 };
-export type Arc = { id: string; title: string; duels: StoryDuel[] };
+// Rematch of the boss (`boss`: id of a duel of the arc) once the arc is finished: the boss duel with this reinforced deck
+// (pool cards only), against an Expert bot. Its first win gives a booster holding an Ultra Rare.
+export type Revenge = Pick<StoryDuel, "deck" | "extra" | "intro" | "outro"> & { boss: string };
+export type Arc = { id: string; title: string; duels: StoryDuel[]; revenge?: Revenge };
 // `anime`: unofficial cards the opponents may play, outside the pool.
 export type Story = { version: number; anime: number[]; arcs: Arc[] };
 
@@ -99,6 +102,27 @@ function checkTexts(duel: StoryDuel): string[] {
   );
 }
 
+// The Ultra Rare guaranteed booster of the first win of a revenge.
+export const REVENGE_REWARD: Rewards = { boosters: 1 };
+
+const bossOf = (arc: Arc) => arc.duels.find((duel) => duel.id === arc.revenge?.boss);
+
+// The revenge as a duel: the rules and opponent of the boss, its reinforced deck, unlocked once the arc is finished.
+function revengeDuel(arc: Arc, boss: StoryDuel, { deck, extra, intro, outro }: Revenge): StoryDuel {
+  return { ...boss, title: `Revanche : ${boss.title}`, deck, extra: extra ?? boss.extra, intro, outro, rewards: REVENGE_REWARD, requires: [arc.id] };
+}
+
+// Only the pool: the anime cards of the story are not allowed in a revenge deck.
+function checkRevenge(arc: Arc): string[] {
+  const { revenge } = arc;
+  const boss = bossOf(arc);
+  if (!revenge) return [];
+  if (!boss) return [`${arc.id} : boss ${revenge.boss} absent de l'arc`];
+  const duel = revengeDuel(arc, boss, revenge);
+  const problems = [...checkTexts(duel), ...checkDeck(duel.deck, new Set()), ...checkExtra(duel.extra)];
+  return problems.map((problem) => `${arc.id} revanche : ${problem}`);
+}
+
 // Every problem of the data, prefixed by the duel id. Empty when the story can be played.
 export function validateStory(story: Story): string[] {
   const errors: string[] = [];
@@ -111,6 +135,7 @@ export function validateStory(story: Story): string[] {
   const before = new Set<string>();
   const rewarded = new Set<number>();
   for (const arc of story.arcs) {
+    errors.push(...checkRevenge(arc));
     for (const duel of arc.duels) {
       const problems = [...checkTexts(duel), ...checkDeck(duel.deck, anime), ...checkRules(duel.rules), ...checkRewards(duel.rewards, rewarded)];
       if (before.has(duel.id)) problems.push("identifiant en double");
@@ -138,6 +163,14 @@ const errors = validateStory(STORY);
 if (errors.length > 0) throw new Error(`data/story invalide :\n${errors.join("\n")}`);
 
 export const STORY_DUELS: ReadonlyMap<string, StoryDuel> = new Map(STORY.arcs.flatMap((arc) => arc.duels.map((duel) => [duel.id, duel])));
+
+// The revenges by boss duel id, with the id of their arc.
+export const STORY_REVENGES: ReadonlyMap<string, { arc: string; duel: StoryDuel }> = new Map(
+  STORY.arcs.flatMap((arc) => {
+    const boss = bossOf(arc);
+    return arc.revenge && boss ? [[boss.id, { arc: arc.id, duel: revengeDuel(arc, boss, arc.revenge) }] as const] : [];
+  }),
+);
 
 const expand = (list: [code: number, copies: number][]) => list.flatMap(([code, copies]) => Array<number>(copies).fill(code));
 
@@ -175,25 +208,42 @@ function statusOf(duel: StoryDuel, done: Done, story: Story): StoryStatus {
   return isUnlocked(duel, done, story) ? "available" : "locked";
 }
 
-// What the player sees: the conclusion only once the duel is won, no opponent deck. `done`: best stars of the duels won.
-export function storyView(done: ReadonlyMap<string, number>, story = STORY): StoryArcView[] {
+const baseView = (duel: StoryDuel) => ({
+  id: duel.id,
+  title: duel.title,
+  opponent: duel.opponent,
+  lp: duel.rules.lp,
+  hand: duel.rules.hand,
+  special: duel.rules.special ?? [],
+  intro: duel.intro,
+  rewards: duel.rewards,
+  requires: duel.requires,
+});
+
+// The revenge of an arc: available once the arc is finished, "done" once won, its conclusion shown then only.
+// `done` holds the boss duel itself, so the status cannot come from statusOf.
+function revengeView(arc: Arc, done: Done, won: boolean, story: Story): StoryDuelView | undefined {
+  const boss = bossOf(arc);
+  if (!arc.revenge || !boss) return undefined;
+  const duel = revengeDuel(arc, boss, arc.revenge);
+  let status: StoryStatus = isUnlocked(duel, done, story) ? "available" : "locked";
+  if (won) status = "done";
+  return { ...baseView(duel), outro: won ? duel.outro : undefined, status, stars: 0 };
+}
+
+// What the player sees: the conclusion only once the duel is won, no opponent deck. `done`: best stars of the duels won,
+// `revenges`: ids of the arcs whose revenge was won.
+export function storyView(done: ReadonlyMap<string, number>, story = STORY, revenges: ReadonlySet<string> = new Set()): StoryArcView[] {
   return story.arcs.map((arc) => ({
     id: arc.id,
     title: arc.title,
     duels: arc.duels.map((duel) => ({
-      id: duel.id,
-      title: duel.title,
-      opponent: duel.opponent,
-      lp: duel.rules.lp,
-      hand: duel.rules.hand,
-      special: duel.rules.special ?? [],
-      intro: duel.intro,
+      ...baseView(duel),
       outro: done.has(duel.id) ? duel.outro : undefined,
-      rewards: duel.rewards,
-      requires: duel.requires,
       status: statusOf(duel, done, story),
       stars: done.get(duel.id) ?? 0,
     })),
+    revenge: revengeView(arc, done, revenges.has(arc.id), story),
   }));
 }
 
@@ -255,5 +305,24 @@ export async function completeDuel(db: Db, userId: string, duel: StoryDuel, star
     if (starBooster) await creditBoosters(sql, userId, 1);
     if (!first) return { rewards: null, stars, best, starBooster, ...(await replayWin(sql, userId)) };
     return { rewards: await grantRewards(sql, userId, duel.rewards), stars, best, starBooster };
+  });
+}
+
+const REVENGE_PREFIX = "revenge:";
+
+// Ids of the arcs whose revenge the player won.
+export async function revengesWon(db: Db, userId: string): Promise<Set<string>> {
+  const rows = await db<{ unlockId: string }[]>`
+    select unlock_id as "unlockId" from yugioh.story_unlocks where user_id = ${userId} and starts_with(unlock_id, ${REVENGE_PREFIX})`;
+  return new Set(rows.map((row) => row.unlockId.slice(REVENGE_PREFIX.length)));
+}
+
+// A won revenge of the arc: the Ultra Rare booster is paid once per arc (the unlock is recorded once, even for concurrent wins),
+// a replay gives nothing.
+export async function completeRevenge(db: Db, userId: string, arcId: string): Promise<RevengeResult> {
+  return db.begin(async (sql) => {
+    const first = await unlock(sql, userId, REVENGE_PREFIX + arcId);
+    if (first) await creditUltraBooster(sql, userId);
+    return { revenge: true, rewards: first ? REVENGE_REWARD : null };
   });
 }
