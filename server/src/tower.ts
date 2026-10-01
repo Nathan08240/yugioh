@@ -10,7 +10,7 @@ import { STORY_DUELS, storyDeck, storyExtra, unlock, type StoryDuel } from "./st
 export const TOWER_LP_STEP = 500;
 const TOWER_LP_FROM = 5;
 // Boosters of the first win of a floor.
-const TOWER_REWARDS: ReadonlyMap<number, number> = new Map([
+export const TOWER_REWARDS: ReadonlyMap<number, number> = new Map([
   [3, 1],
   [6, 2],
   [10, 3],
