@@ -98,9 +98,11 @@ describe("revanche des boss", () => {
   const arcWith = (revenge: Partial<typeof declared>): Story => ({ ...STORY, arcs: [{ ...dk, revenge: { ...declared, ...revenge } }] });
 
   it("chaque arc déclare son boss et un deck de revanche du pool, différent du deck du boss", () => {
-    expect(STORY.arcs.every((arc) => arc.revenge)).toBe(true);
-    expect(STORY_REVENGES.size).toBe(STORY.arcs.length);
-    for (const arc of STORY.arcs) {
+    // The bonus arcs, played with an imposed deck, have no revenge.
+    const main = STORY.arcs.filter((arc) => !arc.duels.some((duel) => duel.player));
+    expect(main.every((arc) => arc.revenge)).toBe(true);
+    expect(STORY_REVENGES.size).toBe(main.length);
+    for (const arc of main) {
       const boss = STORY_DUELS.get(arc.revenge?.boss ?? "") as StoryDuel;
       const revenge = STORY_REVENGES.get(boss.id);
       expect(arc.duels.at(-1)).toBe(boss);
