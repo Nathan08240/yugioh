@@ -252,6 +252,10 @@ function moveLog(msg: Extract<Message, { type: OcgMessageType.MOVE }>): LogEntry
   return { player: to.controller, parts: [label, { code: msg.card }] };
 }
 
+// A coin result: heads is "Face".
+export const facePiece = (heads: boolean) => (heads ? "Face" : "Pile");
+const lancers = (count: number, one: string, many: string) => (count > 1 ? `${count} ${many}` : one);
+
 const at = (board: Board, place: Place) => ({ code: cardAt(board, place)?.code ?? 0 });
 
 function drawLog(msg: Extract<Message, { type: OcgMessageType.DRAW }>): LogEntry {
@@ -306,6 +310,10 @@ function describe(board: Board, msg: Message): LogEntry | undefined {
       return { player: msg.player, parts: [`Gagne ${msg.amount} LP`] };
     case OcgMessageType.MOVE:
       return moveLog(msg);
+    case OcgMessageType.TOSS_DICE:
+      return { player: msg.player, parts: [`Lance ${lancers(msg.results.length, "un dé", "dés")} : ${msg.results.join(", ")}`] };
+    case OcgMessageType.TOSS_COIN:
+      return { player: msg.player, parts: [`Lance ${lancers(msg.results.length, "une pièce", "pièces")} : ${msg.results.map(facePiece).join(", ")}`] };
     case OcgMessageType.WIN:
       return { player: msg.player, parts: [msg.reason === NO_MONSTER ? "Remporte le duel : l'autre duelliste a fini son tour sans monstre (règle spéciale)" : "Remporte le duel"] };
     default:

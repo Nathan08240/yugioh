@@ -8,6 +8,7 @@ import { Table, type Targets } from "./Board.tsx";
 import { CardDetail, CardView } from "./Card.tsx";
 import { cardName, DuelView, phaseName, useCards, useDuelView, useSystemStrings, type Cards } from "./cards.ts";
 import { Emote, MenuEmotes } from "./Emotes.tsx";
+import { lancer2D } from "./lancers2d.ts";
 import { minutes, type Asked, type Deadline, type ShownEmote } from "./lobby.ts";
 import { D1, D2, D3, D4, ELAN, RESSORT } from "./motion.ts";
 import { cibles3D, zones } from "./plateau3d/disposition.ts";
@@ -303,6 +304,7 @@ export function Duel({ board, seat, asked, respond, leave, surrender, answerBy, 
           <p />
         </div>
         <div className="bords" ref={hud.refs.bords} aria-hidden="true" />
+        <div className="lancer" ref={hud.refs.lancer} aria-hidden="true" />
         <div className="cinema" ref={hud.refs.cinema} aria-hidden="true">
           <span className="cinema__bande" />
           <p className="cinema__nom" />
@@ -473,6 +475,7 @@ type Refs = {
   bandeau: RefObject<HTMLDivElement | null>;
   bords: RefObject<HTMLDivElement | null>;
   cinema: RefObject<HTMLDivElement | null>;
+  lancer: RefObject<HTMLDivElement | null>;
 };
 
 const sortie = (k: number) => 1 - (1 - k) ** 4;
@@ -551,6 +554,7 @@ function useHud(regie: Regie, seat: number, cards: Cards) {
     bandeau: useRef(null),
     bords: useRef(null),
     cinema: useRef(null),
+    lancer: useRef(null),
   };
   const latest = useRef({ seat, cards, refs });
   useLayoutEffect(() => {
@@ -571,6 +575,10 @@ function useHud(regie: Regie, seat: number, cards: Cards) {
           return bandeau(jeu, now.bandeau.current, `Tour ${effet.tour} · ${effet.joueur === me ? "Votre tour" : "Tour de l'adversaire"}`, camp(effet.joueur));
         case "invocation":
           return effet.genre === "dieu" ? cinema(jeu, now.cinema.current, cardName(data, effet.code)) : Promise.resolve();
+        case "de":
+        case "piece":
+          // The 3D board throws its own dice.
+          return regie.scene ? Promise.resolve() : lancer2D(jeu, now.lancer.current, effet, camp(effet.joueur));
         default:
           return Promise.resolve();
       }

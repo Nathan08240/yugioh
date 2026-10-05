@@ -3,7 +3,7 @@ import type { Depart, Effet } from "./plateau3d/effets.ts";
 import { FACTEUR, reglages } from "./reglages.ts";
 
 // `atterrissage` and `impact` are played by the 3D board at the moment a card lands or hits.
-export type Son = "pioche" | "invocation" | "dieu" | "pose" | "atterrissage" | "activation" | "visee" | "attaque" | "impact" | "degats" | "destruction" | "aspiration" | "gain" | "victoire" | "defaite" | "clic";
+export type Son = "pioche" | "invocation" | "dieu" | "pose" | "atterrissage" | "activation" | "visee" | "attaque" | "impact" | "degats" | "destruction" | "aspiration" | "gain" | "victoire" | "defaite" | "clic" | "de" | "piece";
 
 // A tone gliding from `de` to `vers` Hz, `debut` seconds after the sound starts.
 type Ton = { type: OscillatorType; de: number; vers?: number; duree: number; debut?: number; gain?: number };
@@ -62,6 +62,20 @@ const PARTITIONS: Record<Son, Partition> = {
   victoire: { tons: arpege("triangle", [523, 659, 784, 1047], 0.12, 0.3) },
   defaite: { tons: arpege("triangle", [392, 330, 262, 196], 0.18, 0.35) },
   clic: { tons: [{ type: "sine", de: 900, vers: 600, duree: 0.03, gain: 0.7 }] },
+  // A die rattling on wood: four dry knocks, each softer and closer to the last.
+  de: {
+    tons: [0, 0.12, 0.22, 0.3].map((debut, i) => ({ type: "square", de: 300 - 40 * i, vers: 120, duree: 0.05, debut, gain: 0.5 - 0.1 * i })),
+    souffles: [0, 0.12, 0.22, 0.3].map((debut) => ({ filtre: "bandpass", de: 2200, vers: 900, duree: 0.06, debut, gain: 0.5 })),
+  },
+  // A coin: a ping, then a ring that dies away and a small rattle on the table.
+  piece: {
+    tons: [
+      { type: "triangle", de: 2400, duree: 0.5, gain: 0.35 },
+      { type: "sine", de: 3600, duree: 0.35, gain: 0.2 },
+      { type: "sine", de: 1800, vers: 1500, duree: 0.25, debut: 0.45, gain: 0.25 },
+    ],
+    souffles: [{ filtre: "highpass", de: 5000, duree: 0.04 }],
+  },
 };
 
 const DEPARTS: ReadonlyMap<Depart, Son> = new Map([
@@ -76,6 +90,8 @@ export function sonDe(effet: Effet, seat: number): Son | undefined {
     case "pioche":
     case "pose":
     case "activation":
+    case "de":
+    case "piece":
       return effet.type;
     case "invocation":
       return effet.genre === "dieu" ? "dieu" : "invocation";

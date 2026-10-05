@@ -188,6 +188,14 @@ it("rejoue un duel automatique du serveur jusqu'au plateau réel du moteur", () 
   expect(board.log.at(-1)).toEqual({ player: 1, parts: ["Remporte le duel"] });
 });
 
+it("note les lancers de dé et de pièce au journal, avec chaque résultat", () => {
+  const log = (message: Message) => playAll(start, [message]).log.at(-1);
+  expect(log({ type: OcgMessageType.TOSS_DICE, player: 1, results: [3] })).toEqual({ player: 1, parts: ["Lance un dé : 3"] });
+  expect(log({ type: OcgMessageType.TOSS_DICE, player: 0, results: [2, 6] })).toEqual({ player: 0, parts: ["Lance 2 dés : 2, 6"] });
+  expect(log({ type: OcgMessageType.TOSS_COIN, player: 0, results: [true] })).toEqual({ player: 0, parts: ["Lance une pièce : Face"] });
+  expect(log({ type: OcgMessageType.TOSS_COIN, player: 1, results: [false, true, false] })).toEqual({ player: 1, parts: ["Lance 3 pièces : Pile, Face, Pile"] });
+});
+
 describe("règles spéciales du mode Histoire", () => {
   const FISSURE = 66788016;
   const empty = [null, null, null, null, null];

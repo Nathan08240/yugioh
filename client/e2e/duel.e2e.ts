@@ -57,6 +57,15 @@ test("glisser une carte sur une zone envoie l'action puis la zone au serveur", a
   await expect.poll(() => envoyes).toContainEqual({ type: "respond", response: { type: OcgResponseType.SELECT_PLACE, places: [{ player: 0, location: OcgLocation.SZONE, sequence: 2 }] } });
 });
 
+test("un lancer de dé ou de pièce s'inscrit au journal avec son résultat", async ({ page }) => {
+  const { envoyer } = await lancer(page, { duel: true });
+  await aLaMain(page);
+  envoyer({ type: "messages", messages: [{ type: OcgMessageType.TOSS_DICE, player: 1, results: [3] }, { type: OcgMessageType.TOSS_COIN, player: 0, results: [false] }] });
+  const journal = page.getByRole("region", { name: "Journal du duel" });
+  await expect(journal).toContainText("Lance un dé : 3");
+  await expect(journal).toContainText("Lance une pièce : Pile");
+});
+
 test("l'écran de fin donne la cause : abandon", async ({ page }) => {
   const { envoyes, envoyer } = await lancer(page, { duel: true });
   await aLaMain(page);
