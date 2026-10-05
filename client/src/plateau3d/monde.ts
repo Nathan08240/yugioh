@@ -14,6 +14,7 @@ import { jouer as jouerSon } from "../son.ts";
 import { horloge } from "./cadence.ts";
 import { CARTE, pileId, PLATEAU, ZONE, zones, type CarteScene, type EtatScene, type PileScene, type Zone } from "./disposition.ts";
 import type { Depart, Effet, Variation } from "./effets.ts";
+import { construire, liberer, poser } from "./lancers.ts";
 import { Eclats, Particules } from "./particules.ts";
 import { FS_BALAYAGE, FS_CONE, FS_FAISCEAU, FS_HOLOGRAMME, FS_SOL, FS_SURBRILLANCE, VS_MONDE, VS_UV } from "./shaders.ts";
 import type { Jeu } from "./spectacle.ts";
@@ -495,6 +496,9 @@ export class Monde {
         return this.tour(effet.joueur === this.seat ? 0 : 1, jeu);
       case "stats":
         return this.eclatStats(effet.cartes, jeu);
+      case "de":
+      case "piece":
+        return this.jeter(effet, jeu);
       default:
         return Promise.resolve();
     }
@@ -1122,6 +1126,19 @@ export class Monde {
     sprite.removeFromParent();
     sprite.material.dispose();
     map.dispose();
+  }
+
+  // Dice or coins thrown from the side of the thrower, which stop on their result; they stay a moment, then shrink away.
+  private async jeter(effet: Extract<Effet, { type: "de" | "piece" }>, jeu: Jeu) {
+    const lancers = construire(effet);
+    const depart = effet.joueur === this.seat ? 2.1 : -2.1;
+    for (const { mesh } of lancers) this.racine.add(mesh);
+    await jeu.tween(D4 + D3, (k) => poser(lancers, k, depart));
+    await jeu.pause(900, true);
+    await jeu.tween(D2, (k) => {
+      for (const { mesh } of lancers) mesh.scale.setScalar(1 - k);
+    });
+    for (const lancer of lancers) liberer(lancer);
   }
 
   // Turn change: the camera sways towards the player whose turn it is, a sweep of their color crosses the board.

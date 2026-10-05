@@ -23,7 +23,10 @@ export type Effet =
   | { type: "resolution"; maillon: number; annule: boolean }
   | { type: "phase"; phase: number; joueur: number }
   | { type: "tour"; joueur: number; tour: number }
-  | { type: "stats"; cartes: Variation[] };
+  | { type: "stats"; cartes: Variation[] }
+  | { type: "de"; joueur: number; resultats: number[] }
+  // `resultats`: true for heads.
+  | { type: "piece"; joueur: number; resultats: boolean[] };
 
 // Messages without animation of their own are applied at once, before the next step (`prelude`).
 // `avant` plays before `message` changes the board (the card still in place), `apres` once it has.
@@ -166,6 +169,10 @@ function effects(msg: Message, ctx: Ctx): Pick<Etape, "avant" | "apres"> {
       return after({ type: "phase", phase: msg.phase, joueur: board.turnPlayer });
     case OcgMessageType.NEW_TURN:
       return after({ type: "tour", joueur: msg.player, tour: board.turn + 1 });
+    case OcgMessageType.TOSS_DICE:
+      return before({ type: "de", joueur: msg.player, resultats: msg.results });
+    case OcgMessageType.TOSS_COIN:
+      return before({ type: "piece", joueur: msg.player, resultats: msg.results });
     case "stats":
       return statsEffects(msg, ctx);
     default:

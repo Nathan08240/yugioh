@@ -417,6 +417,29 @@ export function dessinerNombre(delta: number) {
   return texture(c, 1);
 }
 
+// A face of a die (ivory, a number) or of a coin (gold, "FACE" or "PILE"): the square is cut to a disc by the cap of the coin.
+export function dessinerFaceLancer(texte: string, piece: boolean) {
+  const c = toile(128, 128);
+  const g = c.getContext("2d") as CanvasRenderingContext2D;
+  g.fillStyle = piece ? jeton("--or") : "#d9d2bd";
+  g.fillRect(0, 0, 128, 128);
+  // The cap of a coin is mapped a quarter turn off: the text reads upright for the camera once turned back.
+  if (piece) g.setTransform(0, -1, 1, 0, 0, 128);
+  g.lineWidth = piece ? 6 : 10;
+  g.strokeStyle = piece ? SOMBRE : jeton("--or");
+  if (piece) {
+    g.beginPath();
+    g.arc(64, 64, 52, 0, 2 * Math.PI);
+    g.stroke();
+  } else g.strokeRect(5, 5, 118, 118);
+  g.font = `800 ${piece ? 28 : 84}px Oxanium`;
+  g.fillStyle = SOMBRE;
+  g.textAlign = "center";
+  g.textBaseline = "middle";
+  g.fillText(texte, 64, 66);
+  return texture(c, 1);
+}
+
 export function dessinerLueur() {
   const c = toile(64, 64);
   const g = c.getContext("2d") as CanvasRenderingContext2D;

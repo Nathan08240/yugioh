@@ -102,6 +102,14 @@ it("signale les monstres dont l'ATK ou la DEF ont changé, contre la valeur affi
   expect(played(boosted, [stats(300, 100)])).toEqual([[{ type: "stats", cartes: [{ cle: key, atk: -500, def: -100 }] }]]);
 });
 
+it("montre un lancer de dé ou de pièce avant d'inscrire son résultat, avec tous les résultats", () => {
+  const dice: Message = { type: OcgMessageType.TOSS_DICE, player: 1, results: [2, 5] };
+  const coin: Message = { type: OcgMessageType.TOSS_COIN, player: 0, results: [true] };
+  const [first, second] = etapes(start, [dice, coin], cards);
+  expect(first).toMatchObject({ avant: [{ type: "de", joueur: 1, resultats: [2, 5] }], message: dice, apres: [] });
+  expect(second).toMatchObject({ avant: [{ type: "piece", joueur: 0, resultats: [true] }], message: coin, apres: [] });
+});
+
 it("joue l'attaque avant les dégâts, directe quand elle n'a pas de cible", () => {
   const attack: Message[] = [
     { type: OcgMessageType.ATTACK, card: at(0, MZONE, 0), target: null },

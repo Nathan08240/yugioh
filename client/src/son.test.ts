@@ -69,6 +69,8 @@ it.each<[Effet, number, Son | undefined]>([
   [{ type: "lp", joueur: 1, delta: -500, directe: true }, 0, undefined],
   [{ type: "lp", joueur: 0, delta: 300, directe: false }, 0, "gain"],
   [{ type: "phase", phase: 8, joueur: 0 }, 0, undefined],
+  [{ type: "de", joueur: 1, resultats: [3] }, 0, "de"],
+  [{ type: "piece", joueur: 0, resultats: [true] }, 0, "piece"],
 ])("choisit le son de l'effet %j pour le siège %i", async (effet, siege, attendu) => {
   const { sonDe } = await charger();
   expect(sonDe(effet, siege)).toBe(attendu);

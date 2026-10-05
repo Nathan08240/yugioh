@@ -754,6 +754,47 @@
   pointer-events: none;
 }
 
+/* Dés et pièces du repli 2D : au milieu du plateau, teintés du camp qui les lance */
+.lancer {
+  --camp: var(--camp-adverse);
+  position: absolute;
+  inset: 42% 0 auto;
+  z-index: var(--z-bandeau);
+  display: flex;
+  justify-content: center;
+  gap: var(--e-3);
+  pointer-events: none;
+}
+
+.lancer[data-camp="moi"] {
+  --camp: var(--camp-moi);
+}
+
+.lancer__objet {
+  display: grid;
+  place-items: center;
+  border: 3px solid var(--camp);
+  color: var(--nuit-0);
+  background: var(--or);
+  font: 800 var(--taille-2xl) / 1 var(--police-titre);
+  box-shadow: 0 0 24px color-mix(in oklab, var(--camp) 70%, transparent);
+}
+
+.lancer__objet--de {
+  width: 72px;
+  height: 72px;
+  border-radius: 14px;
+  background: #f3efe2;
+}
+
+.lancer__objet--piece {
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  font-size: var(--taille-m);
+  text-transform: uppercase;
+}
+
 .cinema {
   position: absolute;
   inset: 0;
