@@ -1,10 +1,30 @@
 /* Missions du jour (accueil) et succès (profil), Missions.tsx */
 
-.mode--missions {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
+.missions {
+  display: grid;
   gap: var(--e-3);
+  padding: var(--e-4) var(--e-5);
+}
+
+.missions .titre-bloc {
+  justify-content: space-between;
+}
+
+.missions__bonus {
+  display: flex;
+  gap: var(--e-2);
+  align-items: center;
+  padding-block-start: var(--e-3);
+  border-block-start: 1px solid var(--trait);
+  font: 600 var(--taille-s) / 1.3 var(--police-etroite);
+  color: var(--or-2);
+}
+
+.missions__bonus .ic {
+  flex: none;
+  inline-size: 20px;
+  block-size: 20px;
+  color: var(--or);
 }
 
 .objectifs {
@@ -15,11 +35,16 @@
   list-style: none;
 }
 
+/* Le texte et sa récompense, puis la jauge et la progression */
 .objectif {
   display: grid;
-  grid-template-columns: 1fr auto;
-  gap: var(--e-3);
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px var(--e-3);
   align-items: center;
+}
+
+.objectif__texte {
+  line-height: 1.3;
 }
 
 .objectif__texte b {
@@ -27,12 +52,35 @@
 }
 
 .objectif__gain {
-  display: grid;
-  justify-items: end;
-  font-size: var(--taille-s);
+  font: 600 var(--taille-s) / 1.2 var(--police-etroite);
   white-space: nowrap;
+  color: var(--or-2);
 }
 
-.objectif--fait .objectif__gain {
-  color: var(--holo);
+.objectif .jauge {
+  margin: 0;
+}
+
+.objectif__suivi {
+  justify-self: end;
+  font-size: var(--taille-xs);
+  color: var(--texte-2);
+}
+
+.objectif__suivi .ic {
+  inline-size: 16px;
+  block-size: 16px;
+}
+
+.objectif--fait .objectif__texte {
+  color: var(--texte-2);
+}
+
+.objectif--fait .objectif__suivi {
+  color: var(--succes);
+}
+
+.objectif--fait .jauge {
+  --v: 100%;
+  background: var(--succes);
 }

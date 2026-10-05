@@ -1,106 +1,113 @@
 /* Accueil et salle en ligne (Accueil.tsx) */
 
+/* Une colonne sur téléphone et tablette, l'hologramme en dernier ; deux colonnes et les modes en grille au-delà de 1100 px */
 .accueil {
-  position: relative;
   display: grid;
   flex: 1;
-  grid-template-columns: minmax(420px, 540px) 1fr;
-  gap: var(--e-6);
-  align-items: center;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--e-5);
+  align-content: start;
   inline-size: 100%;
-  max-inline-size: var(--largeur-max);
+  max-inline-size: 1800px;
   margin-inline: auto;
   padding: var(--e-5) var(--marge-ecran) var(--e-6);
 }
 
-.accueil__menu {
-  display: flex;
-  flex-direction: column;
+.accueil__tete {
+  display: grid;
+  gap: var(--e-2);
+  justify-items: start;
+}
+
+.accueil__cote {
+  display: contents;
+}
+
+.accueil__cote .vitrine {
+  order: 1;
+}
+
+.accueil__suite {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+  gap: var(--e-4);
+  align-items: start;
+}
+
+.accueil__modes {
+  display: grid;
   gap: var(--e-3);
 }
 
-.accueil__menu .titre {
-  margin-block-end: var(--e-3);
-}
-
-.mode {
+/* Jouer : le bloc principal, trois façons de lancer un duel */
+.jouer {
   display: grid;
-  grid-template-columns: auto 1fr auto;
   gap: var(--e-4);
+  padding: var(--e-5);
+}
+
+.jouer__titre {
+  display: flex;
+  gap: var(--e-3);
   align-items: center;
-  padding: var(--e-3) var(--e-5);
-  border: 0;
-  border-radius: var(--r-4) var(--r-1);
-  background: var(--surface);
-  box-shadow: inset 0 0 0 1px var(--trait);
-  text-align: start;
-  text-decoration: none;
-  color: var(--texte);
-  backdrop-filter: blur(10px);
-  transition: translate var(--duree-2) var(--courbe-sortie), box-shadow var(--duree-2);
+  font: 800 var(--taille-xl) / 1 var(--police-titre);
+  font-stretch: 82%;
+  text-transform: uppercase;
 }
 
-button.mode {
-  cursor: pointer;
+.jouer__titre .ic {
+  inline-size: 28px;
+  block-size: 28px;
+  color: var(--holo);
 }
 
-button.mode:hover {
-  box-shadow: inset 0 0 0 1px var(--holo), 0 0 24px rgb(67 240 255 / 0.2);
-  translate: 6px 0;
+.jouer__choix {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  gap: var(--e-3);
 }
 
-.mode h2,
-.mode__titre {
-  display: block;
+.jouer__mode {
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+  gap: var(--e-2);
+  padding: var(--e-4);
+  border-radius: var(--r-3) var(--r-1);
+  background: rgb(6 8 23 / 0.5);
+  box-shadow: inset 0 0 0 1px var(--trait-fort);
+}
+
+.jouer__mode h3 {
   font: 700 var(--taille-l) / 1.1 var(--police-titre);
   font-stretch: 88%;
   text-transform: uppercase;
 }
 
-.mode p,
-.mode__desc {
-  display: block;
+.jouer__mode p {
   font-size: var(--taille-s);
   color: var(--texte-2);
 }
 
-.mode__ic {
+.jouer__mode p b {
+  color: var(--texte);
+}
+
+.jouer__ic {
   inline-size: 36px;
   block-size: 36px;
   color: var(--holo);
 }
 
-.mode__niveaux {
+.jouer__actions {
   display: flex;
   flex-wrap: wrap;
   gap: var(--e-2);
+  align-self: end;
 }
 
-.mode__fleche {
-  color: var(--texte-3);
-}
-
-.mode--principal {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  padding: var(--e-5);
-  background:
-    var(--trame-holo),
-    linear-gradient(120deg, rgb(67 240 255 / 0.18), rgb(139 61 255 / 0.18)),
-    var(--surface);
-  box-shadow: inset 0 0 0 1px rgb(67 240 255 / 0.5), 0 0 40px rgb(67 240 255 / 0.12);
-}
-
-.mode--principal h2 {
-  font-size: var(--taille-xl);
-}
-
-.mode__tete {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: var(--e-4);
-  align-items: center;
+.jouer__actions .btn {
+  flex: 1 1 auto;
+  padding-inline: var(--e-4);
 }
 
 .mode__actions {
@@ -110,9 +117,251 @@ button.mode:hover {
   margin-block-start: var(--e-4);
 }
 
+/* Un seul code de salle, pour rejoindre ou regarder */
 .rejoindre {
+  display: grid;
+  gap: var(--e-1);
+  padding-block-start: var(--e-4);
+  border-block-start: 1px solid var(--trait);
+}
+
+.rejoindre p {
+  font-size: var(--taille-s);
+}
+
+.rejoindre__champ {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--e-2);
+  margin-block-start: var(--e-2);
+}
+
+/* Mode Histoire mis en avant : l'arc en cours, aux couleurs du Millénium */
+.histoire-vedette {
+  display: grid;
+  gap: var(--e-2);
+  justify-items: start;
+  padding: var(--e-5);
+  border: 0;
+  border-radius: var(--r-4) var(--r-1);
+  background:
+    linear-gradient(135deg, rgb(255 197 61 / 0.16), transparent 60%),
+    var(--surface);
+  box-shadow: inset 0 0 0 1px rgb(255 197 61 / 0.45), var(--ombre-2);
+  text-align: start;
+  color: var(--texte);
+  cursor: pointer;
+  backdrop-filter: blur(10px);
+  transition: box-shadow var(--duree-2), translate var(--duree-2) var(--courbe-sortie);
+}
+
+.histoire-vedette:hover {
+  box-shadow: var(--lueur-or), var(--ombre-2);
+  translate: 0 -2px;
+}
+
+.histoire-vedette .surtitre {
+  display: inline-flex;
+  gap: var(--e-2);
+  align-items: center;
+}
+
+.histoire-vedette .surtitre .ic {
+  inline-size: 18px;
+  block-size: 18px;
+}
+
+.histoire-vedette__arc {
+  font: 800 var(--taille-xl) / 1.05 var(--police-titre);
+  font-stretch: 82%;
+  text-transform: uppercase;
+  text-wrap: balance;
+}
+
+.histoire-vedette__suivi {
+  display: grid;
+  gap: var(--e-1);
+  inline-size: 100%;
+  font-size: var(--taille-s);
+  color: var(--texte-2);
+}
+
+.histoire-vedette .jauge {
+  background: linear-gradient(90deg, var(--or) var(--v), rgb(255 255 255 / 0.1) var(--v));
+}
+
+.histoire-vedette__action {
+  display: inline-flex;
+  gap: var(--e-2);
+  align-items: center;
+  margin-block-start: var(--e-2);
+  font: 700 var(--taille-m) / 1 var(--police-etroite);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--or-2);
+}
+
+/* Événement de la semaine, ses règles et l'avertissement Goat repliés */
+.evenement {
+  display: grid;
+  gap: var(--e-2);
+  padding: var(--e-4) var(--e-5);
+}
+
+.evenement p {
+  font-size: var(--taille-s);
+}
+
+.evenement .mode__actions {
+  margin-block-start: var(--e-2);
+}
+
+.evenement__goat summary {
+  min-block-size: 44px;
+  padding-block: var(--e-3);
+  font: 600 var(--taille-s) / 1.3 var(--police-etroite);
+  color: var(--alerte);
+  cursor: pointer;
+}
+
+/* Tuiles des autres modes : 1 colonne sur téléphone, 4 au plus */
+.tuiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, max(260px, (100% - 3 * var(--e-3)) / 4)), 1fr));
+  gap: var(--e-3);
+}
+
+.tuile {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: var(--e-3);
+  align-items: center;
+  min-block-size: 72px;
+  padding: var(--e-3) var(--e-4);
+  border: 0;
+  border-radius: var(--r-3) var(--r-1);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--trait);
+  text-align: start;
+  color: var(--texte);
+  cursor: pointer;
+  backdrop-filter: blur(10px);
+  transition: translate var(--duree-2) var(--courbe-sortie), box-shadow var(--duree-2);
+}
+
+.tuile:hover {
+  box-shadow: inset 0 0 0 1px var(--holo), 0 0 24px rgb(67 240 255 / 0.2);
+  translate: 0 -2px;
+}
+
+.tuile__ic {
+  inline-size: 32px;
+  block-size: 32px;
+  color: var(--holo);
+}
+
+.tuile__corps {
+  display: grid;
+  gap: 2px;
+}
+
+.tuile__titre {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--e-1) var(--e-2);
+  align-items: center;
+  font: 700 var(--taille-m) / 1.15 var(--police-titre);
+  font-stretch: 88%;
+  text-transform: uppercase;
+}
+
+.tuile__titre .puce {
+  padding: 2px 8px;
+  font-size: var(--taille-xs);
+  text-transform: none;
+}
+
+.tuile__desc {
+  font-size: var(--taille-s);
+  line-height: 1.35;
+  color: var(--texte-2);
+}
+
+.tuile__fleche {
+  color: var(--texte-3);
+}
+
+/* Vitrine : la carte phare projetée, en décor */
+.vitrine {
+  display: grid;
+  justify-items: center;
+}
+
+.vitrine .projecteur {
+  inline-size: 100%;
+  block-size: 280px;
+}
+
+.vitrine .projecteur__holo {
+  inline-size: min(62%, 230px);
+}
+
+.vitrine .projecteur__socle {
+  inline-size: 230px;
+}
+
+.vitrine .projecteur__socle .carte {
+  --carte-l: 76px;
+}
+
+.vitrine .projecteur__legende {
+  position: static;
+  justify-items: center;
+  text-align: center;
+}
+
+.vitrine .projecteur__legende b {
+  font-size: var(--taille-l);
+}
+
+@media (min-width: 1100px) {
+  .accueil {
+    grid-template-columns: minmax(0, 1fr) clamp(320px, 26vw, 420px);
+    grid-template-rows: auto auto 1fr auto;
+    grid-template-areas:
+      "tete cote"
+      "jouer cote"
+      "suite cote"
+      "modes modes";
+    column-gap: var(--e-6);
+  }
+
+  .accueil__tete {
+    grid-area: tete;
+  }
+
+  .jouer {
+    grid-area: jouer;
+  }
+
+  .accueil__suite {
+    grid-area: suite;
+  }
+
+  .accueil__modes {
+    grid-area: modes;
+  }
+
+  .accueil__cote {
+    display: flex;
+    grid-area: cote;
+    flex-direction: column;
+    gap: var(--e-4);
+  }
+
+  .accueil__cote .vitrine {
+    order: 0;
+  }
 }
 
 .saisie-code {
@@ -336,7 +585,9 @@ button.mode:hover {
 }
 
 @supports (corner-shape: bevel) {
-  .mode,
+  .tuile,
+  .jouer__mode,
+  .histoire-vedette,
   .code-salle__lettres span,
   .duelliste {
     corner-shape: bevel;
@@ -344,10 +595,6 @@ button.mode:hover {
 }
 
 @media (max-width: 1100px) {
-  .accueil {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
   .projecteur {
     block-size: 420px;
   }
@@ -358,6 +605,28 @@ button.mode:hover {
 }
 
 @media (max-width: 700px) {
+  .jouer {
+    padding: var(--e-4);
+  }
+
+  /* Téléphone : l'icône d'un mode à côté de son titre */
+  .jouer__mode {
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-rows: none;
+    align-items: center;
+    column-gap: var(--e-3);
+    padding: var(--e-3) var(--e-4) var(--e-4);
+  }
+
+  .jouer__ic {
+    inline-size: 28px;
+    block-size: 28px;
+  }
+
+  .jouer__mode :is(p, .jouer__actions) {
+    grid-column: 1 / -1;
+  }
+
   .face-a-face {
     flex-direction: column;
     gap: var(--e-3);
@@ -378,18 +647,6 @@ button.mode:hover {
 
   .accueil {
     padding-block: var(--e-3);
-  }
-
-  .accueil__menu {
-    gap: var(--e-2);
-  }
-
-  .mode {
-    padding-block: var(--e-2);
-  }
-
-  .mode--principal {
-    padding-block: var(--e-4);
   }
 
   .projecteur {

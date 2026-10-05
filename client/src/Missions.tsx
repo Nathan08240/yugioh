@@ -18,12 +18,10 @@ function Objectif({ item, title }: Readonly<{ item: MissionView; title?: string 
       <span className="objectif__texte">
         {title && <b>{title}</b>}
         {item.text}
-        <span className="jauge" style={{ "--v": `${(item.progress / item.goal) * 100}%` } as CSSProperties} />
       </span>
-      <span className="objectif__gain">
-        {done(item) ? <Icon id="ui-coche" /> : <span className="chiffres">{item.progress} / {item.goal}</span>}
-        <span className="texte-3">{rewardText(item.reward)}</span>
-      </span>
+      <span className="objectif__gain">{rewardText(item.reward)}</span>
+      <span className="jauge" style={{ "--v": `${Math.min(item.progress / item.goal, 1) * 100}%` } as CSSProperties} />
+      <span className="objectif__suivi chiffres">{done(item) ? <Icon id="ui-coche" label="Fait" /> : `${item.progress} / ${item.goal}`}</span>
     </li>
   );
 }
@@ -33,15 +31,20 @@ export function MissionsDuJour({ missions }: Readonly<{ missions?: MissionView[]
   if (!missions?.length) return null;
   const bonus = missions.every(done) ? "Les 3 missions sont faites : booster bonus gagné." : `Les 3 faites : ${plural(MISSIONS_BONUS, "booster")} en plus.`;
   return (
-    <article className="mode mode--missions" data-entree>
-      <h2>Missions du jour</h2>
+    <section className="missions panneau" aria-labelledby="missions-titre" data-entree>
+      <h2 id="missions-titre" className="titre-bloc">
+        Missions du jour <span className="chiffres">{missions.filter(done).length} / {missions.length}</span>
+      </h2>
       <ul className="objectifs">
         {missions.map((mission) => (
           <Objectif key={mission.id} item={mission} />
         ))}
       </ul>
-      <p>{bonus}</p>
-    </article>
+      <p className="missions__bonus">
+        <Icon id="ui-booster" />
+        {bonus}
+      </p>
+    </section>
   );
 }
 
