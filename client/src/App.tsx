@@ -1,4 +1,4 @@
-import type { Session } from "@supabase/supabase-js";
+import type { Session } from "@supabase/auth-js";
 import { useEffect, useState } from "react";
 import { Connexion } from "./Connexion.tsx";
 import { Lobby } from "./Lobby.tsx";
