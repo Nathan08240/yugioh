@@ -17,8 +17,8 @@ export type PuzzleWon = Extract<ServerMessage, { type: "puzzle_won" }>;
 export type TowerWon = Extract<ServerMessage, { type: "tower_won" }>;
 
 // `id` tells two successive questions apart, even identical ones.
-// `announce`: the cards the player may declare, for ANNOUNCE_CARD.
-export type Asked = { question: EngineMessage; retry: boolean; id: number; announce?: readonly number[] };
+// `announce`: the cards the player may declare, for ANNOUNCE_CARD. `announceDeck`: those of their own deck.
+export type Asked = { question: EngineMessage; retry: boolean; id: number; announce?: readonly number[]; announceDeck?: readonly number[] };
 // The time, in ms since the epoch, when `seat` loses the duel.
 export type Deadline = { seat: Seat; until: number };
 
@@ -163,7 +163,7 @@ export function reduce(state: LobbyState, action: Action): LobbyState {
         started: true,
       };
     case "question":
-      return { ...state, question: { question: action.question, retry: action.retry, id: state.asked + 1, announce: action.announce }, asked: state.asked + 1 };
+      return { ...state, question: { question: action.question, retry: action.retry, id: state.asked + 1, announce: action.announce, announceDeck: action.announceDeck }, asked: state.asked + 1 };
     case "timer": {
       const deadline = action.ms === null ? undefined : { seat: action.seat, until: Date.now() + action.ms };
       return action.kind === "answer" ? { ...state, answerBy: deadline } : { ...state, away: deadline };

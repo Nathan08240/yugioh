@@ -17,8 +17,7 @@ import { respond as automatic, sumTests, sumValid, sumValues } from "../../serve
 import { cardAt, losesAtTurnEnd, type Board, type EngineMessage, type Place } from "./board.ts";
 import type { Targets } from "./Board.tsx";
 import { cardName, effectText, has, useDuelView, type Cards, type Strings } from "./cards.ts";
-import { fold } from "./collection.ts";
-import { freePlaces, placeKey, pointDe, type Point } from "./question.ts";
+import { declarables, freePlaces, placeKey, pointDe, type Point } from "./question.ts";
 
 type Q<T extends OcgMessageType> = Extract<EngineMessage, { type: T }>;
 type Located = Place & { code: number };
@@ -31,8 +30,9 @@ export type Ctx = {
   cible?: string;
   // Duelist Kingdom duel: ending the turn with no monster loses, so it is confirmed first.
   kingdom?: boolean;
-  // ANNOUNCE_CARD: the cards the server lets the player declare.
+  // ANNOUNCE_CARD: the cards the server lets the player declare, and those of their own deck among them.
   announce?: readonly number[];
+  announceDeck?: readonly number[];
   setPicked: (keys: string[], point?: Point, cible?: string) => void;
   respond: (response: OcgResponse) => void;
 };
@@ -75,7 +75,7 @@ export function interaction(question: EngineMessage | undefined, ctx: Ctx): Ui {
     case OcgMessageType.SELECT_OPTION:
       return option(question, ctx);
     case OcgMessageType.ANNOUNCE_CARD:
-      return ctx.announce?.length ? { targets: NONE, panel: <Declarer codes={ctx.announce} ctx={ctx} /> } : generic(question, ctx);
+      return ctx.announce?.length ? { targets: NONE, panel: <Declarer codes={ctx.announce} deck={ctx.announceDeck ?? []} ctx={ctx} /> } : generic(question, ctx);
     case OcgMessageType.ANNOUNCE_RACE:
     case OcgMessageType.ANNOUNCE_ATTRIB:
       return announce(question, ctx);
@@ -602,26 +602,26 @@ function sort(q: Q<OcgMessageType.SORT_CARD> | Q<OcgMessageType.SORT_CHAIN>, ctx
 
 const DECLARER_MAX = 30;
 
-// Declaring a card name (Serment de l'Archdémon…): search among the cards the engine accepts.
-function Declarer({ codes, ctx }: Readonly<{ codes: readonly number[]; ctx: Ctx }>) {
+// Declaring a card name (Serment de l'Archdémon…): the cards of the player's deck first, a search among all the cards the engine accepts.
+function Declarer({ codes, deck, ctx }: Readonly<{ codes: readonly number[]; deck: readonly number[]; ctx: Ctx }>) {
   const [search, setSearch] = useState("");
-  const wanted = fold(search.trim());
-  const named = codes.map((code) => ({ code, name: cardName(ctx.cards, code) })).sort((a, b) => a.name.localeCompare(b.name, "fr"));
-  const found = wanted ? named.filter(({ name }) => fold(name).includes(wanted)) : named;
+  const { found, ownDeck } = declarables(codes, deck, ctx.cards, search);
+  const shown = ownDeck ? found : found.slice(0, DECLARER_MAX);
   return (
     <>
       <h3>Déclarez un nom de carte</h3>
       <label className="champ__saisie">
         <input type="search" placeholder="Rechercher par nom…" aria-label="Nom de carte" value={search} onChange={(event) => setSearch(event.target.value)} />
       </label>
+      {ownDeck && <p className="muted">Cartes de votre deck, les plus nombreuses d'abord. Recherchez un nom pour en déclarer une autre.</p>}
       <div className="actions">
-        {found.slice(0, DECLARER_MAX).map(({ code, name }) => (
+        {shown.map(({ code, name }) => (
           <button key={code} type="button" className="btn btn--fantome" onClick={() => ctx.respond({ type: OcgResponseType.ANNOUNCE_CARD, card: code })}>
             {name}
           </button>
         ))}
       </div>
-      {found.length > DECLARER_MAX && <p className="muted">{found.length - DECLARER_MAX} autres cartes : précisez la recherche.</p>}
+      {found.length > shown.length && <p className="muted">{found.length - shown.length} autres cartes : précisez la recherche.</p>}
       {found.length === 0 && <p className="muted">Aucune carte de ce nom.</p>}
     </>
   );

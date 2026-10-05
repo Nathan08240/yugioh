@@ -1,6 +1,7 @@
 import { OcgLocation, OcgMessageType, OcgPosition, OcgResponseType, SelectBattleCMDAction, type OcgResponse } from "@n1xx1/ocgcore-wasm";
 import type { Card, EngineMessage, Message, Place } from "./board.ts";
-import type { Cards } from "./cards.ts";
+import { cardName, type Cards } from "./cards.ts";
+import { fold } from "./collection.ts";
 import type { Chaines } from "./reglages.ts";
 
 // Cards outside the duel (location 0, such as the Deck Masters to declare) all have sequence 0: their code tells them apart.
@@ -101,4 +102,13 @@ export function attaquantChoisi(question: EngineMessage | undefined, response: O
     return placeKey(question.attacks[response.index]);
   }
   return question?.type === OcgMessageType.SELECT_YESNO && question.description === ATTAQUE_DIRECTE ? courant : undefined;
+}
+
+// Names to declare: the player's deck as the server sent it (most numerous first) until a search is typed, then the accepted cards whose name matches, by name.
+export function declarables(codes: readonly number[], deck: readonly number[], cards: Cards, search: string) {
+  const wanted = fold(search.trim());
+  const named = (list: readonly number[]) => list.map((code) => ({ code, name: cardName(cards, code) }));
+  if (!wanted && deck.length > 0) return { found: named(deck), ownDeck: true };
+  const found = named(codes).sort((a, b) => a.name.localeCompare(b.name, "fr"));
+  return { found: wanted ? found.filter(({ name }) => fold(name).includes(wanted)) : found, ownDeck: false };
 }
