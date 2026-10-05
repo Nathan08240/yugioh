@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { FRIENDS_MAX, type ClientMessage, type Friend, type Presence } from "../../server/src/protocol.ts";
+import { Echanges, Proposition } from "./Echanges.tsx";
 import { minutes, type LobbyState } from "./lobby.ts";
 import { RoomForm, RoomRules } from "./SalleOptions.tsx";
 import "./styles/amis.css";
@@ -26,11 +27,15 @@ function Ami({ friend, children }: Readonly<{ friend: Friend; children: ReactNod
   );
 }
 
-// The friends screen once the list is there: requests received, friends with their presence, requests sent.
-export function AmisView({ friends, send }: Readonly<{ friends?: Friend[]; send: Send }>) {
+type TradeProps = Partial<Pick<LobbyState, "trades" | "tradeCards" | "wishlist">>;
+
+// The friends screen once the list is there: requests received, trades, friends with their presence, requests sent.
+export function AmisView({ friends, send, trades, tradeCards, wishlist }: Readonly<{ friends?: Friend[]; send: Send } & TradeProps>) {
   const [pseudo, setPseudo] = useState("");
   // The friend being challenged: the host picks the rules of the duel first.
   const [challenging, setChallenging] = useState<string>();
+  // The friend a trade is being offered to.
+  const [partner, setPartner] = useState<string>();
   const received = friends?.filter((friend) => friend.status === "received") ?? [];
   const sent = friends?.filter((friend) => friend.status === "sent") ?? [];
   const accepted = friends?.filter((friend) => isPresence(friend.status)) ?? [];
@@ -88,6 +93,8 @@ export function AmisView({ friends, send }: Readonly<{ friends?: Friend[]; send:
           cancel={() => setChallenging(undefined)}
         />
       )}
+      {partner && <Proposition pseudo={partner} tradeCards={tradeCards} wishlist={wishlist} send={send} close={() => setPartner(undefined)} />}
+      <Echanges trades={trades} send={send} />
       {friends && (
         <section className="panneau amis__bloc" aria-label="Mes amis" data-entree>
           <h2 className="titre-bloc">Mes amis</h2>
@@ -100,6 +107,16 @@ export function AmisView({ friends, send }: Readonly<{ friends?: Friend[]; send:
                     Défier
                   </button>
                 )}
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => {
+                    setPartner(friend.pseudo);
+                    send({ type: "trade_cards", pseudo: friend.pseudo });
+                  }}
+                >
+                  Proposer un échange
+                </button>
                 {friend.watch && (
                   <button type="button" className="btn" onClick={() => send({ type: "spectate", room: friend.watch ?? "" })}>
                     Regarder
@@ -131,8 +148,10 @@ export function Amis({ state, send }: Readonly<{ state: LobbyState; send: Send }
   // Once per visit: `send` changes on every render of the lobby; the server keeps the list up to date afterwards.
   useEffect(() => {
     send({ type: "friends" });
+    send({ type: "trades" });
+    send({ type: "wishlist" });
   }, []);
-  return <AmisView friends={state.friends} send={send} />;
+  return <AmisView friends={state.friends} send={send} trades={state.trades} tradeCards={state.tradeCards} wishlist={state.wishlist} />;
 }
 
 type AlertsProps = { challenges: LobbyState["challenges"]; notice?: LobbyState["notice"]; send: Send; now: number };

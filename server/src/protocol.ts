@@ -89,6 +89,15 @@ export type ClientMessage =
   // `challenge_reply`, both players enter a new online room with their active decks, under the custom `options` if any.
   | { type: "challenge"; pseudo: string; options?: RoomOptions }
   | { type: "challenge_reply"; pseudo: string; accept: boolean }
+  // Card trades between friends (trade.ts), one copy for one copy, each player keeping their last copy and the copies their decks
+  // use. `trades` is answered with `trades`, sent again to both players at each change; `trade_cards` with `trade_cards`.
+  // `trade_offer` offers `give` (a card of the player) for `get` (a card of the friend `pseudo`); `trade_accept` accepts an offer
+  // received, `trade_remove` refuses one or cancels one sent. TRADES_PER_DAY accepted trades per player and per day at most.
+  | { type: "trades" }
+  | { type: "trade_cards"; pseudo: string }
+  | { type: "trade_offer"; pseudo: string; give: number; get: number }
+  | { type: "trade_accept"; id: number }
+  | { type: "trade_remove"; id: number }
   // Boosters: `booster_state` is answered with `booster_state`, `open_booster` with `booster_opened` or an error.
   | { type: "booster_state" }
   | { type: "open_booster"; set: string }
@@ -204,6 +213,10 @@ export type ServerMessage =
   | { type: "friend_notice"; text: string }
   | { type: "challenged"; from: string; ms: number; options?: RoomOptions }
   | { type: "challenge_gone"; from: string }
+  // Pending trade offers received and sent, newest first; `left`: trades the player may still accept today.
+  // `trade_cards`: the cards the player (`mine`) and the friend `pseudo` (`theirs`) may trade, as [passcode, copies to spare].
+  | { type: "trades"; received: TradeOffer[]; sent: TradeOffer[]; left: number }
+  | { type: "trade_cards"; pseudo: string; mine: [number, number][]; theirs: [number, number][] }
   // Wished passcodes, oldest first. Owned cards stay in the list until the player removes them.
   | { type: "wishlist"; cards: number[] }
   // `ultraIn`: the booster that many openings ahead holds an Ultra Rare or better for sure (1: the next one).
@@ -247,6 +260,12 @@ export type Presence = "online" | "duel" | "offline";
 // `avatar`: passcode of the card chosen as avatar, null until chosen.
 // `watch`: code of the room to watch when an accepted friend is in an online duel between two players.
 export type Friend = { pseudo: string; avatar: number | null; status: Presence | "sent" | "received"; watch?: string };
+
+// Accepted trades per player and per day (Europe/Paris), and hours before an offer expires.
+export const TRADES_PER_DAY = 3;
+export const TRADE_HOURS = 24;
+// A pending trade seen by one of its players: `pseudo` is the other one, `give` the card the player gives, `get` the one they get.
+export type TradeOffer = { id: number; pseudo: string; give: number; get: number; expiresAt: string };
 
 // A player of the ranked leaderboard; `avatar` is null until chosen.
 export type RankedPlayer = { pseudo: string; avatar: number | null; rating: number; games: number };
