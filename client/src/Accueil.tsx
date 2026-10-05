@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
-import type { BotLevel, ClientMessage, Deck, PuzzleView, StoryArcView } from "../../server/src/protocol.ts";
+import { SEALED_LOSSES, SEALED_REWARDS, SEALED_WINS, type BotLevel, type ClientMessage, type Deck, type PuzzleView, type StoryArcView } from "../../server/src/protocol.ts";
 import { CardView } from "./Card.tsx";
 import { cardName, stat, strongest, useDuelView } from "./cards.ts";
-import { GoatReminder } from "./goat.tsx";
+import { beyondGoat, GoatReminder } from "./goat.tsx";
 import { countdown, inviteLink, type DeckList, type LobbyState } from "./lobby.ts";
 import { MissionsDuJour } from "./Missions.tsx";
 import { RuleBlock, specialRules } from "./regles.tsx";
@@ -51,16 +51,17 @@ export function Accueil({ state, send, go }: Readonly<{ state: LobbyState; send:
     send({ type: "decks" });
     send({ type: "event" });
     send({ type: "missions" });
+    send({ type: "wonder" });
   }, []);
 
-  const [choosingLevel, setChoosingLevel] = useState(false);
   const [creating, setCreating] = useState(false);
   const deck = activeDeck(state.decks);
   const [star] = useMemo(() => strongest(deck?.main ?? [], cards, 1), [deck, cards]);
   const hour = new Date().getHours();
+  const pending = state.boosters?.pending ?? 0;
   return (
     <div className="accueil">
-      <div className="accueil__menu">
+      <header className="accueil__tete">
         <p className="surtitre" data-entree>
           {hour >= 18 || hour < 5 ? "Bonsoir" : "Bonjour"}, {state.pseudo}
         </p>
@@ -72,123 +73,197 @@ export function Accueil({ state, send, go }: Readonly<{ state: LobbyState; send:
             Récompense du jour : 1 booster gagné, à ouvrir dans Boosters.
           </p>
         )}
-        <MissionsDuJour missions={state.missions?.missions} />
-        <article className="mode mode--principal" data-entree>
-          <div className="mode__tete">
-            <Icon id="ui-en-ligne" className="mode__ic" />
-            <div>
-              <h2>Jouer en ligne</h2>
-              <p>Un duel contre un ami, avec votre deck actif. Le gagnant reçoit un booster.</p>
-            </div>
-          </div>
-          {creating && (
-            <RoomForm title="Règles de la salle" action="Créer la salle" submit={(options) => send({ type: "create", options })} cancel={() => setCreating(false)} />
-          )}
-          <div className="mode__actions">
-            <button type="button" className="btn" onClick={() => setCreating(true)}>
-              Créer une salle
-            </button>
-            <CodeForm id="code-salle" action="Rejoindre" className="btn btn--holo" send={(room) => send({ type: "room_rules", room })} />
-            <CodeForm id="code-regarder" action="Regarder un duel" className="btn btn--fantome" send={(room) => send({ type: "spectate", room })} />
-          </div>
-        </article>
-        {state.event && <EventCard event={state.event} deck={deck} send={send} go={go} />}
-        <Mode icon="ui-trophee" title="Classé" onClick={() => go("classe")}>
-          {state.ranked ? `Classement ${state.ranked.rating} · ` : ""}Un adversaire de votre niveau, classement Elo.
-        </Mode>
-        {choosingLevel ? (
-          <article className="mode" data-entree>
-            <Icon id="ui-bot" className="mode__ic" />
-            <span>
-              <span className="mode__titre">Contre le bot</span>
-              <span className="mode__desc">Choisissez son niveau.</span>
-            </span>
-            <span className="mode__niveaux">
+      </header>
+
+      <section className="jouer panneau panneau--holo" aria-labelledby="jouer-titre" data-entree>
+        <h2 id="jouer-titre" className="jouer__titre">
+          <Icon id="ui-duel" />
+          Jouer
+        </h2>
+        <div className="jouer__choix">
+          <article className="jouer__mode">
+            <Icon id="ui-bot" className="jouer__ic" />
+            <h3>Contre le bot</h3>
+            <p>Entraînement sans enjeu, à votre rythme. Choisissez son niveau.</p>
+            <div className="jouer__actions">
               {BOT_LEVELS.map(([level, label]) => (
-                <button key={level} type="button" className="btn" onClick={() => send({ type: "bot", level })}>
+                <button key={level} type="button" className="btn btn--holo" onClick={() => send({ type: "bot", level })}>
                   {label}
                 </button>
               ))}
-              <button type="button" className="btn btn--fantome" onClick={() => setChoosingLevel(false)}>
-                Retour
-              </button>
-            </span>
+            </div>
           </article>
-        ) : (
-          <Mode icon="ui-bot" title="Contre le bot" onClick={() => setChoosingLevel(true)}>
-            Entraînement sans enjeu, à votre rythme.
-          </Mode>
+          <article className="jouer__mode">
+            <Icon id="ui-en-ligne" className="jouer__ic" />
+            <h3>En ligne</h3>
+            <p>Un duel contre un ami, avec votre deck actif. Le gagnant reçoit un booster.</p>
+            <div className="jouer__actions">
+              <button type="button" className="btn" onClick={() => setCreating(true)}>
+                Créer une salle
+              </button>
+            </div>
+          </article>
+          <article className="jouer__mode">
+            <Icon id="ui-trophee" className="jouer__ic" />
+            <h3>Classé</h3>
+            <p>
+              {state.ranked && <b className="chiffres">Classement {state.ranked.rating} · </b>}
+              Un adversaire de votre niveau, classement Elo.
+            </p>
+            <div className="jouer__actions">
+              <button type="button" className="btn btn--holo" onClick={() => go("classe")}>
+                Jouer en classé
+              </button>
+            </div>
+          </article>
+        </div>
+        {creating && (
+          <RoomForm title="Règles de la salle" action="Créer la salle" submit={(options) => send({ type: "create", options })} cancel={() => setCreating(false)} />
         )}
-        <Mode icon="ui-duel" title="Tutoriel" onClick={() => send({ type: "tutorial" })}>
-          Un duel guidé pour apprendre les bases. Première victoire : 1 booster.
-        </Mode>
-        <Mode icon="ui-booster" title="Mode Scellé" onClick={() => go("scelle")}>
-          Six boosters rien que pour la session, un deck, jusqu'à 3 victoires ou 2 défaites.
-        </Mode>
-        <Mode icon="ui-cartes" title="Mode Draft" onClick={() => go("draft")}>
-          Six boosters draftés carte par carte avec trois bots, puis un deck et vos duels.
-        </Mode>
-        <Mode icon="ui-histoire" title="Mode Histoire" onClick={() => go("histoire")}>
-          <StoryLine arcs={state.story} />
-        </Mode>
-        <Mode icon="ui-eclair" title="Puzzles" onClick={() => go("puzzles")}>
-          <PuzzleLine puzzles={state.puzzles} />
-        </Mode>
-        <Mode icon="ui-trophee" title="La Tour" onClick={() => go("tour")}>
-          {state.tower ? towerLine(state.tower) : "10 étages contre le bot, de plus en plus difficiles."}
-        </Mode>
-        <Mode icon="ui-booster" title="Boosters" badge={state.boosters?.pending} onClick={() => go("boosters")}>
+        <CodeForm join={(room) => send({ type: "room_rules", room })} watch={(room) => send({ type: "spectate", room })} />
+      </section>
+
+      <aside className="accueil__cote">
+        {star !== undefined && <Projector code={star} />}
+        <MissionsDuJour missions={state.missions?.missions} />
+        <Tuile icon="ui-booster" title="Boosters" badge={pending > 0 && <span className="pastille">{pending}</span>} onClick={() => go("boosters")}>
           <BoosterLine boosters={state.boosters} />
-        </Mode>
-        <Mode icon="ui-cartes" title="Collection et decks" onClick={() => go("collection")}>
-          {state.collection ? `${state.collection.reduce((sum, [, quantity]) => sum + quantity, 0)} cartes` : "Vos cartes"}
-          {deck && ` · deck actif : ${deck.name}`}
-        </Mode>
+        </Tuile>
+        <Tuile icon="attr-lumiere" title="Pioche miracle" badge={<WonderBadge wonder={state.wonder} />} onClick={() => go("boosters")}>
+          <WonderLine wonder={state.wonder} />
+        </Tuile>
+      </aside>
+
+      <div className="accueil__suite">
+        <StoryCard arcs={state.story} go={() => go("histoire")} />
+        {state.event && <EventCard event={state.event} deck={deck} send={send} go={go} />}
       </div>
-      {star !== undefined && <Projector code={star} />}
+
+      <section className="accueil__modes" aria-labelledby="modes-titre">
+        <h2 id="modes-titre" className="titre-bloc" data-entree>
+          Autres modes
+        </h2>
+        <div className="tuiles">
+          <Tuile icon="ui-duel" title="Tutoriel" badge={<span className="puce puce--or">1re victoire : 1 booster</span>} onClick={() => send({ type: "tutorial" })}>
+            Un duel guidé pour apprendre les bases.
+          </Tuile>
+          <Tuile icon="ui-booster" title="Mode Scellé" badge={<span className="puce puce--or">Jusqu'à {SEALED_BEST} boosters</span>} onClick={() => go("scelle")}>
+            Six boosters pour la session, un deck, jusqu'à {SEALED_WINS} victoires ou {SEALED_LOSSES} défaites.
+          </Tuile>
+          <Tuile icon="ui-cartes" title="Mode Draft" badge={<span className="puce puce--or">Jusqu'à {SEALED_BEST} boosters</span>} onClick={() => go("draft")}>
+            Six boosters draftés carte par carte avec trois bots, puis vos duels.
+          </Tuile>
+          <Tuile icon="ui-eclair" title="Puzzles" onClick={() => go("puzzles")}>
+            <PuzzleLine puzzles={state.puzzles} />
+          </Tuile>
+          <Tuile icon="ui-trophee" title="La Tour" onClick={() => go("tour")}>
+            {state.tower ? towerLine(state.tower) : "10 étages contre le bot, de plus en plus difficiles."}
+          </Tuile>
+          <Tuile icon="ui-cartes" title="Collection et decks" onClick={() => go("collection")}>
+            {state.collection ? `${state.collection.reduce((sum, [, quantity]) => sum + quantity, 0)} cartes` : "Vos cartes"}
+            {deck && ` · deck actif : ${deck.name}`}
+          </Tuile>
+        </div>
+      </section>
     </div>
   );
 }
 
-type CodeFormProps = { id: string; action: string; className: string; send: (room: string) => void };
+// Best reward of a Sealed or Draft session.
+const SEALED_BEST = SEALED_REWARDS.at(-1);
 
-// A room code and the button that uses it.
-function CodeForm({ id, action, className, send }: Readonly<CodeFormProps>) {
+type CodeFormProps = { join: (room: string) => void; watch: (room: string) => void };
+
+// One room code, to join the room or to watch its duel.
+function CodeForm({ join, watch }: Readonly<CodeFormProps>) {
   return (
     <form
       className="rejoindre"
+      aria-label="Rejoindre ou regarder avec un code"
       onSubmit={(event) => {
         event.preventDefault();
-        send((new FormData(event.currentTarget).get("room") as string).trim().toUpperCase());
+        const room = (new FormData(event.currentTarget).get("room") as string).trim().toUpperCase();
+        const submitter = (event.nativeEvent as SubmitEvent).submitter;
+        if (submitter?.getAttribute("value") === "regarder") watch(room);
+        else join(room);
       }}
     >
-      <label className="sr" htmlFor={id}>
+      <label className="surtitre" htmlFor="code-salle">
         Code de la salle
       </label>
-      <input id={id} name="room" className="saisie-code" required maxLength={5} placeholder="Code" autoComplete="off" />
-      <button type="submit" className={className}>
-        {action}
-      </button>
+      <p id="code-salle-aide" className="texte-2">
+        Rejoignez la salle d'un ami, ou regardez son duel en spectateur.
+      </p>
+      <span className="rejoindre__champ">
+        <input id="code-salle" name="room" className="saisie-code" required maxLength={5} placeholder="Code" autoComplete="off" aria-describedby="code-salle-aide" />
+        <button type="submit" className="btn btn--holo" value="rejoindre">
+          Rejoindre
+        </button>
+        <button type="submit" className="btn btn--fantome" value="regarder">
+          <Icon id="ui-oeil" />
+          Regarder le duel
+        </button>
+      </span>
     </form>
   );
 }
 
-type ModeProps = { icon: string; title: string; badge?: number; onClick: () => void; children: ReactNode };
+type TuileProps = { icon: string; title: string; badge?: ReactNode; onClick: () => void; children: ReactNode };
 
-// A button holds phrasing content only: the mode is laid out with spans.
-function Mode({ icon, title, badge = 0, onClick, children }: Readonly<ModeProps>) {
+// A mode of the home screen. A button holds phrasing content only: the tile is laid out with spans.
+function Tuile({ icon, title, badge, onClick, children }: Readonly<TuileProps>) {
   return (
-    <button type="button" className="mode" data-entree onClick={onClick}>
-      <Icon id={icon} className="mode__ic" />
-      <span>
-        <span className="mode__titre">
-          {title} {badge > 0 && <span className="pastille">{badge}</span>}
+    <button type="button" className="tuile" data-entree onClick={onClick}>
+      <Icon id={icon} className="tuile__ic" />
+      <span className="tuile__corps">
+        <span className="tuile__titre">
+          {title} {badge}
         </span>
-        <span className="mode__desc">{children}</span>
+        <span className="tuile__desc">{children}</span>
       </span>
-      <Icon id="ui-suivant" className="mode__fleche" />
+      <Icon id="ui-suivant" className="tuile__fleche" />
     </button>
   );
+}
+
+// The story arc being played, put forward.
+function StoryCard({ arcs, go }: Readonly<{ arcs?: StoryArcView[]; go: () => void }>) {
+  const arc = arcs && currentArc(arcs);
+  const plural = arc && arc.won > 1 ? "s" : "";
+  return (
+    <button type="button" className="histoire-vedette" data-entree onClick={go}>
+      <span className="surtitre surtitre--or">
+        <Icon id="ui-histoire" />
+        Mode Histoire
+      </span>
+      <span className="histoire-vedette__arc">{arc?.title ?? "Les grands duels de l'anime"}</span>
+      {arc ? (
+        <span className="histoire-vedette__suivi">
+          <span className="chiffres">
+            {arc.won} duel{plural} gagné{plural} sur {arc.total}
+          </span>
+          <span className="jauge" style={{ "--v": `${(arc.won / arc.total) * 100}%` } as CSSProperties} />
+        </span>
+      ) : (
+        <span className="texte-2">Arc par arc, avec des decks imposés et des règles spéciales.</span>
+      )}
+      <span className="histoire-vedette__action">
+        {arc?.won ? "Continuer l'histoire" : "Commencer l'histoire"}
+        <Icon id="ui-suivant" />
+      </span>
+    </button>
+  );
+}
+
+function WonderBadge({ wonder }: Readonly<{ wonder?: LobbyState["wonder"] }>) {
+  if (!wonder || wonder.status === "picked") return null;
+  return <span className="puce puce--or">{wonder.status === "drawn" ? "En cours" : "Disponible"}</span>;
+}
+
+function WonderLine({ wonder }: Readonly<{ wonder?: LobbyState["wonder"] }>) {
+  if (wonder?.status === "picked") return "Carte du jour prise. Nouvelle pioche demain.";
+  if (wonder?.status === "drawn") return "Votre tirage du jour vous attend.";
+  return "Une carte offerte par jour, à choisir à l'aveugle parmi cinq.";
 }
 
 // The special rule of the week: its rules, and a duel under it against the bot or in an online room.
@@ -198,19 +273,23 @@ function EventCard({ event, deck, send, go }: Readonly<{ event: NonNullable<Lobb
   const [rule] = specialRules([event.rule]);
   if (!rule) return null;
   const reward = event.won ? "Booster de la semaine déjà gagné." : "Première victoire de la semaine : 1 booster.";
+  const beyond = deck && cards.size > 0 ? beyondGoat(deck, cards) : 0;
   return (
-    <article className="mode mode--principal mode--evenement" data-entree>
-      <div className="mode__tete">
-        <Icon id="ui-histoire" className="mode__ic" />
-        <div>
-          <h2>Événement : {rule.name}</h2>
-          <p>
-            {event.lp} LP, {event.hand} cartes en main. {reward}
-          </p>
-        </div>
-      </div>
+    <section className="evenement panneau" aria-labelledby="evenement-titre" data-entree>
+      <p className="surtitre">Événement de la semaine</p>
+      <h2 id="evenement-titre" className="titre-panneau">
+        {rule.name}
+      </h2>
+      <p className="texte-2">
+        {event.lp} LP, {event.hand} cartes en main. {reward}
+      </p>
       <RuleBlock rule={rule} />
-      <GoatReminder deck={deck} cards={cards} where="en événement" go={() => go("collection")} />
+      {beyond > 0 && (
+        <details className="evenement__goat">
+          <summary>Deck actif hors liste Goat</summary>
+          <GoatReminder deck={deck} cards={cards} where="en événement" go={() => go("collection")} />
+        </details>
+      )}
       <div className="mode__actions">
         {choosingLevel ? (
           <>
@@ -234,19 +313,7 @@ function EventCard({ event, deck, send, go }: Readonly<{ event: NonNullable<Lobb
           </>
         )}
       </div>
-    </article>
-  );
-}
-
-function StoryLine({ arcs }: Readonly<{ arcs?: StoryArcView[] }>) {
-  const arc = arcs && currentArc(arcs);
-  if (!arc) return "Les grands duels de l'anime, arc par arc.";
-  const plural = arc.won > 1 ? "s" : "";
-  return (
-    <>
-      {arc.title} · {arc.won} duel{plural} gagné{plural} sur {arc.total}
-      <span className="jauge" style={{ "--v": `${(arc.won / arc.total) * 100}%` } as CSSProperties} />
-    </>
+    </section>
   );
 }
 
@@ -276,7 +343,7 @@ function Projector({ code }: Readonly<{ code: number }>) {
   const { cards } = useDuelView();
   const info = cards.get(code);
   return (
-    <>
+    <div className="vitrine">
       <div className="projecteur" aria-hidden="true" data-entree>
         {info?.image && (
           <div className="projecteur__holo">
@@ -297,7 +364,7 @@ function Projector({ code }: Readonly<{ code: number }>) {
           </span>
         )}
       </p>
-    </>
+    </div>
   );
 }
 
