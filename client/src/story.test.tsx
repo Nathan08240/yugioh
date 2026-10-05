@@ -4,7 +4,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { expect, it } from "vitest";
 import type { CardInfo, StoryArcView, StoryDuelView } from "../../server/src/protocol.ts";
 import { DuelView } from "./cards.ts";
-import { arcState, Briefing, currentArc, duelLabel, Story } from "./Story.tsx";
+import { duelLabel } from "./lobby.ts";
+import { arcState, Briefing, currentArc, Story } from "./Story.tsx";
 import { Rewards } from "./ui.tsx";
 
 const monster: CardInfo = {

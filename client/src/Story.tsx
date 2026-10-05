@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type Ref } from "react";
 import { REPLAY_BOOSTERS_MAX, REPLAY_WINS, type ClientMessage, type StoryArcView, type StoryDuelView, type StoryLevel, type StoryPlayer, type StoryStatus } from "../../server/src/protocol.ts";
 import { cardName, isDivine, useDuelView, type Cards } from "./cards.ts";
+import { duelLabel } from "./lobby.ts";
 import { createQueue, entrance } from "./motion.ts";
 import { RuleBlock, specialRules } from "./regles.tsx";
 import "./styles/histoire.css";
@@ -23,23 +24,6 @@ export function arcState(arc: StoryArcView): ArcState {
   if (arc.duels.every((duel) => duel.status === "done" || duel.optional)) return "fini";
   return arc.duels.every((duel) => duel.status === "locked") ? "verrou" : "encours";
 }
-
-// "Battle City · Duel 4 sur 5", for the briefing and the end of the duel.
-export function duelLabel(arcs: StoryArcView[] | undefined, id: string | undefined): string | undefined {
-  for (const arc of arcs ?? []) {
-    const index = arc.duels.findIndex((duel) => duel.id === id);
-    if (index >= 0) return `${arc.title} · Duel ${index + 1} sur ${arc.duels.length}`;
-  }
-  return undefined;
-}
-
-const findDuel = (arcs: StoryArcView[] | undefined, id: string | undefined) => arcs?.flatMap((arc) => arc.duels).find((duel) => duel.id === id);
-
-// The special rules of a story duel, for the duel screen and its end.
-export const duelSpecial = (arcs: StoryArcView[] | undefined, id: string | undefined): string[] => findDuel(arcs, id)?.special ?? [];
-
-// The starting LP of a story duel as written, for the stars of its end.
-export const duelLp = (arcs: StoryArcView[] | undefined, id: string | undefined) => findDuel(arcs, id)?.lp;
 
 function unlockHint(duel: StoryDuelView, arc: StoryArcView, arcs: StoryArcView[]): string {
   const [need] = duel.requires;

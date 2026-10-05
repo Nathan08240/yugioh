@@ -323,3 +323,20 @@ export function inviteFromUrl(href: string): Extract<ClientMessage, { type: "joi
 }
 
 export const inviteLink = (origin: string, room: string) => `${origin}/?salle=${room}`;
+
+// "Battle City · Duel 4 sur 5", for the briefing and the end of the duel.
+export function duelLabel(arcs: StoryArcView[] | undefined, id: string | undefined): string | undefined {
+  for (const arc of arcs ?? []) {
+    const index = arc.duels.findIndex((duel) => duel.id === id);
+    if (index >= 0) return `${arc.title} · Duel ${index + 1} sur ${arc.duels.length}`;
+  }
+  return undefined;
+}
+
+const findDuel = (arcs: StoryArcView[] | undefined, id: string | undefined) => arcs?.flatMap((arc) => arc.duels).find((duel) => duel.id === id);
+
+// The special rules of a story duel, for the duel screen and its end.
+export const duelSpecial = (arcs: StoryArcView[] | undefined, id: string | undefined): string[] => findDuel(arcs, id)?.special ?? [];
+
+// The starting LP of a story duel as written, for the stars of its end.
+export const duelLp = (arcs: StoryArcView[] | undefined, id: string | undefined) => findDuel(arcs, id)?.lp;

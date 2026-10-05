@@ -1,30 +1,60 @@
 import type { OcgResponse } from "@n1xx1/ocgcore-wasm";
-import { useEffect, useMemo, useReducer, useRef, useState } from "react";
+import { lazy, startTransition, Suspense, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import type { ClientMessage, PuzzleView } from "../../server/src/protocol.ts";
 import { Accueil, Salle } from "./Accueil.tsx";
 import { AlertesAmis, Amis } from "./Amis.tsx";
-import { Boosters } from "./Boosters.tsx";
-import { Classe } from "./Classe.tsx";
-import { Draft } from "./Draft.tsx";
 import { DuelView, useCards } from "./cards.ts";
-import { Collection } from "./Collection.tsx";
-import { OffreTutoriel, PseudoForm, StarterChoice } from "./Depart.tsx";
-import { Duel } from "./Duel.tsx";
-import { Fin, FinSpectateur } from "./Fin.tsx";
-import { initialLobby, inviteFromUrl, reduce, type Action, type LobbyState } from "./lobby.ts";
-import { Parametres } from "./Parametres.tsx";
-import { Profil } from "./Profil.tsx";
+import { duelLabel, duelLp, duelSpecial, initialLobby, inviteFromUrl, reduce, type Action, type LobbyState } from "./lobby.ts";
 import { puzzleRule, Puzzles } from "./Puzzles.tsx";
 import { autoAnswer } from "./question.ts";
 import { reglages } from "./reglages.ts";
 import { duelRules, Regles } from "./regles.tsx";
-import { Revoir } from "./Revoir.tsx";
 import { ApercuSalle } from "./SalleOptions.tsx";
-import { Scelle } from "./Scelle.tsx";
 import { Shell, type Page } from "./Shell.tsx";
-import { duelLabel, duelLp, duelSpecial, Story } from "./Story.tsx";
 import { supabase } from "./supabase.ts";
 import { Tour } from "./Tour.tsx";
+
+// Every other screen has its own chunk, fetched when the player heads for it: the home screen loads only what it shows.
+const ECRANS: Partial<Record<Page, () => Promise<unknown>>> = {
+  classe: () => import("./Classe.tsx"),
+  collection: () => import("./Collection.tsx"),
+  boosters: () => import("./Boosters.tsx"),
+  histoire: () => import("./Story.tsx"),
+  profil: () => import("./Profil.tsx"),
+  parametres: () => import("./Parametres.tsx"),
+  scelle: () => import("./Scelle.tsx"),
+  draft: () => import("./Draft.tsx"),
+  tutoriel: () => import("./Depart.tsx"),
+};
+const Classe = lazy(() => import("./Classe.tsx").then((m) => ({ default: m.Classe })));
+const Collection = lazy(() => import("./Collection.tsx").then((m) => ({ default: m.Collection })));
+const Boosters = lazy(() => import("./Boosters.tsx").then((m) => ({ default: m.Boosters })));
+const Story = lazy(() => import("./Story.tsx").then((m) => ({ default: m.Story })));
+const Profil = lazy(() => import("./Profil.tsx").then((m) => ({ default: m.Profil })));
+const Parametres = lazy(() => import("./Parametres.tsx").then((m) => ({ default: m.Parametres })));
+const Scelle = lazy(() => import("./Scelle.tsx").then((m) => ({ default: m.Scelle })));
+const Draft = lazy(() => import("./Draft.tsx").then((m) => ({ default: m.Draft })));
+const PseudoForm = lazy(() => import("./Depart.tsx").then((m) => ({ default: m.PseudoForm })));
+const StarterChoice = lazy(() => import("./Depart.tsx").then((m) => ({ default: m.StarterChoice })));
+const OffreTutoriel = lazy(() => import("./Depart.tsx").then((m) => ({ default: m.OffreTutoriel })));
+const Duel = lazy(() => import("./Duel.tsx").then((m) => ({ default: m.Duel })));
+const Fin = lazy(() => import("./Fin.tsx").then((m) => ({ default: m.Fin })));
+const FinSpectateur = lazy(() => import("./Fin.tsx").then((m) => ({ default: m.FinSpectateur })));
+const Revoir = lazy(() => import("./Revoir.tsx").then((m) => ({ default: m.Revoir })));
+
+// The duel screen, its end and the 3D board are fetched as soon as a duel is on its way (search, waiting room, launch).
+function prechargerDuel() {
+  import("./Fin.tsx");
+  import("./Duel.tsx").then((duel) => {
+    if (duel.webgl2()) import("./plateau3d/Plateau3D.tsx");
+  });
+}
+
+const CHARGEMENT = (
+  <Shell id="chargement">
+    <p className="ecran-message">Chargement…</p>
+  </Shell>
+);
 
 // Same origin as the page: Vite proxies /ws to the game server in dev.
 const SERVER_URL = `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws`;
@@ -94,6 +124,10 @@ export function Lobby() {
   useEffect(() => {
     if (ready) socket.current?.send(JSON.stringify({ type: "player_profile" } satisfies ClientMessage));
   }, [ready]);
+  // A room joined from elsewhere: an accepted challenge, an invitation link.
+  useEffect(() => {
+    if (state.room) prechargerDuel();
+  }, [state.room]);
 
   const send: Send = (msg) => {
     if (msg.type === "bot" || msg.type === "story_duel" || msg.type === "puzzle" || msg.type === "tower_duel" || msg.type === "sealed_duel" || msg.type === "draft_duel" || msg.type === "tutorial") {
@@ -117,6 +151,7 @@ export function Lobby() {
     }
     if (msg.type === "ranked_queue") ranked.current = true;
     else if (NOT_RANKED.has(msg.type)) ranked.current = false;
+    if (msg.type === "ranked_queue" || msg.type === "tutorial" || msg.type === "spectate" || NOT_RANKED.has(msg.type)) prechargerDuel();
     // The races of an ANNOUNCE_RACE response are bigints: they travel as strings.
     socket.current?.send(JSON.stringify(msg, (_key, value: unknown) => (typeof value === "bigint" ? String(value) : value)));
   };
@@ -137,10 +172,12 @@ export function Lobby() {
     dispatch({ type: "answered" });
   };
   // The story screen stays open across its duels: it lives in the lobby state.
-  const go = (next: Page) => {
-    dispatch({ type: "story_menu", open: next === "histoire" });
-    if (next !== "histoire") setPage(next);
-  };
+  // A transition: the current screen stays until the chunk of the next one has arrived.
+  const go = (next: Page) =>
+    startTransition(() => {
+      dispatch({ type: "story_menu", open: next === "histoire" });
+      if (next !== "histoire") setPage(next);
+    });
 
   const shown = state.storyOpen ? "histoire" : page;
   // A puzzle is only played from its screen.
@@ -159,11 +196,13 @@ export function Lobby() {
       )}
       <AlertesAmis state={state} send={send} />
       <ApercuSalle preview={state.preview} send={send} close={() => dispatch({ type: "preview_close" })} />
-      {state.replay && !state.room ? (
-        <Revoir key={state.replay.id} replay={state.replay} pseudo={state.pseudo ?? undefined} avatar={state.profile?.avatar ?? undefined} leave={() => dispatch({ type: "replay_closed" })} />
-      ) : (
-        <Screen state={state} page={shown} send={send} reconnect={reconnect} leave={leave} respond={respond} go={go} vsBot={vsBot.current} ranked={ranked.current} storyDuel={storyDuel.current} easy={storyEasy.current} puzzle={puzzle} sealedDuel={sealedDuel.current} draftDuel={draftDuel.current} tutorial={tutorial.current} />
-      )}
+      <Suspense fallback={CHARGEMENT}>
+        {state.replay && !state.room ? (
+          <Revoir key={state.replay.id} replay={state.replay} pseudo={state.pseudo ?? undefined} avatar={state.profile?.avatar ?? undefined} leave={() => dispatch({ type: "replay_closed" })} />
+        ) : (
+          <Screen state={state} page={shown} send={send} reconnect={reconnect} leave={leave} respond={respond} go={go} vsBot={vsBot.current} ranked={ranked.current} storyDuel={storyDuel.current} easy={storyEasy.current} puzzle={puzzle} sealedDuel={sealedDuel.current} draftDuel={draftDuel.current} tutorial={tutorial.current} />
+        )}
+      </Suspense>
     </DuelView>
   );
 }
@@ -239,8 +278,11 @@ function Screen({ state, page, send, reconnect, leave, respond, go, vsBot, ranke
     return (
       <>
         <Duel board={state.board} seat={state.seat ?? 0} asked={state.question} respond={respond} leave={leave} surrender={() => send({ type: "surrender" })} emotes={state.emotes} sendEmote={watching ? undefined : (id) => send({ type: "emote", id })} report={watching ? undefined : report} answerBy={state.answerBy} away={state.away} feed={state.feed} lp={state.lp} opponentLp={state.opponentLp} pseudo={me.name} opponent={state.opponent} avatar={me.avatar} opponentAvatar={state.opponentAvatar} rules={puzzle ? puzzleRule(puzzle) : duelRules(special, state.options)} easy={state.storyOpen && easy} kingdom={special.includes("duelist-kingdom")} spectateur={watching !== undefined} spectators={state.spectators} tutoriel={tutorial} />
-        {watching && state.board.winner !== undefined && <FinSpectateur board={state.board} names={[watching.name ?? "Joueur 1", state.opponent ?? "Joueur 2"]} room={state.room} leave={leave} />}
-        {!watching && state.board.winner !== undefined && <Fin board={state.board} seat={state.seat ?? 0} room={state.room} vsBot={vsBot} ranked={ranked ? { result: state.rankedResult } : undefined} opponent={state.opponent} story={story} eventBooster={state.eventWon} puzzle={puzzle && { title: puzzle.title, booster: state.solved?.booster }} tutoriel={tutorial ? { booster: state.solved?.booster } : undefined} tower={tower} rematch={state.rematch} onRematch={(accept) => send({ type: "rematch", accept })} sealed={sealedDuel ? (state.sealed ?? undefined) : undefined} draft={draftDuel ? (state.draft ?? undefined) : undefined} report={report} leave={leave} go={leaveFor} />}
+        {/* The end screen is drawn over the board: while it loads, the board stays. */}
+        <Suspense fallback={null}>
+          {watching && state.board.winner !== undefined && <FinSpectateur board={state.board} names={[watching.name ?? "Joueur 1", state.opponent ?? "Joueur 2"]} room={state.room} leave={leave} />}
+          {!watching && state.board.winner !== undefined && <Fin board={state.board} seat={state.seat ?? 0} room={state.room} vsBot={vsBot} ranked={ranked ? { result: state.rankedResult } : undefined} opponent={state.opponent} story={story} eventBooster={state.eventWon} puzzle={puzzle && { title: puzzle.title, booster: state.solved?.booster }} tutoriel={tutorial ? { booster: state.solved?.booster } : undefined} tower={tower} rematch={state.rematch} onRematch={(accept) => send({ type: "rematch", accept })} sealed={sealedDuel ? (state.sealed ?? undefined) : undefined} draft={draftDuel ? (state.draft ?? undefined) : undefined} report={report} leave={leave} go={leaveFor} />}
+        </Suspense>
       </>
     );
   }
@@ -252,7 +294,7 @@ function Screen({ state, page, send, reconnect, leave, respond, go, vsBot, ranke
     );
   }
   return (
-    <Shell id={page} background={page === "collection" ? "nuit" : "ville"} pseudo={state.pseudo} page={page} go={go} pending={state.boosters?.pending} requests={(state.friends?.filter((friend) => friend.status === "received").length ?? 0) + (state.trades?.received.length ?? 0)} signOut={signOut} notice={page === "accueil"}>
+    <Shell id={page} background={page === "collection" ? "nuit" : "ville"} pseudo={state.pseudo} page={page} go={go} pending={state.boosters?.pending} requests={(state.friends?.filter((friend) => friend.status === "received").length ?? 0) + (state.trades?.received.length ?? 0)} signOut={signOut} notice={page === "accueil"} prefetch={(next) => ECRANS[next]?.()}>
       {page === "accueil" && <Accueil state={state} send={send} go={go} />}
       {page === "classe" && <Classe state={state} send={send} go={go} />}
       {page === "collection" && <Collection collection={state.collection} rarities={state.rarities} decks={state.decks} results={state.results} wishlist={state.wishlist} points={state.points} conversion={state.conversion} send={send} />}
