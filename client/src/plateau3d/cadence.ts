@@ -27,3 +27,17 @@ export function surveillant(onLent: () => void) {
     lentes = 0;
   };
 }
+
+// Clock of the on-demand rendering: `pas` gives the step of a frame, `fin` tells whether it moved.
+// Only a frame that follows a moving one is timed: a stop without frames (hit-stop, hold, rest) is neither a step nor slowness.
+export function horloge(onLent: () => void) {
+  const mesure = surveillant(onLent);
+  let enchaine = false;
+  return {
+    pas: (dt: number) => (enchaine ? Math.min(dt, 0.1) : 1 / 60),
+    fin(dt: number, anime: boolean) {
+      if (enchaine && anime) mesure(dt);
+      enchaine = anime;
+    },
+  };
+}

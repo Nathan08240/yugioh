@@ -1,20 +1,24 @@
 // Engine messages as a queue of animations (design/motion.md): the board stays pure, the display catches up with it.
-import { OcgAttribute, OcgLocation, OcgMessageType, OcgType } from "@n1xx1/ocgcore-wasm";
-import { cardAt, playAll, type Board, type Message } from "../board.ts";
+import { OcgAttribute, OcgLocation, OcgMessageType, OcgPhase, OcgPosition, OcgType } from "@n1xx1/ocgcore-wasm";
+import { cardAt, playAll, type Board, type Message, type Place } from "../board.ts";
 import { has, type Cards } from "../cards.ts";
 import { placeKey } from "../question.ts";
+import { pileId } from "./disposition.ts";
 
 export type Depart = "destruction" | "sacrifice" | "materiau" | "bannissement" | "main" | "deck" | "extra";
 export type Variation = { cle: string; atk: number; def: number };
+// `depuis`: the pile a card entering the field comes from (none: the hand). `vers`: the zone a tribute or a material goes into.
+// `combat`: damage calculation, with the damage the battle deals. `choc`: the LP change is damage (the camera shakes).
 export type Effet =
   | { type: "pioche"; joueur: number; nombre: number }
-  | { type: "entree"; cle: string; joueur: number }
+  | { type: "entree"; cle: string; joueur: number; depuis?: string }
   | { type: "invocation"; cle: string; code: number; genre: "normale" | "fusion" | "dieu" }
   | { type: "pose"; cle: string }
   | { type: "position"; cle: string }
-  | { type: "depart"; cle: string; genre: Depart }
+  | { type: "depart"; cle: string; genre: Depart; vers?: string }
   | { type: "attaque"; de: string; vers?: string; joueur: number }
-  | { type: "lp"; joueur: number; delta: number; directe: boolean }
+  | { type: "combat"; de: string; vers?: string; joueur: number; degats: number }
+  | { type: "lp"; joueur: number; delta: number; directe: boolean; choc?: boolean }
   | { type: "activation"; cle: string; maillon: number; joueur: number }
   | { type: "resolution"; maillon: number; annule: boolean }
   | { type: "phase"; phase: number; joueur: number }
@@ -51,13 +55,28 @@ const TELLING: ReadonlySet<Message["type"]> = new Set([
 
 type Ctx = { board: Board; cards: Cards; next: Message | undefined; direct: boolean };
 
+// The piles a card can enter the field from, other than the hand.
+const SOURCES: ReadonlySet<number> = new Set([OcgLocation.GRAVE, OcgLocation.REMOVED, OcgLocation.DECK, OcgLocation.EXTRA]);
+
+const MAIN: ReadonlySet<number> = new Set([OcgPhase.MAIN1, OcgPhase.MAIN2]);
+
 // A monster leaving the field just before a Tribute Summon (or Set) is a tribute; before a Fusion Summon, a material.
-function departure(ctx: Ctx): Depart {
-  const { next, cards } = ctx;
-  if (next?.type === OcgMessageType.SUMMONING) return "sacrifice";
-  if (next?.type === OcgMessageType.SET && next.location === OcgLocation.MZONE) return "sacrifice";
-  if (next?.type === OcgMessageType.SPSUMMONING && has(cards.get(next.code)?.type ?? 0, OcgType.FUSION)) return "materiau";
-  return "destruction";
+// The engine asks for the zone in between, so the summon often comes in a later batch: a monster sent to the Graveyard
+// in a Main Phase outside a chain is taken for a tribute too.
+function departure(ctx: Ctx, from: Place): { genre: Depart; vers?: string } {
+  const { next, cards, board } = ctx;
+  if (next?.type === OcgMessageType.SUMMONING) return { genre: "sacrifice", vers: placeKey(next) };
+  if (next?.type === OcgMessageType.SET && next.location === OcgLocation.MZONE) return { genre: "sacrifice", vers: placeKey(next) };
+  if (next?.type === OcgMessageType.SPSUMMONING && has(cards.get(next.code)?.type ?? 0, OcgType.FUSION)) return { genre: "materiau", vers: placeKey(next) };
+  if (!next && from.location === OcgLocation.MZONE && board.chain.length === 0 && MAIN.has(board.phase)) return { genre: "sacrifice" };
+  return { genre: "destruction" };
+}
+
+// Battle damage of a damage calculation: the ATK gap, the DEF over the attacker's ATK, the whole ATK for a direct attack.
+function degats({ card, target }: Extract<Message, { type: OcgMessageType.BATTLE }>): number {
+  if (!target) return card.attack;
+  if (has(target.position, OcgPosition.DEFENSE)) return Math.max(0, target.defense - card.attack);
+  return Math.abs(card.attack - target.attack);
 }
 
 function summonKind(msg: Extract<Message, { code: number }>, cards: Cards): "normale" | "fusion" | "dieu" {
@@ -70,10 +89,15 @@ function summonKind(msg: Extract<Message, { code: number }>, cards: Cards): "nor
 function moveEffects(msg: Extract<Message, { type: OcgMessageType.MOVE }>, ctx: Ctx): Pick<Etape, "avant" | "apres"> {
   const { from, to } = msg;
   if (ON_FIELD.has(from.location) && cardAt(ctx.board, from)) {
-    const genre = to.location === OcgLocation.GRAVE ? departure(ctx) : DESTINATIONS.get(to.location);
-    if (genre) return { avant: [{ type: "depart", cle: placeKey(from), genre }], apres: [] };
+    const { genre, vers } = to.location === OcgLocation.GRAVE ? departure(ctx, from) : { genre: DESTINATIONS.get(to.location), vers: undefined };
+    if (genre) return { avant: [{ type: "depart", cle: placeKey(from), genre, vers }], apres: [] };
   }
-  if (ON_FIELD.has(to.location) && !ON_FIELD.has(from.location)) return { avant: [], apres: [{ type: "entree", cle: placeKey(to), joueur: to.controller }] };
+  if (ON_FIELD.has(to.location) && !ON_FIELD.has(from.location)) {
+    // Banished cards lie beside the Graveyard (disposition.ts): they come back from it.
+    const pile = from.location === OcgLocation.REMOVED ? OcgLocation.GRAVE : from.location;
+    const depuis = SOURCES.has(from.location) ? pileId(from.controller, pile) : undefined;
+    return { avant: [], apres: [{ type: "entree", cle: placeKey(to), joueur: to.controller, depuis }] };
+  }
   return { avant: [], apres: [] };
 }
 
@@ -119,8 +143,10 @@ function effects(msg: Message, ctx: Ctx): Pick<Etape, "avant" | "apres"> {
       return after({ type: "position", cle: placeKey(msg) });
     case OcgMessageType.ATTACK:
       return before({ type: "attaque", de: placeKey(msg.card), vers: msg.target ? placeKey(msg.target) : undefined, joueur: msg.card.controller });
+    case OcgMessageType.BATTLE:
+      return before({ type: "combat", de: placeKey(msg.card), vers: msg.target ? placeKey(msg.target) : undefined, joueur: msg.card.controller, degats: degats(msg) });
     case OcgMessageType.DAMAGE:
-      return after({ type: "lp", joueur: msg.player, delta: -msg.amount, directe: ctx.direct });
+      return after({ type: "lp", joueur: msg.player, delta: -msg.amount, directe: ctx.direct, choc: true });
     case OcgMessageType.PAY_LPCOST:
       return after({ type: "lp", joueur: msg.player, delta: -msg.amount, directe: false });
     case OcgMessageType.RECOVER:
@@ -155,7 +181,7 @@ export function etapes(board: Board, messages: readonly Message[], cards: Cards)
   let direct = false;
   messages.forEach((msg, i) => {
     const next = messages.slice(i + 1).find((later) => TELLING.has(later.type));
-    if (msg.type === OcgMessageType.ATTACK) direct = !msg.target;
+    if (msg.type === OcgMessageType.ATTACK || msg.type === OcgMessageType.BATTLE) direct = !msg.target;
     const { avant, apres } = effects(msg, { board: current, cards, next, direct });
     if (msg.type === OcgMessageType.DAMAGE) direct = false;
     if (avant.length + apres.length > 0) {

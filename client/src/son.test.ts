@@ -57,10 +57,13 @@ const cle = "0:4:0";
 it.each<[Effet, number, Son | undefined]>([
   [{ type: "pioche", joueur: 1, nombre: 2 }, 0, "pioche"],
   [{ type: "invocation", cle, code: 1, genre: "normale" }, 0, "invocation"],
+  [{ type: "invocation", cle, code: 1, genre: "dieu" }, 0, "dieu"],
   [{ type: "pose", cle }, 0, "pose"],
   [{ type: "activation", cle, maillon: 1, joueur: 1 }, 0, "activation"],
-  [{ type: "attaque", de: cle, joueur: 1 }, 0, "attaque"],
+  [{ type: "attaque", de: cle, joueur: 1 }, 0, "visee"],
+  [{ type: "combat", de: cle, joueur: 1, degats: 500 }, 0, "attaque"],
   [{ type: "depart", cle, genre: "destruction" }, 0, "destruction"],
+  [{ type: "depart", cle, genre: "sacrifice", vers: cle }, 0, "aspiration"],
   [{ type: "depart", cle, genre: "bannissement" }, 0, undefined],
   [{ type: "lp", joueur: 0, delta: -500, directe: false }, 0, "degats"],
   [{ type: "lp", joueur: 1, delta: -500, directe: true }, 0, undefined],
@@ -89,9 +92,9 @@ it("reprend le contexte au premier geste, puis règle le niveau sur le volume", 
 it("joue chaque son, avec du bruit pour ceux qui en ont", async () => {
   const { jouer, debloquer } = await charger({ vitesse: "normale" });
   debloquer();
-  for (const son of ["pioche", "invocation", "pose", "activation", "attaque", "degats", "destruction", "gain", "victoire", "defaite", "clic"] as const) jouer(son);
-  expect(faux.oscillateurs).toBe(20);
-  expect(faux.bruits).toBe(4);
+  for (const son of ["pioche", "invocation", "dieu", "pose", "atterrissage", "activation", "visee", "attaque", "impact", "degats", "destruction", "aspiration", "gain", "victoire", "defaite", "clic"] as const) jouer(son);
+  expect(faux.oscillateurs).toBe(31);
+  expect(faux.bruits).toBe(10);
 });
 
 it("ne joue rien quand le son est coupé ou le volume à 0", async () => {

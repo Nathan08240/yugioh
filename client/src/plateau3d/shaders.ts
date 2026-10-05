@@ -5,6 +5,23 @@ const FIN = "\n#include <tonemapping_fragment>\n#include <colorspace_fragment>\n
 export const VS_UV = "varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }";
 export const VS_MONDE = "varying vec3 vMonde; void main() { vec4 m = modelMatrix * vec4(position, 1.0); vMonde = m.xyz; gl_Position = projectionMatrix * viewMatrix * m; }";
 
+// Particles (particules.ts): size in world units (uEchelle: pixels per unit at distance 1), soft round dot, hot core.
+export const VS_PARTICULE = `
+attribute vec3 aCouleur; attribute float aTaille, aAlpha; uniform float uEchelle; varying vec3 vCouleur; varying float vAlpha;
+void main() {
+  vec4 mv = modelViewMatrix * vec4(position, 1.0);
+  gl_Position = projectionMatrix * mv;
+  gl_PointSize = aTaille * uEchelle / -mv.z;
+  vCouleur = aCouleur; vAlpha = aAlpha;
+}`;
+export const FS_PARTICULE = `
+varying vec3 vCouleur; varying float vAlpha;
+void main() {
+  float d = length(gl_PointCoord - 0.5) * 2.0;
+  float a = vAlpha * (1.0 - smoothstep(0.2, 1.0, d));
+  if (a < 0.01) discard;
+  gl_FragColor = vec4(vCouleur * (1.0 + 2.0 * (1.0 - smoothstep(0.0, 0.35, d))), a);${FIN}}`;
+
 export const FS_SURBRILLANCE = `
 uniform vec3 uColor; uniform float uFill, uPulse, uTime; uniform vec2 uSize, uDemi; varying vec2 vUv;
 void main() {

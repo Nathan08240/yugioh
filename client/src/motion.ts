@@ -44,6 +44,8 @@ export const prefersReduced = () => FORCE[reglages().mouvement] ?? systemeReduit
 const vitesse = () => FACTEUR[reglages().vitesse];
 // A duration set by the speed, for the animations played outside a queue.
 export const duree = (ms: number) => ms / vitesse();
+// Progress (0 to 1) of the part of a tween from `debut` to `fin` (fractions of it): several moves or a stagger in one tween.
+export const phase = (k: number, debut: number, fin: number) => Math.min(1, Math.max(0, (k - debut) / (fin - debut)));
 
 const BACKLOG = 3;
 type Run = { fast: boolean; anims: Set<Animation>; wakers: Set<() => void> };

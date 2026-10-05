@@ -1,8 +1,9 @@
 // Sound effects synthesized with Web Audio (no audio file): short notes and filtered noise, played from the duel effects.
-import type { Effet } from "./plateau3d/effets.ts";
+import type { Depart, Effet } from "./plateau3d/effets.ts";
 import { FACTEUR, reglages } from "./reglages.ts";
 
-export type Son = "pioche" | "invocation" | "pose" | "activation" | "attaque" | "degats" | "destruction" | "gain" | "victoire" | "defaite" | "clic";
+// `atterrissage` and `impact` are played by the 3D board at the moment a card lands or hits.
+export type Son = "pioche" | "invocation" | "dieu" | "pose" | "atterrissage" | "activation" | "visee" | "attaque" | "impact" | "degats" | "destruction" | "aspiration" | "gain" | "victoire" | "defaite" | "clic";
 
 // A tone gliding from `de` to `vers` Hz, `debut` seconds after the sound starts.
 type Ton = { type: OscillatorType; de: number; vers?: number; duree: number; debut?: number; gain?: number };
@@ -20,28 +21,70 @@ const PARTITIONS: Record<Son, Partition> = {
       { type: "sine", de: 600, vers: 900, duree: 0.2, debut: 0.08, gain: 0.6 },
     ],
   },
+  dieu: {
+    tons: [
+      { type: "sawtooth", de: 55, vers: 45, duree: 1.4, gain: 0.45 },
+      { type: "sine", de: 110, duree: 1.2, debut: 0.1, gain: 0.7 },
+      { type: "triangle", de: 220, vers: 330, duree: 1, debut: 0.3, gain: 0.3 },
+    ],
+    souffles: [{ filtre: "lowpass", de: 300, vers: 900, duree: 1.3, gain: 0.6 }],
+  },
   pose: { tons: [{ type: "sine", de: 180, vers: 90, duree: 0.1 }], souffles: [{ filtre: "lowpass", de: 900, duree: 0.05, gain: 0.5 }] },
+  atterrissage: { tons: [{ type: "sine", de: 140, vers: 45, duree: 0.22 }], souffles: [{ filtre: "lowpass", de: 700, vers: 120, duree: 0.28, gain: 0.8 }] },
   activation: { tons: arpege("sine", [660, 990, 1320], 0.06, 0.1) },
+  visee: { tons: arpege("square", [880, 1320], 0.07, 0.05) },
   attaque: { tons: [{ type: "sawtooth", de: 400, vers: 120, duree: 0.18, gain: 0.5 }], souffles: [{ filtre: "highpass", de: 3000, vers: 600, duree: 0.2 }] },
+  impact: {
+    tons: [
+      { type: "square", de: 110, vers: 40, duree: 0.3, gain: 0.7 },
+      { type: "sine", de: 60, vers: 30, duree: 0.45 },
+    ],
+    souffles: [
+      { filtre: "highpass", de: 4000, duree: 0.06 },
+      { filtre: "lowpass", de: 2500, vers: 200, duree: 0.4, gain: 0.9 },
+    ],
+  },
   degats: { tons: [{ type: "square", de: 160, vers: 60, duree: 0.25, gain: 0.6 }] },
-  destruction: { tons: [{ type: "sine", de: 120, vers: 40, duree: 0.3 }], souffles: [{ filtre: "lowpass", de: 1200, vers: 200, duree: 0.4 }] },
+  // Glass that breaks: a crack, bright shards, the low thud of the fall.
+  destruction: {
+    tons: [
+      { type: "sine", de: 120, vers: 40, duree: 0.3 },
+      { type: "triangle", de: 2400, vers: 2200, duree: 0.08, debut: 0.05, gain: 0.3 },
+      { type: "triangle", de: 3100, vers: 2900, duree: 0.07, debut: 0.11, gain: 0.25 },
+    ],
+    souffles: [
+      { filtre: "highpass", de: 5000, vers: 2500, duree: 0.25 },
+      { filtre: "bandpass", de: 3000, vers: 8000, duree: 0.15, debut: 0.03, gain: 0.6 },
+    ],
+  },
+  aspiration: { tons: [{ type: "sine", de: 300, vers: 900, duree: 0.5, gain: 0.4 }], souffles: [{ filtre: "bandpass", de: 400, vers: 3000, duree: 0.5, gain: 0.6 }] },
   gain: { tons: arpege("sine", [523, 784], 0.1, 0.14) },
   victoire: { tons: arpege("triangle", [523, 659, 784, 1047], 0.12, 0.3) },
   defaite: { tons: arpege("triangle", [392, 330, 262, 196], 0.18, 0.35) },
   clic: { tons: [{ type: "sine", de: 900, vers: 600, duree: 0.03, gain: 0.7 }] },
 };
 
+const DEPARTS: ReadonlyMap<Depart, Son> = new Map([
+  ["destruction", "destruction"],
+  ["sacrifice", "aspiration"],
+  ["materiau", "aspiration"],
+]);
+
 // The sound of an effect for the player in `seat`: damage and healing are heard for their own life points only.
 export function sonDe(effet: Effet, seat: number): Son | undefined {
   switch (effet.type) {
     case "pioche":
-    case "invocation":
     case "pose":
     case "activation":
-    case "attaque":
       return effet.type;
+    case "invocation":
+      return effet.genre === "dieu" ? "dieu" : "invocation";
+    case "attaque":
+      return "visee";
+    case "combat":
+      return "attaque";
     case "depart":
-      return effet.genre === "destruction" ? "destruction" : undefined;
+      return DEPARTS.get(effet.genre);
     case "lp":
       if (effet.joueur !== seat) return undefined;
       return effet.delta < 0 ? "degats" : "gain";

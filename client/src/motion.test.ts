@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { bindSkip, createQueue, FONDU, type Sequence } from "./motion.ts";
+import { bindSkip, createQueue, FONDU, phase, type Sequence } from "./motion.ts";
 
 // Stand-in for Element.animate: an animation that finishes after its delay and duration, or on finish().
 type Played = { keyframes: Keyframe[]; options: KeyframeAnimationOptions; rate: number; done: boolean };
@@ -186,5 +186,32 @@ it("fait progresser une interpolation image par image, la termine si on passe, l
   expect(jumped).toEqual([1]);
   expect(faded.length).toBeGreaterThan(5);
   expect(faded.at(-1)).toBe(1);
+  vi.unstubAllGlobals();
+});
+
+it("découpe une interpolation en temps successifs ou décalés", () => {
+  expect([0, 0.2, 0.5, 0.8, 1].map((k) => phase(k, 0.2, 0.8))).toEqual([0, 0, 0.5, 1, 1].map((k) => expect.closeTo(k, 9)));
+  // Stagger of the third of five cards drawn: its flight starts at 2/8 and ends at 6/8 of the tween.
+  expect(phase(0.25, 2 / 8, 6 / 8)).toBe(0);
+  expect(phase(0.5, 2 / 8, 6 / 8)).toBe(0.5);
+});
+
+it("passer une chorégraphie en plusieurs temps (élan, arrêt sur image, retour) les mène tous à leur fin d'un coup", async () => {
+  vi.stubGlobal("requestAnimationFrame", (tick: FrameRequestCallback) => setTimeout(() => tick(Date.now()), 16));
+  vi.stubGlobal("cancelAnimationFrame", (frame: number) => clearTimeout(frame));
+  const queue = createQueue(() => false);
+  const fins: string[] = [];
+  const done = queue.play(async ({ tween, pause }) => {
+    await tween(260, (k) => k === 1 && fins.push("élan"));
+    await tween(220, (k) => k === 1 && fins.push("charge"));
+    await pause(90);
+    fins.push("arrêt");
+    await tween(420, (k) => k === 1 && fins.push("retour"));
+  });
+  await vi.advanceTimersByTimeAsync(100);
+  expect(fins).toEqual([]);
+  queue.skip();
+  await done;
+  expect(fins).toEqual(["élan", "charge", "arrêt", "retour"]);
   vi.unstubAllGlobals();
 });
