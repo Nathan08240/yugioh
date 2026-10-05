@@ -102,6 +102,24 @@ Migrations appliquées en production avant chaque fusion (schéma `yugioh`, ajou
 - [x] Draft carte par carte contre 3 bots (feat/F-mode-draft)
 - [ ] Musique
 
+## Second lot (vague 1)
+
+Migrations appliquées en production le 2026-10-05 avant la fusion (missions, échanges, revoir ses duels, revanche).
+
+- [x] Bot Expert plus fort : coup fatal, magies posées, choix du piège (feat/F-bot-expert)
+- [x] Missions du jour et succès (feat/F-missions-succes)
+- [x] Échange de cartes entre amis (feat/F-echange-cartes)
+- [x] Salles privées avec règles personnalisées (feat/F-salles-perso)
+- [x] Revoir ses 20 derniers duels (feat/F-historique-duels)
+- [x] Mise en ligne sans couper les duels en cours (feat/F-arret-propre) ; réglage Coolify à faire : Stop grace period à 960 s
+- [x] Histoire : Rex Raptor, Bonz, Panik et Ishizu (feat/F-histoire-adversaires), parcours bonus de Kaiba (feat/F-parcours-kaiba), revanche des boss (feat/F-revanche-boss)
+- [x] Simulation de l'économie, sans changement de taux (chore/F-simulation-economie)
+- [x] Animations de duel façon Master Duel (feat/F-animations-combat)
+- [ ] Lancers de dé et de pièce visibles (fix/F-des-pieces)
+- [ ] Déclarer un nom de carte depuis son deck (fix/F-declarer-deck)
+- [ ] Vague 2 : banc bot contre bot de l'histoire, performances client et serveur
+- [ ] Vague 3 : découpage de server.ts, tests e2e
+
 ## Mise en ligne
 
 - [x] Passer le repo GitHub en public (licence AGPL du moteur)
