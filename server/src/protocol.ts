@@ -189,8 +189,8 @@ export type ServerMessage =
   // Spectators of the room, sent to everyone in it when it changes (and to a player who comes back while there are some).
   | { type: "spectators"; count: number }
   | { type: "messages"; messages: DuelEvent[] }
-  // `announce`: for ANNOUNCE_CARD, the pool cards the engine accepts.
-  | { type: "question"; question: OcgMessage; retry: boolean; announce?: number[] }
+  // `announce`: for ANNOUNCE_CARD, the pool cards the engine accepts. `announceDeck`: those of the asked player's own deck, the most numerous first.
+  | { type: "question"; question: OcgMessage; retry: boolean; announce?: number[]; announceDeck?: number[] }
   // Online duel between two players: ms left before `seat` loses, to answer the engine or to come back after a lost connection.
   // null: that clock stopped. Sent to both players, and again to a player who comes back.
   | { type: "timer"; kind: "answer" | "reconnect"; seat: Seat; ms: number | null }

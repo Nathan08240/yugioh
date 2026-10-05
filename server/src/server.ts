@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { OcgMessageType, OcgProcessResult, OcgResponseType, type OcgMessage, type OcgResponse } from "@n1xx1/ocgcore-wasm";
 import postgres from "postgres";
 import { WebSocketServer, type WebSocket } from "ws";
-import { announceCard, declarable } from "./announce.ts";
+import { announceCard, declarable, declarableFromDeck } from "./announce.ts";
 import { verifySession } from "./auth.ts";
 import { boosterState, BOOSTERS, creditBoosters, openBooster, WIN_BOOSTER_REWARD } from "./boosters.ts";
 import { Bot } from "./bot.ts";
@@ -364,7 +364,7 @@ function ask(room: Room, retry: boolean) {
   const hidden = hideCards(question, question.player);
   if (player?.bot) play(room, player, hidden, retry);
   else {
-    const announce = question.type === OcgMessageType.ANNOUNCE_CARD ? { announce: declarable(question.opcodes) } : {};
+    const announce = question.type === OcgMessageType.ANNOUNCE_CARD ? { announce: declarable(question.opcodes), announceDeck: declarableFromDeck(question.opcodes, player?.deck ?? []) } : {};
     send(player?.socket, { type: "question", question: hidden, retry, ...announce });
   }
 }
@@ -377,7 +377,8 @@ function play(room: Room, player: Player, question: OcgMessage, retry: boolean) 
   setTimeout(() => {
     if (room.question !== asked) return;
     try {
-      answer(room, asked.player as Seat, retry ? respond(question, announceCard) : bot.answer(question, player.log));
+      const own = retry || question.type === OcgMessageType.ANNOUNCE_CARD;
+      answer(room, asked.player as Seat, own ? respond(question, (opcodes) => announceCard(opcodes, player.deck)) : bot.answer(question, player.log));
     } catch (error) {
       fail(room, `bot sans réponse : ${error}`);
     }

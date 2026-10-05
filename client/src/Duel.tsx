@@ -150,7 +150,7 @@ export function Duel({ board, seat, asked, respond, leave, surrender, answerBy, 
     if (asked && key) setAttaque({ apres: asked.id, key });
     respond(response);
   };
-  const ui = interaction(question, { board: shown, cards, strings, picked, cible: courant.cible, kingdom, announce: asked?.announce, setPicked, respond: repondreDuel });
+  const ui = interaction(question, { board: shown, cards, strings, picked, cible: courant.cible, kingdom, announce: asked?.announce, announceDeck: asked?.announceDeck, setPicked, respond: repondreDuel });
   const visee = useVisee(asked, respond);
   const repondre = (response: OcgResponse, cible: string | undefined) => {
     if (cible) visee(cible);

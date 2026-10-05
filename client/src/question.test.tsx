@@ -5,7 +5,7 @@ import type { CardInfo } from "../../server/src/protocol.ts";
 import { newBoard, type EngineMessage, type Message } from "./board.ts";
 import type { Cards } from "./cards.ts";
 import { interaction } from "./Question.tsx";
-import { apercuCombat, attaquantChoisi, autoAnswer, freePlaces, placeKey, reponseVisee } from "./question.ts";
+import { apercuCombat, attaquantChoisi, autoAnswer, declarables, freePlaces, placeKey, reponseVisee } from "./question.ts";
 
 const { MZONE, SZONE } = OcgLocation;
 
@@ -177,4 +177,19 @@ it("propose de déclarer un nom parmi les cartes envoyées par le serveur", () =
   expect(panel).toContain("Déclarez un nom de carte");
   expect(panel).toContain("Magicien Sombre");
   expect(renderToStaticMarkup(<>{interaction(question, ctx).panel}</>)).not.toContain("Déclarez");
+});
+
+it("propose d'abord les cartes du deck pour déclarer un nom, et cherche parmi toutes les cartes acceptées", () => {
+  const question = { type: OcgMessageType.ANNOUNCE_CARD, player: 0, opcodes: [] } as unknown as EngineMessage;
+  const names = [[10, "Magicien Sombre"], [20, "Dragon Blanc"], [30, "Elfe Mystique"]] as const;
+  const cards: Cards = new Map(names.map(([code, name]) => [code, { name } as CardInfo]));
+  const ctx = { board: newBoard(8000, [40, 40]), cards, strings: new Map(), picked: [], setPicked: () => {}, respond: () => {}, announce: [10, 20, 30] };
+  const panel = renderToStaticMarkup(<>{interaction(question, { ...ctx, announceDeck: [30, 10] }).panel}</>);
+  expect(panel).toContain("Elfe Mystique");
+  expect(panel).toContain("Magicien Sombre");
+  expect(panel).not.toContain("Dragon Blanc");
+  expect(panel.indexOf("Elfe Mystique")).toBeLessThan(panel.indexOf("Magicien Sombre"));
+  expect(declarables([10, 20, 30], [30, 10], cards, "").found.map(({ code }) => code)).toEqual([30, 10]);
+  expect(declarables([10, 20, 30], [30, 10], cards, " dragon ")).toEqual({ found: [{ code: 20, name: "Dragon Blanc" }], ownDeck: false });
+  expect(declarables([10, 20, 30], [], cards, "").found.map(({ code }) => code)).toEqual([20, 30, 10]);
 });
