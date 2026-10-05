@@ -9,7 +9,7 @@ import { EXTRA_MAX } from "./deckcheck.ts";
 import type { Rules } from "./duel.ts";
 import { parisDay } from "./economy.ts";
 import { isAllowed } from "./pool.ts";
-import { REPLAY_BOOSTERS_MAX, REPLAY_WINS, type RevengeResult, type Rewards, type StoryArcView, type StoryDuelView, type StoryLevel, type StoryResult, type StoryStatus } from "./protocol.ts";
+import { REPLAY_BOOSTERS_MAX, REPLAY_WINS, type RevengeResult, type Rewards, type StoryArcView, type StoryDuelView, type StoryLevel, type StoryPlayer, type StoryResult, type StoryStatus } from "./protocol.ts";
 
 // Format of each data/story/*.json file, version STORY_VERSION. Texts are short summaries written by us, never anime dialogue.
 export type StoryDuel = {
@@ -30,6 +30,8 @@ export type StoryDuel = {
   requires: string[];
   // A side duel: the arc counts as over without it, so adding one never re-locks the next arcs of players who finished.
   optional?: boolean;
+  // Pool cards only; the player plays their active deck when absent.
+  player?: StoryPlayer;
 };
 // Rematch of the boss (`boss`: id of a duel of the arc) once the arc is finished: the boss duel with this reinforced deck
 // (pool cards only), against an Expert bot. Its first win gives a booster holding an Ultra Rare.
@@ -76,6 +78,13 @@ function checkExtra(extra: StoryDuel["extra"] = []): string[] {
     else if (!(card.type & OcgType.FUSION)) errors.push(`${code} n'est pas une fusion, extra deck refusé`);
   }
   return errors;
+}
+
+function checkPlayer(player?: StoryPlayer): string[] {
+  if (!player) return [];
+  const errors = [...checkDeck(player.deck, new Set()), ...checkExtra(player.extra)];
+  if (!player.name.trim()) errors.push("nom vide");
+  return errors.map((problem) => `deck imposé : ${problem}`);
 }
 
 function checkRules({ lp, hand, special = [] }: StoryDuel["rules"]): string[] {
@@ -139,7 +148,7 @@ export function validateStory(story: Story): string[] {
   for (const arc of story.arcs) {
     errors.push(...checkRevenge(arc));
     for (const duel of arc.duels) {
-      const problems = [...checkTexts(duel), ...checkDeck(duel.deck, anime), ...checkRules(duel.rules), ...checkRewards(duel.rewards, rewarded)];
+      const problems = [...checkTexts(duel), ...checkDeck(duel.deck, anime), ...checkRules(duel.rules), ...checkRewards(duel.rewards, rewarded), ...checkPlayer(duel.player)];
       if (before.has(duel.id)) problems.push("identifiant en double");
       for (const id of duel.requires) if (!before.has(id)) problems.push(`prérequis ${id} inconnu ou placé après`);
       errors.push(...problems.map((problem) => `${duel.id} : ${problem}`));
@@ -179,6 +188,9 @@ const expand = (list: [code: number, copies: number][]) => list.flatMap(([code, 
 export const storyDeck = (duel: StoryDuel) => expand(duel.deck);
 
 export const storyExtra = (duel: StoryDuel) => expand(duel.extra ?? []);
+
+// The deck the duel imposes on the player, undefined when they play their active deck.
+export const playerDeck = ({ player }: StoryDuel) => player && { main: expand(player.deck), extra: expand(player.extra ?? []) };
 
 export const storyRules = ({ rules }: StoryDuel, level: StoryLevel = "normal"): Rules => ({
   lp: rules.lp,
@@ -245,6 +257,7 @@ export function storyView(done: ReadonlyMap<string, number>, story = STORY, reve
       optional: duel.optional,
       status: statusOf(duel, done, story),
       stars: done.get(duel.id) ?? 0,
+      player: duel.player,
     })),
     revenge: revengeView(arc, done, revenges.has(arc.id), story),
   }));

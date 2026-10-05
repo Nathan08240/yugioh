@@ -33,7 +33,7 @@ import { dbDraftStore, draftReply, isDraftMessage, validDraftMessage, type Draft
 import { botDeck, dbSealedStore, isSealedMessage, sealedReply, validSealedMessage, type SealedMessage, type SealedStore } from "./sealed.ts";
 import { serveClient } from "./site.ts";
 import { chooseStarter, starterCards, type Starter } from "./starter.ts";
-import { completeDuel, completedDuels, completeRevenge, isUnlocked, revengesWon, STORY, STORY_DUELS, STORY_REVENGES, storyDeck, storyExtra, storyRules, storyStars, storyView, type StoryDuel } from "./story.ts";
+import { completeDuel, completedDuels, completeRevenge, isUnlocked, playerDeck, revengesWon, STORY, STORY_DUELS, STORY_REVENGES, storyDeck, storyExtra, storyRules, storyStars, storyView, type StoryDuel } from "./story.ts";
 import { systemStrings } from "./strings.ts";
 import { startTower, TOWER, towerLevel, towerRules, towerView, winTower, type TowerWin } from "./tower.ts";
 import { finishTutorial, TUTORIAL_FIELD, TUTORIAL_RULES } from "./tutorial.ts";
@@ -1072,7 +1072,7 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
       const duel = boss?.duel ?? STORY_DUELS.get(id);
       if (!duel) return "duel d'histoire inconnu";
       if (!isUnlocked(duel, await accounts.storyProgress(userId))) return boss ? "revanche verrouillée : terminez d'abord l'arc" : "duel verrouillé : gagnez d'abord les duels précédents";
-      const deck = await duelDeck(userId);
+      const deck = playerDeck(duel) ?? (await duelDeck(userId));
       if (typeof deck === "string") return deck;
       const rules = storyRules(duel, boss ? undefined : level);
       const room: Room = { code: newCode(rooms), players: [], rules, mode: { mode: "story", level: boss ? "revanche" : (level ?? "normal") } };

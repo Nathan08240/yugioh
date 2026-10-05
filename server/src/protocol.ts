@@ -305,7 +305,10 @@ export type StoryDuelView = {
   status: StoryStatus;
   // Best stars won, 0 until the duel is won.
   stars: number;
+  player?: StoryPlayer;
 };
+// The deck a story duel imposes on the player instead of their active deck, as [passcode, copies]; never added to the collection.
+export type StoryPlayer = { name: string; deck: [code: number, copies: number][]; extra?: [code: number, copies: number][] };
 // `revenge`: the boss rematch once declared by the arc (`id` is the boss duel id); "locked" until the arc is finished, "done" once won.
 export type StoryArcView = { id: string; title: string; duels: StoryDuelView[]; revenge?: StoryDuelView };
 

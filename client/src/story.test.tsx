@@ -107,6 +107,13 @@ it("présente le duel : adversaire, LP, main, règles spéciales, récompenses",
   for (const text of ["Keith est libéré.", "Récompenses déjà obtenues", "Rejouer le duel"]) expect(replay).toContain(text);
   // What each star asks, with the LP to keep for the 3rd.
   for (const text of ["Gagner le duel", "Gagner en Normal", "Gagner en Normal avec au moins 2000 LP", "1 booster toutes les 3 victoires"]) expect(html).toContain(text);
+  expect(html).not.toContain("Deck imposé");
+});
+
+it("montre le deck imposé d'un duel avant de le lancer", () => {
+  const imposed = duel("kb-1", "available", { player: { name: "Seto Kaiba", deck: [[3797883, 3]], extra: [[511600399, 1]] } });
+  const html = render(<Briefing duel={imposed} back={() => {}} start={() => {}} />);
+  for (const text of ["Deck imposé : Seto Kaiba, 3 cartes", "pas avec votre deck actif", "3 × Machine à Sous", "1 × Slifer, le Dragon Céleste"]) expect(html).toContain(text);
 });
 
 it("met en valeur un Dieu Égyptien gagné", () => {
