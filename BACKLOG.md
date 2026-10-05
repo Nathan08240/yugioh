@@ -115,8 +115,8 @@ Migrations appliquées en production le 2026-10-05 avant la fusion (missions, é
 - [x] Histoire : Rex Raptor, Bonz, Panik et Ishizu (feat/F-histoire-adversaires), parcours bonus de Kaiba (feat/F-parcours-kaiba), revanche des boss (feat/F-revanche-boss)
 - [x] Simulation de l'économie, sans changement de taux (chore/F-simulation-economie)
 - [x] Animations de duel façon Master Duel (feat/F-animations-combat)
-- [ ] Lancers de dé et de pièce visibles (fix/F-des-pieces)
-- [ ] Déclarer un nom de carte depuis son deck (fix/F-declarer-deck)
+- [x] Lancers de dé et de pièce visibles (fix/F-des-pieces)
+- [x] Déclarer un nom de carte depuis son deck (fix/F-declarer-deck)
 - [ ] Vague 2 : banc bot contre bot de l'histoire, performances client et serveur
 - [ ] Vague 3 : découpage de server.ts, tests e2e
 
