@@ -1,8 +1,9 @@
 import type { EmoteId } from "../../server/src/emotes.ts";
-import type { ClientMessage, DeckResult, DraftRun, Friend, PuzzleView, RankedView, RoomOptions, SealedRun, Seat, ServerMessage, StoryArcView, TowerView, Wire } from "../../server/src/protocol.ts";
+import type { ClientMessage, DeckResult, DraftRun, Friend, PuzzleView, RankedView, ReplaySummary, RoomOptions, SealedRun, Seat, ServerMessage, StoryArcView, TowerView, Wire } from "../../server/src/protocol.ts";
 import { newBoard, playAll, type Board, type EngineMessage, type Message } from "./board.ts";
 
 export type DeckList = Extract<Wire<ServerMessage>, { type: "decks" }>;
+export type ReplayView = Extract<Wire<ServerMessage>, { type: "replay" }>;
 
 export type Action =
   | Wire<ServerMessage>
@@ -11,7 +12,8 @@ export type Action =
   | { type: "answered" }
   | { type: "left" }
   | { type: "story_menu"; open: boolean }
-  | { type: "preview_close" };
+  | { type: "preview_close" }
+  | { type: "replay_closed" };
 export type StoryWon = Extract<ServerMessage, { type: "story_won" }>;
 export type Wonder = Extract<Wire<ServerMessage>, { type: "wonder" }>;
 export type PuzzleWon = Extract<ServerMessage, { type: "puzzle_won" }>;
@@ -126,6 +128,9 @@ export type LobbyState = {
   rejoining?: boolean;
   // Missions of the day and achievements, loaded by the home and profile screens, sent again after each duel or booster.
   missions?: Omit<Extract<Wire<ServerMessage>, { type: "missions" }>, "type">;
+  // The last finished duels of the player, loaded by the profile screen, and the one being watched again.
+  replays?: ReplaySummary[];
+  replay?: ReplayView;
 };
 
 export const ROOM_GONE = "Ce duel n'est plus disponible : le serveur a été mis à jour ou la salle a expiré.";
@@ -172,6 +177,7 @@ export function reduce(state: LobbyState, action: Action): LobbyState {
         rankedResult: action.log.length === 0 ? undefined : state.rankedResult,
         rankedSince: undefined,
         rejoining: undefined,
+        replay: undefined,
       };
     case "messages":
       return {
@@ -272,6 +278,12 @@ export function reduce(state: LobbyState, action: Action): LobbyState {
       return { ...state, rankedResult: { delta: action.delta, rating: action.rating } };
     case "missions":
       return { ...state, missions: { missions: action.missions, achievements: action.achievements } };
+    case "replays":
+      return { ...state, replays: action.replays };
+    case "replay":
+      return { ...state, replay: action, error: undefined };
+    case "replay_closed":
+      return { ...state, replay: undefined };
   }
 }
 

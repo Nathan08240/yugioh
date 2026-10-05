@@ -139,3 +139,31 @@
   block-size: 100%;
   object-fit: cover;
 }
+
+/* Derniers duels à revoir, sur le modèle du bilan ; défile de côté sur un téléphone plutôt que de déborder */
+
+.profil__defile {
+  overflow-x: auto;
+}
+
+.profil__historique {
+  inline-size: 100%;
+  border-collapse: collapse;
+}
+
+.profil__historique caption {
+  display: table-caption;
+  padding-block-end: var(--e-3);
+  text-align: start;
+}
+
+.profil__historique :is(th, td) {
+  padding: var(--e-1);
+  text-align: start;
+}
+
+.profil__historique thead th {
+  font-size: var(--taille-s);
+  font-weight: 600;
+  color: var(--texte-2);
+}

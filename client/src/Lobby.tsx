@@ -18,6 +18,7 @@ import { puzzleRule, Puzzles } from "./Puzzles.tsx";
 import { autoAnswer } from "./question.ts";
 import { reglages } from "./reglages.ts";
 import { duelRules, Regles } from "./regles.tsx";
+import { Revoir } from "./Revoir.tsx";
 import { ApercuSalle } from "./SalleOptions.tsx";
 import { Scelle } from "./Scelle.tsx";
 import { Shell, type Page } from "./Shell.tsx";
@@ -158,7 +159,11 @@ export function Lobby() {
       )}
       <AlertesAmis state={state} send={send} />
       <ApercuSalle preview={state.preview} send={send} close={() => dispatch({ type: "preview_close" })} />
-      <Screen state={state} page={shown} send={send} reconnect={reconnect} leave={leave} respond={respond} go={go} vsBot={vsBot.current} ranked={ranked.current} storyDuel={storyDuel.current} easy={storyEasy.current} puzzle={puzzle} sealedDuel={sealedDuel.current} draftDuel={draftDuel.current} tutorial={tutorial.current} />
+      {state.replay && !state.room ? (
+        <Revoir key={state.replay.id} replay={state.replay} pseudo={state.pseudo ?? undefined} avatar={state.profile?.avatar ?? undefined} leave={() => dispatch({ type: "replay_closed" })} />
+      ) : (
+        <Screen state={state} page={shown} send={send} reconnect={reconnect} leave={leave} respond={respond} go={go} vsBot={vsBot.current} ranked={ranked.current} storyDuel={storyDuel.current} easy={storyEasy.current} puzzle={puzzle} sealedDuel={sealedDuel.current} draftDuel={draftDuel.current} tutorial={tutorial.current} />
+      )}
     </DuelView>
   );
 }

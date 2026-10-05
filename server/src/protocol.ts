@@ -146,7 +146,16 @@ export type ClientMessage =
   | { type: "ranked_queue" }
   | { type: "ranked_cancel" }
   // Daily missions and achievements (missions.ts), answered with `missions`.
-  | { type: "missions" };
+  | { type: "missions" }
+  // Duels to watch again (history.ts), the last 20 finished of the player: `replays` is answered with `replays`, `replay` with
+  // `replay`, the duel replayed by the server as the player saw it.
+  | { type: "replays" }
+  | { type: "replay"; id: number };
+
+// Mode of a duel kept to watch again.
+export type HistoryMode = "online" | "ranked" | "event" | "bot" | "story" | "tower" | "sealed" | "draft" | "puzzle" | "tutorial";
+// `won` is null for a draw, `opponent` the name of the other seat.
+export type ReplaySummary = { id: number; date: string; mode: HistoryMode; opponent: string | null; won: boolean | null };
 
 export type DuelMode = "online" | "bot" | "story";
 // Wins and losses of a player with a deck in a mode (and at a level, against the bot or in Story mode); `deck` is null for a deck deleted since.
@@ -245,7 +254,10 @@ export type ServerMessage =
   // End of a ranked duel: the change of the player's rating, and the new one.
   | { type: "ranked_result"; delta: number; rating: number }
   // Also sent after each duel or booster that moved them. A mission or achievement is paid once its `progress` reaches `goal`.
-  | { type: "missions"; missions: MissionView[]; achievements: AchievementView[] };
+  | { type: "missions"; missions: MissionView[]; achievements: AchievementView[] }
+  // Newest first. `replay`: what `seat` was sent during duel `id`, one batch per `messages`, from the starting state (as `joined`).
+  | { type: "replays"; replays: ReplaySummary[] }
+  | { type: "replay"; id: number; seat: Seat; lp: number; opponentLp?: number; decks: [number, number]; extras: [number, number]; opponent?: string; batches: DuelEvent[][] };
 
 // Missions of the day (Europe/Paris), 3 per player: counted duels are against the bot, in Story mode, ranked, in an event, or
 // online against an opponent not yet faced that day. MISSIONS_BONUS boosters once the 3 are done.

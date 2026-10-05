@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import type { ClientMessage, DeckResult, DuelMode, StoryArcView } from "../../server/src/protocol.ts";
+import type { ClientMessage, DeckResult, DuelMode, HistoryMode, ReplaySummary, StoryArcView } from "../../server/src/protocol.ts";
 import { CardView } from "./Card.tsx";
 import { cardName, useDuelView } from "./cards.ts";
 import { filterCollection, noFilters, ownedCodes, setProgress, type Kind } from "./collection.ts";
@@ -64,7 +64,63 @@ function Bilan({ results }: Readonly<{ results?: DeckResult[] }>) {
   );
 }
 
-type PickerProps = { title: string; collection: [number, number][]; kind: Kind; artOnly: boolean; pick: (code: number) => void; close: () => void };
+const MODES: Record<HistoryMode, string> = {
+  online: "En ligne",
+  ranked: "Classé",
+  event: "Événement",
+  bot: "Bot",
+  story: "Histoire",
+  tower: "Tour",
+  sealed: "Scellé",
+  draft: "Draft",
+  puzzle: "Puzzle",
+  tutorial: "Tutoriel",
+};
+const DATE = new Intl.DateTimeFormat("fr-FR", { dateStyle: "short", timeStyle: "short" });
+
+function issue(won: boolean | null) {
+  if (won === null) return "Nul";
+  return won ? "Victoire" : "Défaite";
+}
+
+// The last finished duels, each one to watch again as the player saw it.
+function Historique({ replays, send }: Readonly<{ replays?: ReplaySummary[]; send: Send }>) {
+  if (!replays) return <p className="texte-2">Chargement des derniers duels…</p>;
+  if (replays.length === 0) return <p className="texte-2">Aucun duel terminé à revoir pour l'instant.</p>;
+  return (
+    <table className="profil__historique">
+      <caption className="titre-bloc">Derniers duels</caption>
+      <thead>
+        <tr>
+          <th scope="col">Date</th>
+          <th scope="col">Adversaire</th>
+          <th scope="col">Mode</th>
+          <th scope="col">Résultat</th>
+          <th scope="col">
+            <span className="sr">Revoir</span>
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        {replays.map(({ id, date, opponent, mode, won }) => (
+          <tr key={id}>
+            <td>{DATE.format(new Date(date))}</td>
+            <td>{opponent ?? "—"}</td>
+            <td>{MODES[mode]}</td>
+            <td>{issue(won)}</td>
+            <td>
+              <button type="button" className="btn btn--fantome" onClick={() => send({ type: "replay", id })}>
+                Revoir
+              </button>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+type PickerProps ={ title: string; collection: [number, number][]; kind: Kind; artOnly: boolean; pick: (code: number) => void; close: () => void };
 
 // Search over the owned cards; an avatar needs an artwork to show.
 function Selecteur({ title, collection, kind, artOnly, pick, close }: Readonly<PickerProps>) {
@@ -158,6 +214,9 @@ export function ProfilView({ state, sets, send }: Readonly<ViewProps>) {
           <Succes achievements={state.missions?.achievements} />
         </section>
       </div>
+      <section className="panneau profil__bloc profil__defile" data-entree>
+        <Historique replays={state.replays} send={send} />
+      </section>
     </div>
   );
 }
@@ -172,6 +231,7 @@ export function Profil({ state, send }: Readonly<{ state: LobbyState; send: Send
     send({ type: "duel_results" });
     send({ type: "story" });
     send({ type: "missions" });
+    send({ type: "replays" });
     fetch("/api/sets")
       .then((res) => res.json())
       .then((data: { cards: number[] }[]) => setSets(data.map((set) => set.cards)))

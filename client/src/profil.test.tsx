@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, it } from "vitest";
-import type { CardInfo, DeckResult, StoryArcView } from "../../server/src/protocol.ts";
+import type { CardInfo, DeckResult, ReplaySummary, StoryArcView } from "../../server/src/protocol.ts";
 import { DuelView } from "./cards.ts";
 import { initialLobby, reduce, type LobbyState } from "./lobby.ts";
 import { completion, ProfilView, storyStars } from "./Profil.tsx";
@@ -70,6 +70,22 @@ it("garde le profil reçu du serveur et l'avatar de l'adversaire", () => {
   expect(next.profile).toEqual({ avatar: 5, favorite: null });
   const joined = reduce(initialLobby, { type: "joined", room: "ABCDE", seat: 0, lp: 8000, decks: [40, 40], extras: [0, 0], opponent: "Kaiba", opponentAvatar: 7, log: [] });
   expect(joined.opponentAvatar).toBe(7);
+});
+
+it("liste les derniers duels avec date, adversaire, mode et résultat, et « Revoir » demande le rejeu au serveur", () => {
+  expect(render(state)).toContain("Chargement des derniers duels");
+  expect(render({ ...state, replays: [] })).toContain("Aucun duel terminé à revoir");
+  const replays: ReplaySummary[] = [
+    { id: 7, date: "2026-10-02T10:30:00.000Z", mode: "ranked", opponent: "Kaiba", won: true },
+    { id: 6, date: "2026-10-01T09:00:00.000Z", mode: "story", opponent: "Pegasus", won: false },
+    { id: 5, date: "2026-10-01T08:00:00.000Z", mode: "bot", opponent: "Bot", won: null },
+  ];
+  const html = render({ ...state, replays });
+  expect(html).toMatch(/Kaiba<\/td><td>Classé<\/td><td>Victoire<\/td>/);
+  expect(html).toMatch(/Pegasus<\/td><td>Histoire<\/td><td>Défaite<\/td>/);
+  expect(html).toMatch(/Bot<\/td><td>Bot<\/td><td>Nul<\/td>/);
+  expect(html.match(/>Revoir<\/button>/g)).toHaveLength(3);
+  expect(reduce(state, { type: "replays", replays }).replays).toBe(replays);
 });
 
 it("ajoute Profil au menu principal", () => {
