@@ -147,6 +147,11 @@ export function Lobby() {
           {state.error}
         </p>
       )}
+      {state.maintenance && !state.error && (
+        <p className="message alerte-globale alerte-globale--info" role="status">
+          Mise à jour en cours : les nouveaux duels reprennent dans quelques minutes. Les duels en cours continuent jusqu'à leur fin.
+        </p>
+      )}
       <AlertesAmis state={state} send={send} />
       <Screen state={state} page={shown} send={send} reconnect={reconnect} leave={leave} respond={respond} go={go} vsBot={vsBot.current} ranked={ranked.current} storyDuel={storyDuel.current} easy={storyEasy.current} puzzle={puzzle} sealedDuel={sealedDuel.current} draftDuel={draftDuel.current} tutorial={tutorial.current} />
     </DuelView>

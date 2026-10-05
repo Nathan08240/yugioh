@@ -8,6 +8,7 @@ Un seul conteneur (`Dockerfile` à la racine) : le serveur de jeu sert le client
 - **Stockage persistant** : un volume monté sur `/app/server/vendor/art`. Les illustrations manquantes s'y téléchargent en arrière-plan au démarrage (jamais dans git ni dans Supabase Storage).
 - **Variables d'exécution** (runtime seulement) : `YUGIOH_DATABASE_URL=postgres://yugioh_server:<mdp>@100.99.0.1:5432/postgres`, `SUPABASE_URL=https://supabase.nbrcs.pro`, `SUPABASE_ANON_KEY`. `PORT` vaut 3001 par défaut. `ADMIN_USER_IDS` (facultatif) : id Supabase des comptes, séparés par des virgules, qui voient le bouton « Admin : +10 boosters ».
 - **Variables de build** (build seulement) : `VITE_SUPABASE_URL=https://supabase.nbrcs.pro`, `VITE_SUPABASE_ANON_KEY`.
+- **Mise en ligne sans couper les duels** : à chaque déploiement, Coolify démarre le nouveau conteneur (mise à jour progressive grâce au healthcheck sur `/`), puis envoie SIGTERM à l'ancien. Celui-ci refuse les nouveaux duels, affiche un bandeau et s'arrête dès que les duels en cours sont finis, au plus tard après `SHUTDOWN_MINUTES` (15 par défaut, duels restants interrompus sans victoire ni défaite). Docker le tue au bout de 30 s par défaut : régler **Advanced > Operations > Stop grace period** à `960` secondes (Coolify 4.1 ou plus récent, maximum 3600).
 - **Supabase Auth** : ajouter `https://yugioh.nbrcs.pro` aux URL de redirection autorisées (lien de confirmation d'email).
 
 ## Base de données : tunnel WireGuard

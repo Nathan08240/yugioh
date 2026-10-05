@@ -491,9 +491,9 @@ function back(room: Room, seat: Seat) {
   });
 }
 
-function fail(room: Room, error: string) {
+function fail(room: Room, error: string, shown = "le moteur a rencontré une erreur, salle fermée") {
   console.error(`[salle ${room.code}] ${error}`);
-  sendAll(room, { type: "duel_error", error: "le moteur a rencontré une erreur, salle fermée" });
+  sendAll(room, { type: "duel_error", error: shown });
   endDuel(room);
 }
 
@@ -677,8 +677,14 @@ const EVENT_LIMITS = "en événement";
 
 type FriendEntry = { deck: () => Promise<ActiveDeck | string>; enter: (room: Room, deck: ActiveDeck) => string | undefined };
 
-// The bot takes seat 1.
-export function startServer(port: number, accounts: Accounts, newSeed = randomSeed, botDelay = BOT_DELAY): WebSocketServer {
+// While the server stops for an update: what a new duel gets, and the end of a duel still running at the deadline.
+const MAINTENANCE = "mise à jour en cours : les nouveaux duels reprennent dans quelques minutes";
+const INTERRUPTED = "mise à jour du serveur : duel interrompu, sans victoire ni défaite";
+// Messages that may seat a player back in a duel they already play (or watch) while the server stops.
+const RESUMING = new Set<ClientMessage["type"]>(["join", "spectate", "sealed_duel", "draft_duel"]);
+
+// The bot takes seat 1. `shutdown` stops the server for an update (see its comment).
+export function startServer(port: number, accounts: Accounts, newSeed = randomSeed, botDelay = BOT_DELAY): WebSocketServer & { shutdown: (maxMs: number) => Promise<void> } {
   const rooms = new Map<string, Room>();
   const http = createServer(serveHttp);
   const admins = adminIds(process.env.ADMIN_USER_IDS);
@@ -706,6 +712,28 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
   }
   const matcher = setInterval(matchQueue, 1000).unref();
   wss.on("close", () => clearInterval(matcher));
+
+  // Set by shutdown: no new duel starts.
+  let draining = false;
+
+  // No new duel, every client is told. Resolves once no duel has a player still connected, or after `maxMs`: the duels
+  // left then end with no winner, nothing recorded. A duel nobody plays any more is dropped with the process.
+  function shutdown(maxMs: number): Promise<void> {
+    draining = true;
+    for (const { socket } of waiting.values()) send(socket, { type: "ranked_queue", waiting: false });
+    waiting.clear();
+    wss.clients.forEach((socket) => send(socket, { type: "maintenance" }));
+    const deadline = Date.now() + maxMs;
+    return new Promise((resolve) => {
+      const check = setInterval(() => {
+        const playing = [...rooms.values()].filter((room) => room.duel && room.players.some((player) => player.socket));
+        if (playing.length > 0 && Date.now() < deadline) return;
+        for (const room of playing) fail(room, "arrêt du serveur", INTERRUPTED);
+        clearInterval(check);
+        resolve();
+      }, 1000).unref();
+    });
+  }
 
   // Once per duel (the end of a duel is reported once): both ratings change, each player gets theirs.
   function rateRanked(room: Room, winner: number, reason: number) {
@@ -798,6 +826,7 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
     let watching: Room | undefined;
     // Messages are handled one at a time, so an action sent right after `auth` waits for its verification.
     let queue = Promise.resolve();
+    if (draining) send(socket, { type: "maintenance" });
 
     async function identify(token: string): Promise<string | undefined> {
       if (user) return "déjà authentifié";
@@ -908,6 +937,8 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
 
     function enter(userId: string, room: Room, deck: ActiveDeck, bot?: { deck: ActiveDeck; name: string; level?: BotLevel }): string | undefined {
       if (seat) return "déjà dans une salle";
+      // While stopping, only a player coming back to their seat gets in: no new room, no new guest.
+      if (draining && !room.players.some((player) => player.id === userId)) return MAINTENANCE;
       room.onEnd = (winner, reason) => {
         recordResults(room, winner, reason);
         if (room.ranked) rateRanked(room, winner, reason);
@@ -1094,6 +1125,7 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
     // Against the bot, a rematch starts at once (the next floor of the tower). Online, it starts once both seats asked, with their active decks of the moment.
     async function rematch(room: Room, index: Seat, accept: boolean): Promise<string | undefined> {
       if (!room.over) return "aucun duel terminé";
+      if (draining) return MAINTENANCE;
       if (room.forfeit) return `le duel suivant se lance depuis l'écran ${room.forfeit}`;
       if (room.ranked) return "pas de revanche en classé";
       const bot = room.players.some((player) => player.bot);
@@ -1257,6 +1289,8 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
       if (msg.type === "rematch") return seat ? rematch(seat.room, seat.index, msg.accept !== false) : "pas dans une salle";
       if (seat || watching) return "déjà dans une salle";
       if (waiting.has(user.id)) return "recherche d'un adversaire classé en cours";
+      // Before any side effect: a tower duel starts by resetting the floor, the ranked queue would wait for nothing.
+      if (draining && !RESUMING.has(msg.type)) return MAINTENANCE;
       if (msg.type === "spectate") return spectate(msg.room);
       if (msg.type === "ranked_queue") return queueRanked(user.id);
       if (msg.type === "story_duel") return playStory(user.id, msg.duel, msg.level, msg.revenge);
@@ -1289,17 +1323,21 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
       });
     });
   });
-  return wss;
+  return Object.assign(wss, { shutdown });
 }
 
 if (import.meta.main) {
   const port = Number(process.env.PORT ?? 3001);
-  startServer(port, dbAccounts(openDb()));
+  const server = startServer(port, dbAccounts(openDb()));
   console.log(`Serveur de partie sur http://localhost:${port} (WebSocket et /api)`);
   // Missing artworks download in the background: the server answers without them meanwhile.
   if ([...SERVED].some((code) => !existsSync(artFile(code)))) {
     spawn(process.execPath, [join(import.meta.dirname, "..", "scripts", "images.ts")], { stdio: "inherit" }).on("error", console.error);
   }
   // As PID 1 in a container, Node ignores SIGTERM without a handler.
-  process.on("SIGTERM", () => process.exit());
+  // Each deployment stops the old container this way: the duels in progress end first (DEPLOY.md).
+  process.once("SIGTERM", () => {
+    console.log("Arrêt demandé : plus de nouveau duel, fin des duels en cours");
+    server.shutdown(Number(process.env.SHUTDOWN_MINUTES ?? 15) * 60_000).then(() => process.exit());
+  });
 }
