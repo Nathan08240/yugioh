@@ -23,6 +23,7 @@ import {
 } from "@n1xx1/ocgcore-wasm";
 import { cardAt, newBoard, playAll, type Board, type Card, type Message, type Place, type Side } from "../../client/src/board.ts";
 import { announceCard } from "./announce.ts";
+import { firstStep, lethal, safest, type Attacker, type Foe } from "./attack-plan.ts";
 import { cardInfo, readCard, readScript } from "./cards.ts";
 import type { BotLevel, DuelEvent, Seat } from "./protocol.ts";
 import { respond, tributes } from "./respond.ts";
@@ -79,15 +80,18 @@ function tributesFor(level: number): number {
 
 const scripts = new Map<number, string>();
 
-// ponytail: effect categories read from the card script text, a per-card table if this misjudges cards.
-function has(code: number, category: string): boolean {
-  let script = scripts.get(code);
-  if (script === undefined) {
-    script = readScript(`c${code}.lua`) ?? "";
-    scripts.set(code, script);
+// ponytail: effects read from the card script text, a per-card table if this misjudges cards.
+function script(code: number): string {
+  let text = scripts.get(code);
+  if (text === undefined) {
+    text = readScript(`c${code}.lua`) ?? "";
+    scripts.set(code, text);
   }
-  return script.includes(`CATEGORY_${category}`);
+  return text;
 }
+
+const mass = (text: string) => text.includes("GetMatchingGroup") || text.includes("GetFieldGroup");
+const has = (code: number, category: string) => script(code).includes(`CATEGORY_${category}`);
 
 const cards = (zones: (Card | null)[]) => zones.filter((card): card is Card => card !== null);
 
@@ -100,6 +104,8 @@ export class Bot {
   private readonly seat: Seat;
   private seen = 0;
   private threat: "attack" | "summon" | undefined;
+  // ATK of the attacking or summoned monster behind the threat.
+  private menace = GUESS;
   // Last card activated, to tell a boost (target own side) from an attack on the opponent.
   private source: { code: number; controller: number } | undefined;
   // Attack target chosen with the attacker, asked right after; null for a direct attack.
@@ -148,12 +154,19 @@ export class Bot {
         this.threat = undefined;
         break;
       case OcgMessageType.ATTACK:
-        if (msg.card.controller !== this.seat && this.harmful(msg)) this.threat = "attack";
+        if (msg.card.controller !== this.seat && this.harmful(msg)) {
+          this.threat = "attack";
+          const attacker = cardAt(this.board, msg.card);
+          this.menace = attacker ? current(attacker).atk : GUESS;
+        }
         break;
       case OcgMessageType.SUMMONING:
       case OcgMessageType.SPSUMMONING:
       case OcgMessageType.FLIPSUMMONING:
-        if (msg.controller !== this.seat) this.threat = "summon";
+        if (msg.controller !== this.seat) {
+          this.threat = "summon";
+          this.menace = stats(msg.code).atk;
+        }
         break;
       case OcgMessageType.CHAINING:
         this.source = { code: msg.code, controller: msg.controller };
@@ -199,11 +212,11 @@ export class Bot {
     return this.level === "debutant" && this.random() < chance;
   }
 
-  // Expert: the opponent's monsters together could take all the bot's LP.
+  // Expert: the opponent's monsters that the bot's own monsters cannot block could take all its LP.
   private endangered(): boolean {
     if (this.level !== "expert") return false;
-    const total = cards(this.opponent().monsters).reduce((sum, card) => sum + current(card).atk, 0);
-    return total >= this.mine().lp;
+    const atks = cards(this.opponent().monsters).map((card) => current(card).atk).sort((a, b) => b - a);
+    return atks.slice(cards(this.mine().monsters).length).reduce((sum, atk) => sum + atk, 0) >= this.mine().lp;
   }
 
   private mine(): Side {
@@ -238,9 +251,17 @@ export class Bot {
     if (summon) return summon;
     const reposition = q.pos_changes.findIndex((card) => this.repositions(card, q.to_bp));
     if (reposition !== -1) return [SelectIdleCMDAction.SELECT_POS_CHANGE, reposition];
-    const trap = this.level === "debutant" ? -1 : q.spell_sets.findIndex((card) => is(card.code, OcgType.TRAP));
-    if (trap !== -1) return [SelectIdleCMDAction.SELECT_SPELL_SET, trap];
+    const set = this.setChoice(q.spell_sets);
+    if (set !== -1) return [SelectIdleCMDAction.SELECT_SPELL_SET, set];
     return undefined;
+  }
+
+  // Traps first. An expert also sets quick-play spells and the spells it found no use for, up to three spell zones, never its last card.
+  private setChoice(sets: readonly OcgCardLoc[]): number {
+    if (this.level === "debutant") return -1;
+    const trap = sets.findIndex((card) => is(card.code, OcgType.TRAP));
+    if (trap !== -1 || this.level !== "expert" || cards(this.mine().spells.slice(0, 5)).length >= 3) return trap;
+    return sets.findIndex((card) => !is(card.code, OcgType.FIELD) && (is(card.code, OcgType.QUICKPLAY) || this.mine().hand.length > 1));
   }
 
   private activation(activates: readonly OcgCardLocActive[]): number {
@@ -254,6 +275,7 @@ export class Bot {
     if (is(code, OcgType.EQUIP)) return cards(this.mine().monsters).some(faceUp);
     if (!has(code, "DESTROY")) return true;
     if (cardInfo(code)?.desc.includes("Spell")) return cards(this.opponent().spells).length > 0;
+    if (this.level === "expert" && mass(script(code))) return this.destruction(script(code)) > 0;
     return cards(this.opponent().monsters).length > cards(this.mine().monsters).length;
   }
 
@@ -330,7 +352,17 @@ export class Bot {
       return undefined;
     };
     if (this.level !== "expert") return plan(order, false);
-    return plan(order, true) ?? plan(order.reverse(), false);
+    return this.expertAttack(attacks, atks, targets) ?? plan(order, true) ?? plan(order.reverse(), false);
+  }
+
+  // The order of attacks that ends the duel, else the one that destroys the most without losing a monster, face-down ones last.
+  private expertAttack(attacks: readonly OcgCardLocAttack[], atks: readonly number[], targets: readonly { card: Card; place: Place }[]): Attack | undefined {
+    const attackers: Attacker[] = attacks.map((attack, index) => ({ atk: atks[index], direct: attack.can_direct, pierce: script(attack.code).includes("EFFECT_PIERCE") }));
+    const foes: Foe[] = targets.map(({ card }) => ({ guard: guard(card), attackPos: (card.position & OcgPosition.ATTACK) !== 0, worth: value(card.code), known: card.code !== 0 }));
+    const plan = lethal(attackers, foes, this.opponent().lp) ?? safest(attackers, foes, false) ?? safest(attackers, foes, true);
+    const step = plan && firstStep(plan, foes);
+    if (!step) return undefined;
+    return { index: step[0], target: step[1] === null ? null : targets[step[1]].place };
   }
 
   private chain(q: OcgMessageSelectChain): OcgResponse {
@@ -344,10 +376,43 @@ export class Bot {
     if (q.selects.length === 0) return null;
     if (q.forced) return 0;
     if (!this.threat) return null;
+    if (this.level === "expert") return this.bestResponse(q);
     const usable = [...q.selects.keys()].filter((i) => !is(q.selects[i].code, OcgType.SPELL));
     const destroy = usable.find((i) => has(q.selects[i].code, "DESTROY"));
     if (destroy !== undefined) return destroy;
     return this.threat === "attack" && usable.length > 0 ? usable[0] : null;
+  }
+
+  // Expert: the answer worth the most, none when no card is worth using.
+  private bestResponse(q: OcgMessageSelectChain): number | null {
+    let best: number | null = null;
+    let top = 0;
+    for (const [index, card] of q.selects.entries()) {
+      const worth = this.responseWorth(card.code);
+      if (worth > top) [best, top] = [index, worth];
+    }
+    return best;
+  }
+
+  // In ATK points: destroying the monster behind the threat is worth its ATK, stopping its attack half of it, a mass
+  // destruction what it takes from the opponent minus what it takes from the bot, and only half of that when it hits one monster.
+  private responseWorth(code: number): number {
+    if (is(code, OcgType.SPELL) && !is(code, OcgType.QUICKPLAY)) return 0;
+    const text = script(code);
+    if (has(code, "DESTROY") && !cardInfo(code)?.desc.includes("Spell")) return this.destruction(text);
+    if (this.threat !== "attack") return 0;
+    if (text.includes("NegateAttack")) return this.menace / 2;
+    if (["EFFECT_AVOID_BATTLE_DAMAGE", "EFFECT_INDESTRUCTABLE_BATTLE", "EFFECT_CANNOT_ATTACK"].some((effect) => text.includes(effect))) return this.menace / 3;
+    return has(code, "DAMAGE") ? 1 : 0;
+  }
+
+  private destruction(text: string): number {
+    if (!mass(text)) return this.menace;
+    const attackOnly = text.includes("IsAttackPos");
+    const lost = cards(this.opponent().monsters).filter((card) => !attackOnly || (card.position & OcgPosition.ATTACK) !== 0);
+    const cost = text.replaceAll(" ", "").includes("LOCATION_MZONE,LOCATION_MZONE") ? cards(this.mine().monsters) : [];
+    const net = lost.reduce((sum, card) => sum + value(card.code), 0) - cost.reduce((sum, card) => sum + value(card.code), 0);
+    return Math.max(0, lost.length > 1 ? net : net / 2);
   }
 
   // Indices of the `count` best cards: the opponent's or public ones by value, the bot's own hand and field least valuable first.
