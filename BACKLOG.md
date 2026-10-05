@@ -118,6 +118,7 @@ Migrations appliquées en production le 2026-10-05 avant la fusion (missions, é
 - [x] Lancers de dé et de pièce visibles (fix/F-des-pieces)
 - [x] Déclarer un nom de carte depuis son deck (fix/F-declarer-deck)
 - [ ] Vague 2 : banc bot contre bot de l'histoire, performances client et serveur
+- [ ] Écran d'accueil repensé : hiérarchie, grille des modes, missions lisibles (feat/F-accueil-refonte)
 - [ ] Vague 3 : découpage de server.ts, tests e2e
 
 ## Mise en ligne
