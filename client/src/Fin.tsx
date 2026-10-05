@@ -108,7 +108,7 @@ export function Fin({ board, seat, room, vsBot, ranked, opponent, story, eventBo
   }, [won]);
 
   let context = `Duel en ligne · salle ${room}`;
-  if (story) context = `${story.title ?? "Mode Histoire"}${story.easy ? " · Facile" : ""}`;
+  if (story) context = `${story.title ?? "Mode Histoire"}${story.easy ? " · Facile" : ""}${story.won && "revenge" in story.won ? " · Revanche" : ""}`;
   else if (puzzle) context = `Puzzle · ${puzzle.title}`;
   else if (tutoriel) context = "Tutoriel";
   else if (tower) context = `La Tour · Étage ${tower.floor} sur ${TOWER_FLOORS}`;
@@ -302,11 +302,12 @@ function Score({ board, seat, won, lost, opponent }: Readonly<{ board: Board; se
 // Boosters of a story win: its first-win rewards, the first 3 stars, the last win of a series of replays.
 function storyBoosters(won: StoryWon | undefined): number {
   if (!won) return 0;
+  if ("revenge" in won) return won.rewards?.boosters ?? 0;
   return (won.rewards?.boosters ?? 0) + Number(won.starBooster) + Number(won.replays === REPLAY_WINS);
 }
 
 // The stars of this win, what the next one asks, the replay series.
-function StoryStars({ won, lp }: Readonly<{ won: StoryWon; lp?: number }>) {
+function StoryStars({ won, lp }: Readonly<{ won: Exclude<StoryWon, { revenge: true }>; lp?: number }>) {
   const hint = lp === undefined ? undefined : nextStar(won.best, lp);
   let replay: string | undefined;
   if (won.replays === REPLAY_WINS) replay = `Victoire de rejeu ${REPLAY_WINS}/${REPLAY_WINS} : 1 booster gagné.`;
@@ -323,6 +324,25 @@ function StoryStars({ won, lp }: Readonly<{ won: StoryWon; lp?: number }>) {
   );
 }
 
+// A won revenge: no stars, and the Ultra Rare booster the first time only.
+function RevengeGains({ won }: Readonly<{ won: Extract<StoryWon, { revenge: true }> }>) {
+  return (
+    <>
+      <p className="fin__recit">{won.outro}</p>
+      {won.rewards ? (
+        <>
+          <div className="fin__gains">
+            <Rewards rewards={won.rewards} featured />
+          </div>
+          <p className="texte-2">Revanche gagnée : ce booster contient au moins une Ultra Rare.</p>
+        </>
+      ) : (
+        <p className="texte-2">Revanche déjà gagnée : la récompense a été obtenue.</p>
+      )}
+    </>
+  );
+}
+
 function Gains({ story, boosters }: Readonly<{ story?: { won?: StoryWon; lp?: number }; boosters: number }>) {
   if (!story) {
     if (!boosters) return null;
@@ -333,6 +353,7 @@ function Gains({ story, boosters }: Readonly<{ story?: { won?: StoryWon; lp?: nu
     );
   }
   if (!story.won) return <p className="texte-2 fin__recit">Enregistrement de la victoire…</p>;
+  if ("revenge" in story.won) return <RevengeGains won={story.won} />;
   return (
     <>
       <p className="fin__recit">{story.won.outro}</p>

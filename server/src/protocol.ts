@@ -90,7 +90,8 @@ export type ClientMessage =
   | { type: "wonder_pick"; index: number }
   // Story mode: `story` asks for the arcs and progression, `story_duel` starts a duel against the bot, at "normal" without `level`.
   | { type: "story" }
-  | { type: "story_duel"; duel: string; level?: StoryLevel }
+  // `revenge`: the rematch of the boss `duel` of a finished arc, against its Expert deck (`level` is ignored).
+  | { type: "story_duel"; duel: string; level?: StoryLevel; revenge?: true }
   // Puzzles: `puzzles` asks for the list, answered with `puzzles`; `puzzle` starts one against the bot.
   | { type: "puzzles" }
   | { type: "puzzle"; id: string }
@@ -193,7 +194,7 @@ export type ServerMessage =
   | ({ type: "wonder" } & WonderView)
   | { type: "story"; arcs: StoryArcView[] }
   // A won story duel, recorded.
-  | ({ type: "story_won"; duel: string; outro: string } & StoryResult)
+  | ({ type: "story_won"; duel: string; outro: string } & (StoryResult | RevengeResult))
   | { type: "duel_results"; results: DeckResult[] }
   // The event of the week: a story special rule (story.ts EXTRA_RULES) played with `lp` and `hand`; `won`: this week's booster was taken.
   | { type: "event"; rule: string; lp: number; hand: number; won: boolean }
@@ -273,6 +274,8 @@ export const REPLAY_BOOSTERS_MAX = 2;
 // `replays`, for a duel already won: wins of the current series of REPLAY_WINS, the last one gives a booster.
 // `replayLimit`: REPLAY_BOOSTERS_MAX replay boosters already earned today, this win does not count.
 export type StoryResult = { rewards: Rewards | null; stars: number; best: number; starBooster: boolean; replays?: number; replayLimit?: true };
+// A won revenge: `rewards` is the Ultra Rare guaranteed booster the first time, null after.
+export type RevengeResult = { revenge: true; rewards: Rewards | null };
 // A Sealed session ends at SEALED_WINS wins or SEALED_LOSSES losses; SEALED_REWARDS[wins] boosters at its end.
 export const SEALED_WINS = 3;
 export const SEALED_LOSSES = 2;
@@ -303,7 +306,8 @@ export type StoryDuelView = {
   // Best stars won, 0 until the duel is won.
   stars: number;
 };
-export type StoryArcView = { id: string; title: string; duels: StoryDuelView[] };
+// `revenge`: the boss rematch once declared by the arc (`id` is the boss duel id); "locked" until the arc is finished, "done" once won.
+export type StoryArcView = { id: string; title: string; duels: StoryDuelView[]; revenge?: StoryDuelView };
 
 // GET /api/cards: every card of the pool by passcode, from BabelCDB with French name and text from YGOJSON (English when
 // missing). `strings` are the effect descriptions (str1 to str16), in English. GET /api/strings: EDOPro system strings, in French.

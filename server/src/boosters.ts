@@ -62,10 +62,12 @@ export function ultraPack(set: CardSet): Printing[] {
 
 // Date of the next free booster, the number of earned boosters still waiting to be opened, and the opening that holds an Ultra for sure.
 export async function boosterState(db: Db, userId: string): Promise<{ nextFreeAt: string; pending: number; ultraIn: number }> {
-  const [row] = await db<{ nextFreeAt: Date; pending: number; sinceUltra: number }[]>`
-    select next_free_at as "nextFreeAt", pending, since_ultra as "sinceUltra" from yugioh.booster_state where user_id = ${userId}`;
+  const [row] = await db<{ nextFreeAt: Date; pending: number; sinceUltra: number; ultraPending: number }[]>`
+    select next_free_at as "nextFreeAt", pending, since_ultra as "sinceUltra", ultra_pending as "ultraPending"
+    from yugioh.booster_state where user_id = ${userId}`;
   if (!row) return { nextFreeAt: new Date().toISOString(), pending: 0, ultraIn: ULTRA_PITY + 1 };
-  return { nextFreeAt: row.nextFreeAt.toISOString(), pending: row.pending, ultraIn: Math.max(1, ULTRA_PITY + 1 - row.sinceUltra) };
+  const ultraIn = row.ultraPending > 0 ? 1 : Math.max(1, ULTRA_PITY + 1 - row.sinceUltra);
+  return { nextFreeAt: row.nextFreeAt.toISOString(), pending: row.pending, ultraIn };
 }
 
 // Boosters won in duels or Story mode, opened later in the set of the player's choice.
@@ -76,18 +78,29 @@ export async function creditBoosters(db: Sql, userId: string, count: number): Pr
     on conflict (user_id) do update set pending = booster_state.pending + excluded.pending`;
 }
 
+// A won booster whose opening holds an Ultra Rare for sure, whatever the pity counter says: the next opening owes it.
+export async function creditUltraBooster(db: Sql, userId: string): Promise<void> {
+  await db`
+    insert into yugioh.booster_state (user_id, pending, ultra_pending) values (${userId}, 1, 1)
+    on conflict (user_id) do update set pending = booster_state.pending + 1, ultra_pending = booster_state.ultra_pending + 1`;
+}
+
 // The free booster goes first, then the won ones. The row lock makes concurrent openings wait for each other.
 export async function openBooster(db: Db, userId: string, setCode: string): Promise<Printing[]> {
   const set = BOOSTERS.get(setCode);
   if (!set) throw new Error(`booster inconnu : ${setCode}`);
   return db.begin(async (sql) => {
     await sql`insert into yugioh.booster_state (user_id) values (${userId}) on conflict do nothing`;
-    const [state] = await sql<{ free: boolean; pending: number; sinceUltra: number }[]>`
-      select next_free_at <= now() as free, pending, since_ultra as "sinceUltra" from yugioh.booster_state where user_id = ${userId} for update`;
+    const [state] = await sql<{ free: boolean; pending: number; sinceUltra: number; ultraPending: number }[]>`
+      select next_free_at <= now() as free, pending, since_ultra as "sinceUltra", ultra_pending as "ultraPending"
+      from yugioh.booster_state where user_id = ${userId} for update`;
     if (!state.free && state.pending === 0) throw new Error("aucun booster disponible");
     const source = state.free ? "free" : "earned";
-    const cards = state.sinceUltra >= ULTRA_PITY ? ultraPack(set) : drawPack(set);
-    await sql`update yugioh.booster_state set since_ultra = ${hasUltra(cards) ? 0 : state.sinceUltra + 1} where user_id = ${userId}`;
+    const owed = state.ultraPending > 0;
+    const cards = owed || state.sinceUltra >= ULTRA_PITY ? ultraPack(set) : drawPack(set);
+    await sql`
+      update yugioh.booster_state set since_ultra = ${hasUltra(cards) ? 0 : state.sinceUltra + 1}, ultra_pending = ultra_pending - ${owed ? 1 : 0}
+      where user_id = ${userId}`;
     const codes = cards.map((card) => card.code);
     await sql`
       insert into yugioh.booster_openings (user_id, set_code, source, cards) values (${userId}, ${set.code}, ${source}, ${codes})`;

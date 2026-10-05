@@ -23,7 +23,7 @@ import { dbFriendStore, friendHub, isFriendMessage, validFriendMessage, type Fri
 import { GOAT } from "./limits.ts";
 import { isAllowed, POOL, SETS, type Printing } from "./pool.ts";
 import { dbProfileStore, isProfileMessage, profileReply, validProfileMessage, type ProfileMessage, type ProfileStore } from "./profile.ts";
-import { PUZZLE_FAILED, REPORT_MAX, SPECTATORS_MAX, type BotLevel, type CardInfo, type ClientMessage, type DeckResult, type DuelEvent, type Seat, type ServerMessage, type StoryLevel, type StoryResult, type TowerView } from "./protocol.ts";
+import { PUZZLE_FAILED, REPORT_MAX, SPECTATORS_MAX, type BotLevel, type CardInfo, type ClientMessage, type DeckResult, type DuelEvent, type RevengeResult, type Seat, type ServerMessage, type StoryLevel, type StoryResult, type TowerView } from "./protocol.ts";
 import { PUZZLE_IDS, PUZZLE_TURNS, puzzleField, puzzleRules, puzzleView, solvedPuzzles, solvePuzzle } from "./puzzles.ts";
 import { dbRankedStore, pairUp, type RankedStore, type Waiting } from "./ranked.ts";
 import { REPORT_BYTES, RESPONSE_BYTES, saveReport, type Report } from "./report.ts";
@@ -33,7 +33,7 @@ import { dbDraftStore, draftReply, isDraftMessage, validDraftMessage, type Draft
 import { botDeck, dbSealedStore, isSealedMessage, sealedReply, validSealedMessage, type SealedMessage, type SealedStore } from "./sealed.ts";
 import { serveClient } from "./site.ts";
 import { chooseStarter, starterCards, type Starter } from "./starter.ts";
-import { completeDuel, completedDuels, isUnlocked, STORY, STORY_DUELS, storyDeck, storyExtra, storyRules, storyStars, storyView, type StoryDuel } from "./story.ts";
+import { completeDuel, completedDuels, completeRevenge, isUnlocked, revengesWon, STORY, STORY_DUELS, STORY_REVENGES, storyDeck, storyExtra, storyRules, storyStars, storyView, type StoryDuel } from "./story.ts";
 import { systemStrings } from "./strings.ts";
 import { startTower, TOWER, towerLevel, towerRules, towerView, winTower, type TowerWin } from "./tower.ts";
 import { finishTutorial, TUTORIAL_FIELD, TUTORIAL_RULES } from "./tutorial.ts";
@@ -113,6 +113,9 @@ export type Accounts = DeckStore & WishStore & EconomyStore & WonderStore & Prof
   storyProgress: (userId: string) => Promise<ReadonlyMap<string, number>>;
   // Records a win with its stars, resolves to what it earned.
   completeStory: (userId: string, duel: StoryDuel, stars: number) => Promise<StoryResult>;
+  // Ids of the arcs whose boss revenge was won, and recording the win of one (the Ultra Rare booster is paid the first time only).
+  revengesWon: (userId: string) => Promise<ReadonlySet<string>>;
+  completeRevenge: (userId: string, arcId: string) => Promise<RevengeResult>;
   // Stores the result of a finished duel for a human player, and reads their wins and losses per deck and mode.
   recordResult: (result: DuelResult) => Promise<void>;
   duelResults: (userId: string) => Promise<DeckResult[]>;
@@ -148,6 +151,8 @@ export function dbAccounts(db: Db): Accounts {
     creditBoosters: (userId, count) => creditBoosters(db, userId, count),
     storyProgress: (userId) => completedDuels(db, userId),
     completeStory: (userId, duel, stars) => completeDuel(db, userId, duel, stars),
+    revengesWon: (userId) => revengesWon(db, userId),
+    completeRevenge: (userId, arcId) => completeRevenge(db, userId, arcId),
     recordResult: (result) => recordResult(db, result),
     duelResults: (userId) => readResults(db, userId),
     solvedPuzzles: (userId) => solvedPuzzles(db, userId),
@@ -304,7 +309,7 @@ function parse(data: string): ClientMessage | undefined {
     msg.type === "tower" ||
     msg.type === "tower_duel" ||
     RANKED_TYPES.has(msg.type) ||
-    (msg.type === "story_duel" && typeof msg.duel === "string" && (msg.level === undefined || STORY_LEVELS.has(msg.level))) ||
+    (msg.type === "story_duel" && typeof msg.duel === "string" && (msg.level === undefined || STORY_LEVELS.has(msg.level)) && (msg.revenge === undefined || msg.revenge === true)) ||
     (msg.type === "emote" && EMOTE_IDS.has(msg.id)) ||
     ((msg.type === "join" || msg.type === "spectate") && typeof msg.room === "string") ||
     (msg.type === "respond" && typeof msg.response === "object" && msg.response !== null) ||
@@ -1044,12 +1049,13 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
     }
 
     async function showStory(userId: string): Promise<undefined> {
-      send(socket, { type: "story", arcs: storyView(await accounts.storyProgress(userId)) });
+      const [progress, revenges] = await Promise.all([accounts.storyProgress(userId), accounts.revengesWon(userId)]);
+      send(socket, { type: "story", arcs: storyView(progress, STORY, revenges) });
       return undefined;
     }
 
-    function recordWin(room: Room, userId: string, duel: StoryDuel, stars: number) {
-      accounts.completeStory(userId, duel, stars).then(
+    function recordWin(room: Room, duel: StoryDuel, recorded: Promise<StoryResult | RevengeResult>) {
+      recorded.then(
         (result) => send(room.players[0]?.socket, { type: "story_won", duel: duel.id, outro: duel.outro, ...result }),
         (error: unknown) => {
           console.error(error);
@@ -1058,20 +1064,25 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
       );
     }
 
-    // The player keeps seat 0 against the bot; only their win counts.
-    async function playStory(userId: string, id: string, level?: StoryLevel): Promise<string | undefined> {
-      const duel = STORY_DUELS.get(id);
+    // The player keeps seat 0 against the bot; only their win counts. A revenge is the boss duel with its reinforced deck, at
+    // the Expert level, once its arc is finished; its win records no stars.
+    async function playStory(userId: string, id: string, level?: StoryLevel, revenge?: true): Promise<string | undefined> {
+      const boss = revenge ? STORY_REVENGES.get(id) : undefined;
+      if (revenge && !boss) return "pas de revanche pour ce duel";
+      const duel = boss?.duel ?? STORY_DUELS.get(id);
       if (!duel) return "duel d'histoire inconnu";
-      if (!isUnlocked(duel, await accounts.storyProgress(userId))) return "duel verrouillé : gagnez d'abord les duels précédents";
+      if (!isUnlocked(duel, await accounts.storyProgress(userId))) return boss ? "revanche verrouillée : terminez d'abord l'arc" : "duel verrouillé : gagnez d'abord les duels précédents";
       const deck = await duelDeck(userId);
       if (typeof deck === "string") return deck;
-      const rules = storyRules(duel, level);
-      const room: Room = { code: newCode(rooms), players: [], rules, mode: { mode: "story", level: level ?? "normal" } };
+      const rules = storyRules(duel, boss ? undefined : level);
+      const room: Room = { code: newCode(rooms), players: [], rules, mode: { mode: "story", level: boss ? "revanche" : (level ?? "normal") } };
       // The duel is still open when its winner is known: its LP give the stars.
       room.onWin = (winner) => {
-        if (winner === 0 && room.duel) recordWin(room, userId, duel, storyStars(level === "facile", lpLeft(room.duel, 0), lpOf(rules, 0)));
+        if (winner !== 0 || !room.duel) return;
+        const stars = storyStars(level === "facile", lpLeft(room.duel, 0), lpOf(rules, 0));
+        recordWin(room, duel, boss ? accounts.completeRevenge(userId, boss.arc) : accounts.completeStory(userId, duel, stars));
       };
-      return enter(userId, room, deck, { deck: { main: storyDeck(duel), extra: storyExtra(duel) }, name: duel.opponent });
+      return enter(userId, room, deck, { deck: { main: storyDeck(duel), extra: storyExtra(duel) }, name: duel.opponent, level: boss ? "expert" : undefined });
     }
 
     async function showEvent(userId: string): Promise<undefined> {
@@ -1248,7 +1259,7 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
       if (waiting.has(user.id)) return "recherche d'un adversaire classé en cours";
       if (msg.type === "spectate") return spectate(msg.room);
       if (msg.type === "ranked_queue") return queueRanked(user.id);
-      if (msg.type === "story_duel") return playStory(user.id, msg.duel, msg.level);
+      if (msg.type === "story_duel") return playStory(user.id, msg.duel, msg.level, msg.revenge);
       if (msg.type === "puzzle") return playPuzzle(user.id, msg.id);
       if (msg.type === "tutorial") return playTutorial(user.id);
       if (msg.type === "tower_duel") return playTower(user.id);

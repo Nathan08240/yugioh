@@ -9,7 +9,7 @@ import { openDuel, runDuel, type Player } from "../src/duel.ts";
 import type { ClientMessage, ServerMessage, Wire } from "../src/protocol.ts";
 import { respond } from "../src/respond.ts";
 import { startServer } from "../src/server.ts";
-import { isUnlocked, STORY, STORY_DUELS, storyDeck, storyExtra, storyRules, storyStars, storyView, validateStory, type Story, type StoryDuel } from "../src/story.ts";
+import { isUnlocked, REVENGE_REWARD, STORY, STORY_DUELS, STORY_REVENGES, storyDeck, storyExtra, storyRules, storyStars, storyView, validateStory, type Story, type StoryDuel } from "../src/story.ts";
 import { fakeAccounts } from "./fakes.ts";
 
 const DK = ["dk-weevil", "dk-mako", "dk-mai", "dk-keith", "dk-bakura", "dk-kaiba", "dk-pegasus"];
@@ -89,6 +89,42 @@ describe("données du mode Histoire", () => {
     expect(isUnlocked(next, new Set(previous.slice(0, -1)), story)).toBe(false);
     expect(isUnlocked(next, new Set(previous), story)).toBe(true);
     expect(validateStory(withArc(["suite"]))).toContainEqual(expect.stringContaining("prérequis suite inconnu ou placé après"));
+  });
+});
+
+describe("revanche des boss", () => {
+  const dk = STORY.arcs[0];
+  const declared = dk.revenge as NonNullable<typeof dk.revenge>;
+  const arcWith = (revenge: Partial<typeof declared>): Story => ({ ...STORY, arcs: [{ ...dk, revenge: { ...declared, ...revenge } }] });
+
+  it("chaque arc déclare son boss et un deck de revanche du pool, différent du deck du boss", () => {
+    expect(STORY.arcs.every((arc) => arc.revenge)).toBe(true);
+    expect(STORY_REVENGES.size).toBe(STORY.arcs.length);
+    for (const arc of STORY.arcs) {
+      const boss = STORY_DUELS.get(arc.revenge?.boss ?? "") as StoryDuel;
+      const revenge = STORY_REVENGES.get(boss.id);
+      expect(arc.duels.at(-1)).toBe(boss);
+      expect(revenge?.arc).toBe(arc.id);
+      expect(revenge?.duel).toMatchObject({ opponent: boss.opponent, rules: boss.rules, rewards: REVENGE_REWARD, requires: [arc.id] });
+      expect(storyDeck(revenge?.duel as StoryDuel)).not.toEqual(storyDeck(boss));
+    }
+  });
+
+  it("refuse un boss absent de l'arc, une carte inconnue ou hors pool dans le deck de revanche", () => {
+    expect(validateStory(arcWith({ boss: "dk-absent" }))).toEqual(["duelist-kingdom : boss dk-absent absent de l'arc"]);
+    const deck: StoryDuel["deck"] = [...declared.deck.slice(1), [1, 1], [ANIME, 1]];
+    expect(validateStory({ ...arcWith({ deck }), anime: [ANIME] })).toEqual([
+      "duelist-kingdom revanche : carte 1 absente de BabelCDB",
+      "duelist-kingdom revanche : carte 511002621 hors pool et hors liste blanche de l'histoire",
+    ]);
+  });
+
+  it("verrouille la revanche jusqu'à la fin de l'arc, puis la marque gagnée avec sa conclusion", () => {
+    const revenge = (done: string[], won = false) => storyView(new Map(done.map((id) => [id, 1])), STORY, new Set(won ? [dk.id] : []))[0].revenge;
+    expect(revenge(DK.slice(0, -1))).toMatchObject({ id: "dk-pegasus", status: "locked", outro: undefined, stars: 0 });
+    expect(revenge(DK)).toMatchObject({ status: "available", opponent: "Maximillion Pegasus", rewards: REVENGE_REWARD, outro: undefined });
+    expect(revenge(DK, true)).toMatchObject({ status: "done", outro: declared.outro });
+    expect(revenge(DK)).not.toHaveProperty("deck");
   });
 });
 
@@ -181,6 +217,31 @@ describe("duel d'histoire sur le serveur", () => {
     expect(won).toEqual([["dk-weevil", 1]]);
     won.length = 0;
     completed.clear();
+  });
+
+  it("refuse la revanche tant que l'arc n'est pas fini, la lance ensuite contre le deck renforcé du boss", async () => {
+    completed.clear();
+    const revenge = STORY_REVENGES.get("dk-pegasus")?.duel as StoryDuel;
+    const locked = await play(1n, (socket) => story(socket, { type: "story_duel", duel: "dk-pegasus", revenge: true }));
+    await vi.waitFor(() => expect(locked.length).toBeGreaterThan(1));
+    expect(locked.slice(1)).toEqual([{ type: "error", error: "revanche verrouillée : terminez d'abord l'arc" }]);
+
+    for (const id of DK) completed.set(id, 1);
+    const unknown = await play(1n, (socket) => story(socket, { type: "story_duel", duel: "dk-weevil", revenge: true }));
+    await vi.waitFor(() => expect(unknown.length).toBeGreaterThan(1));
+    expect(unknown.slice(1)).toEqual([{ type: "error", error: "pas de revanche pour ce duel" }]);
+
+    const started = await play(1n, (socket) => story(socket, { type: "story_duel", duel: "dk-pegasus", revenge: true, level: "facile" }));
+    await vi.waitFor(() => expect(started.some((msg) => msg.type === "joined")).toBe(true));
+    // The level is ignored: the player's LP are not doubled.
+    expect(started).toContainEqual(expect.objectContaining({ type: "joined", seat: 0, lp: revenge.rules.lp, opponent: revenge.opponent, decks: [41, storyDeck(revenge).length] }));
+    completed.clear();
+  });
+
+  it("refuse une revanche mal formée", async () => {
+    const received = await play(1n, (socket) => socket.send(JSON.stringify({ type: "story_duel", duel: "dk-pegasus", revenge: false })));
+    await vi.waitFor(() => expect(received.length).toBeGreaterThan(1));
+    expect(received.slice(1)).toEqual([{ type: "error", error: "message invalide" }]);
   });
 
   it("refuse un niveau inconnu", async () => {
