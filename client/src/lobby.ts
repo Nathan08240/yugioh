@@ -121,6 +121,8 @@ export type LobbyState = {
   maintenance?: boolean;
   // Connecting again to the room on screen: an error instead of `joined` means the room is gone.
   rejoining?: boolean;
+  // Missions of the day and achievements, loaded by the home and profile screens, sent again after each duel or booster.
+  missions?: Omit<Extract<Wire<ServerMessage>, { type: "missions" }>, "type">;
 };
 
 export const ROOM_GONE = "Ce duel n'est plus disponible : le serveur a été mis à jour ou la salle a expiré.";
@@ -261,6 +263,8 @@ export function reduce(state: LobbyState, action: Action): LobbyState {
       return { ...state, rankedSince: action.waiting ? Date.now() : undefined, error: undefined };
     case "ranked_result":
       return { ...state, rankedResult: { delta: action.delta, rating: action.rating } };
+    case "missions":
+      return { ...state, missions: { missions: action.missions, achievements: action.achievements } };
   }
 }
 

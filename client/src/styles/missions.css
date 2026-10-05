@@ -1,0 +1,38 @@
+/* Missions du jour (accueil) et succès (profil), Missions.tsx */
+
+.mode--missions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--e-3);
+}
+
+.objectifs {
+  display: grid;
+  gap: var(--e-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.objectif {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--e-3);
+  align-items: center;
+}
+
+.objectif__texte b {
+  display: block;
+}
+
+.objectif__gain {
+  display: grid;
+  justify-items: end;
+  font-size: var(--taille-s);
+  white-space: nowrap;
+}
+
+.objectif--fait .objectif__gain {
+  color: var(--holo);
+}

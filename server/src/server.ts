@@ -22,6 +22,7 @@ import { EMOTE_DELAY, EMOTE_IDS, type EmoteId } from "./emotes.ts";
 import { claimEvent, eventOf, eventRules, eventWon, type WeeklyEvent } from "./event.ts";
 import { dbFriendStore, friendHub, isFriendMessage, validFriendMessage, type FriendStore } from "./friends.ts";
 import { GOAT } from "./limits.ts";
+import { countEvents, dbMissionStore, duelGains, fusionOnField, newTally, type MissionProgress, type MissionStore, type Tally } from "./missions.ts";
 import { isAllowed, POOL, SETS, type Printing } from "./pool.ts";
 import { dbProfileStore, isProfileMessage, profileReply, validProfileMessage, type ProfileMessage, type ProfileStore } from "./profile.ts";
 import { PUZZLE_FAILED, REPORT_MAX, SPECTATORS_MAX, type BotLevel, type CardInfo, type ClientMessage, type DeckResult, type DuelEvent, type RevengeResult, type RoomOptions, type Seat, type ServerMessage, type StoryLevel, type StoryResult, type TowerView } from "./protocol.ts";
@@ -86,6 +87,8 @@ export type Room = {
   tower?: { floor: number; saved?: Promise<void> };
   // Online duel between two players only: what the spectators get (the public log, rebuilt for each duel) and their sockets.
   watch?: { log: DuelEvent[]; stats?: string; sockets: WebSocket[] };
+  // Summons and damage of the current duel, for the daily missions.
+  tally?: Tally;
 };
 
 // Point of view of a spectator, who sits at no seat: hideCards and visibleTo then hide the cards of both players.
@@ -100,7 +103,7 @@ const deckSizes = (room: Room): [number, number] => [
 const extraSizes = (room: Room): [number, number] => [room.players[0]?.extra?.length ?? 0, room.players[1]?.extra?.length ?? 0];
 
 // Identity, profile, deck, booster and Story mode storage, faked in tests.
-export type Accounts = DeckStore & WishStore & EconomyStore & WonderStore & ProfileStore & SealedStore & DraftStore & FriendStore & RankedStore & {
+export type Accounts = DeckStore & WishStore & EconomyStore & WonderStore & ProfileStore & SealedStore & DraftStore & FriendStore & RankedStore & MissionStore & {
   verify: (token: string) => Promise<string | null>;
   findProfile: (userId: string) => Promise<Profile | undefined>;
   // Resolves to undefined when the pseudo is already taken.
@@ -176,6 +179,7 @@ export function dbAccounts(db: Db): Accounts {
     ...dbDraftStore(db),
     ...dbFriendStore(db),
     ...dbRankedStore(db),
+    ...dbMissionStore(db),
   };
 }
 
@@ -312,6 +316,7 @@ function parse(data: string): ClientMessage | undefined {
     msg.type === "tutorial" ||
     msg.type === "tower" ||
     msg.type === "tower_duel" ||
+    msg.type === "missions" ||
     RANKED_TYPES.has(msg.type) ||
     (msg.type === "story_duel" && typeof msg.duel === "string" && (msg.level === undefined || STORY_LEVELS.has(msg.level)) && (msg.revenge === undefined || msg.revenge === true)) ||
     (msg.type === "emote" && EMOTE_IDS.has(msg.id)) ||
@@ -509,6 +514,25 @@ export function creditWinner(room: Room, seat: Seat, accounts: Pick<Accounts, "c
   }
 }
 
+const FORFEITS: ReadonlySet<number> = new Set([SURRENDER, TIME_LIMIT, CONNECTION_LOST]);
+
+// What a finished duel brings to the missions of `seat`, while the duel is still open. An online duel outside ranked and
+// events counts once a day per opponent.
+export function missionProgress(room: Room, seat: Seat, winner: Seat, reason: number): MissionProgress {
+  const tally = room.tally ?? newTally();
+  const gains = duelGains({
+    won: seat === winner,
+    forfeit: FORFEITS.has(reason),
+    story: room.mode?.mode === "story",
+    ranked: room.ranked === true,
+    summons: tally.summons[seat],
+    damage: tally.damage[seat],
+    fusion: room.duel !== undefined && fusionOnField(room.duel, seat),
+  });
+  const casual = room.mode?.mode === "online" && !room.ranked && !room.event;
+  return casual ? { gains, opponent: room.players[1 - seat]?.id } : { gains };
+}
+
 // Tower mode: sets the room up for `floor`, with its opponent once the bot is seated. Only a win of seat 0 is recorded:
 // startTower already counted anything else as a loss.
 export function towerFloor(room: Room, floor: number, accounts: Pick<Accounts, "winTower">) {
@@ -607,6 +631,7 @@ export function advance(room: Room) {
     const events = limitTurns(room, messages.filter((msg) => !ANSWERS.has(msg.type)));
     room.turns = (room.turns ?? 0) + events.filter((msg) => msg.type === OcgMessageType.NEW_TURN).length;
     if (room.record) room.record.turn += events.filter((msg) => msg.type === OcgMessageType.NEW_TURN).length;
+    if (room.tally) countEvents(room.tally, events);
     // The engine keeps sending WIN without ever reaching END: the first one closes the duel.
     const win = events.findIndex((msg) => msg.type === OcgMessageType.WIN);
     broadcast(room, duel, win === -1 ? events : events.slice(0, win + 1));
@@ -652,6 +677,7 @@ async function start(room: Room, seed: Seed) {
   const decks = room.players.map((player) => player.deck);
   const extras = room.players.map((player) => player.extra ?? []);
   room.turns = 0;
+  room.tally = newTally();
   if (online(room)) {
     room.watch = { log: [], sockets: room.watch?.sockets ?? [] };
     room.watch.sockets.forEach((socket) => sendWatching(room, socket));
@@ -924,6 +950,7 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
     async function openBoosterFor(player: { id: string }, set: string): Promise<string | undefined> {
       try {
         send(socket, { type: "booster_opened", set, cards: await accounts.openBooster(player.id, set) });
+        progressMissions(player.id, { gains: { boosters: 1 } }, { socket });
         return undefined;
       } catch (error) {
         return error instanceof Error ? error.message : "erreur inattendue";
@@ -947,7 +974,21 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
         if (player.bot) return;
         const result = { userId: player.id, deckId: player.deckId, ...mode, won: index === winner, reason, turns: room.turns ?? 0 };
         accounts.recordResult(result).catch((error: unknown) => console.error(error));
+        progressMissions(player.id, missionProgress(room, index as Seat, winner, reason), player);
       });
+    }
+
+    // The player gets their missions once the progress is recorded, on the socket they have by then.
+    function progressMissions(userId: string, progress: MissionProgress, to: { socket?: WebSocket }) {
+      accounts.progressMissions(userId, progress).then(
+        (view) => send(to.socket, { type: "missions", ...view }),
+        (error: unknown) => console.error(error),
+      );
+    }
+
+    async function showMissions(userId: string): Promise<undefined> {
+      send(socket, { type: "missions", ...(await accounts.missions(userId)) });
+      return undefined;
     }
 
     function enter(userId: string, room: Room, deck: ActiveDeck, bot?: { deck: ActiveDeck; name: string; level?: BotLevel }): string | undefined {
@@ -1307,6 +1348,7 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
       if (msg.type === "puzzles") return showPuzzles(user.id);
       if (msg.type === "tower") return showTower(user.id);
       if (msg.type === "ranked") return showRanked(user.id);
+      if (msg.type === "missions") return showMissions(user.id);
       if (msg.type === "ranked_cancel") {
         leaveQueue(user.id);
         send(socket, { type: "ranked_queue", waiting: false });
