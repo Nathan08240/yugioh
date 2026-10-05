@@ -16,7 +16,7 @@ import { ROOM_LIMITS, roomRules, validRoomOptions } from "./custom.ts";
 import { activeDeck, createProfile, findProfile, openDb, type ActiveDeck, type Db, type Profile } from "./db.ts";
 import { EXTRA_MAX, isFusion, limitError, MAIN_MAX, MAIN_MIN } from "./deckcheck.ts";
 import { KAIBA } from "./decks.ts";
-import { agreeToRules, fieldMoves, fieldStats, lpLeft, lpOf, openDuel, STANDARD_RULES, type Placed, type Rules, type Seed } from "./duel.ts";
+import { agreeToRules, fieldMonsters, fieldMoves, fieldStats, lpLeft, lpOf, openDuel, STANDARD_RULES, type FieldMonsters, type Placed, type Rules, type Seed } from "./duel.ts";
 import { CRAFT_COSTS, dbEconomyStore, economyReply, isEconomyMessage, validEconomyMessage, type EconomyMessage, type EconomyStore } from "./economy.ts";
 import { EMOTE_DELAY, EMOTE_IDS, type EmoteId } from "./emotes.ts";
 import { claimEvent, eventOf, eventRules, eventWon, type WeeklyEvent } from "./event.ts";
@@ -288,8 +288,18 @@ function serveHttp(req: IncomingMessage, res: ServerResponse) {
 
 export const randomSeed = (): Seed => [...crypto.getRandomValues(new BigUint64Array(4))] as Seed;
 
+const serialize = (data: ServerMessage) => JSON.stringify(data, (_key, value) => (typeof value === "bigint" ? value.toString() : value));
+
 function send(socket: WebSocket | undefined, data: ServerMessage) {
-  socket?.send(JSON.stringify(data, (_key, value) => (typeof value === "bigint" ? value.toString() : value)));
+  socket?.send(serialize(data));
+}
+
+// The same message to several sockets, serialized once.
+function sendEach(sockets: readonly (WebSocket | undefined)[], data: ServerMessage) {
+  const open = sockets.filter((socket) => socket !== undefined);
+  if (open.length === 0) return;
+  const text = serialize(data);
+  for (const socket of open) socket.send(text);
 }
 
 export const ADMIN_BOOSTERS_MAX = 50;
@@ -386,30 +396,32 @@ function play(room: Room, player: Player, question: OcgMessage, retry: boolean) 
 }
 
 // What `viewer` may see of these messages, followed by the monster stats as the engine left them; undefined when nothing changed for them.
-function visibleEvents(duel: NonNullable<Room["duel"]>, messages: OcgMessage[], viewer: number, lastStats?: string) {
+function visibleEvents(duel: NonNullable<Room["duel"]>, messages: OcgMessage[], viewer: number, monsters: FieldMonsters, lastStats?: string) {
   const events: DuelEvent[] = messages.flatMap((msg) => visibleTo(msg, viewer) ?? []);
-  const stats = fieldStats(duel, viewer);
+  const stats = fieldStats(duel, viewer, monsters);
   const key = JSON.stringify(stats);
   if (events.length === 0 && key === lastStats) return undefined;
   events.push(stats);
   return { events, key };
 }
 
-// The messages each player and the spectators may see.
+// The messages each player and the spectators may see. A bot gets its events as they come and keeps no log.
 function broadcast(room: Room, duel: NonNullable<Room["duel"]>, messages: OcgMessage[]) {
+  const monsters = fieldMonsters(duel);
   room.players.forEach((player, seat) => {
-    const shown = visibleEvents(duel, messages, seat, player.stats);
+    const shown = visibleEvents(duel, messages, seat, monsters, player.stats);
     if (!shown) return;
     player.stats = shown.key;
-    player.log.push(...shown.events);
+    if (player.bot) player.bot.see(shown.events);
+    else player.log.push(...shown.events);
     send(player.socket, { type: "messages", messages: shown.events });
   });
   const { watch } = room;
-  const shown = watch && visibleEvents(duel, messages, SPECTATOR, watch.stats);
+  const shown = watch && visibleEvents(duel, messages, SPECTATOR, monsters, watch.stats);
   if (!watch || !shown) return;
   watch.stats = shown.key;
   watch.log.push(...shown.events);
-  watch.sockets.forEach((socket) => send(socket, { type: "messages", messages: shown.events }));
+  sendEach(watch.sockets, { type: "messages", messages: shown.events });
 }
 
 function endDuel(room: Room) {
@@ -441,10 +453,7 @@ function surrender(room: Room, seat: Seat): string | undefined {
 }
 
 const online = (room: Room) => room.players.length === 2 && !room.players.some((player) => player.bot);
-const sendAll = (room: Room, data: ServerMessage) => {
-  room.players.forEach((player) => send(player.socket, data));
-  room.watch?.sockets.forEach((socket) => send(socket, data));
-};
+const sendAll = (room: Room, data: ServerMessage) => sendEach([...room.players.map((player) => player.socket), ...(room.watch?.sockets ?? [])], data);
 
 // The report of the current or last duel of the room, undefined before it started.
 function reportOf(room: Room): Report | undefined {
@@ -687,6 +696,9 @@ function answer(room: Room, seat: Seat, response: OcgResponse): string | undefin
   return undefined;
 }
 
+// Captures the room code only: the engine binding never releases the callbacks of a duel, a captured room would stay in memory.
+const engineErrors = (code: string) => (text: string) => console.error(`[salle ${code}] ${text}`);
+
 async function start(room: Room, seed: Seed) {
   const decks = room.players.map((player) => player.deck);
   const extras = room.players.map((player) => player.extra ?? []);
@@ -698,7 +710,7 @@ async function start(room: Room, seed: Seed) {
     room.onWatch?.();
   }
   room.record = { seed, decks: decks.map((main, seat) => ({ main: [...main], extra: [...extras[seat]] })), turn: 0, responses: [] };
-  room.duel = await openDuel(seed, decks, (text) => console.error(`[salle ${room.code}] ${text}`), undefined, rulesOf(room), extras, room.field);
+  room.duel = await openDuel(seed, decks, engineErrors(room.code), undefined, rulesOf(room), extras, room.field);
   if (room.field) broadcast(room, room.duel, fieldMoves(room.field));
   advance(room);
 }

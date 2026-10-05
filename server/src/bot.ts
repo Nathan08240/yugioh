@@ -21,7 +21,7 @@ import {
   type OcgPosition as Position,
   type OcgResponse,
 } from "@n1xx1/ocgcore-wasm";
-import { cardAt, newBoard, playAll, type Board, type Card, type Message, type Place, type Side } from "../../client/src/board.ts";
+import { applyAll, cardAt, newBoard, type Board, type Card, type Message, type Place, type Side } from "../../client/src/board.ts";
 import { announceCard } from "./announce.ts";
 import { firstStep, lethal, safest, type Attacker, type Foe } from "./attack-plan.ts";
 import { cardInfo, readCard, readScript } from "./cards.ts";
@@ -78,17 +78,8 @@ function tributesFor(level: number): number {
   return 0;
 }
 
-const scripts = new Map<number, string>();
-
 // ponytail: effects read from the card script text, a per-card table if this misjudges cards.
-function script(code: number): string {
-  let text = scripts.get(code);
-  if (text === undefined) {
-    text = readScript(`c${code}.lua`) ?? "";
-    scripts.set(code, text);
-  }
-  return text;
-}
+const script = (code: number) => readScript(`c${code}.lua`) ?? "";
 
 const mass = (text: string) => text.includes("GetMatchingGroup") || text.includes("GetFieldGroup");
 const has = (code: number, category: string) => script(code).includes(`CATEGORY_${category}`);
@@ -100,7 +91,7 @@ const cards = (zones: (Card | null)[]) => zones.filter((card): card is Card => c
 export class Bot {
   // Pause the server leaves before each answer.
   readonly delay: number;
-  private board: Board;
+  private readonly board: Board;
   private readonly seat: Seat;
   private seen = 0;
   private threat: "attack" | "summon" | undefined;
@@ -136,10 +127,10 @@ export class Bot {
     }
   }
 
-  private see(messages: readonly DuelEvent[]) {
+  // The server feeds its bot's events here as they come, rather than keeping them in a log.
+  see(messages: readonly DuelEvent[]) {
     // board.ts reads no bigint field, so the engine form of the messages works as is.
-    this.board = playAll(this.board, messages as unknown as Message[]);
-    this.board.log = [];
+    applyAll(this.board, messages as unknown as Message[]);
     for (const msg of messages) this.track(msg);
   }
 

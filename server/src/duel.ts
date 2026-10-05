@@ -194,13 +194,15 @@ export async function openDuel(
 // The union of flags is typed as a single flag.
 const STATS_QUERY = (OcgQueryFlags.POSITION | OcgQueryFlags.ATTACK | OcgQueryFlags.DEFENSE) as OcgQueryFlags;
 
-// ATK and DEF as the engine computes them now (equips, fields, effects), for the monsters `viewer` may see.
-export function fieldStats({ lib, handle }: Awaited<ReturnType<typeof openDuel>>, viewer: number): StatsEvent {
-  const zones = (controller: 0 | 1) =>
-    lib
-      .duelQueryLocation(handle, { flags: STATS_QUERY, controller, location: OcgLocation.MZONE })
-      .slice(0, 5)
-      .map((card) => (card && (controller === viewer || faceUp(card.position ?? 0)) ? { atk: card.attack ?? 0, def: card.defense ?? 0 } : null));
+// The Main Monster Zones of both players as the engine computes them now (equips, fields, effects).
+export const fieldMonsters = ({ lib, handle }: Awaited<ReturnType<typeof openDuel>>) =>
+  ([0, 1] as const).map((controller) => lib.duelQueryLocation(handle, { flags: STATS_QUERY, controller, location: OcgLocation.MZONE }).slice(0, 5));
+export type FieldMonsters = ReturnType<typeof fieldMonsters>;
+
+// ATK and DEF of the monsters `viewer` may see; `monsters` lets one query serve every viewer.
+export function fieldStats(duel: Awaited<ReturnType<typeof openDuel>>, viewer: number, monsters = fieldMonsters(duel)): StatsEvent {
+  const zones = (controller: number) =>
+    monsters[controller].map((card) => (card && (controller === viewer || faceUp(card.position ?? 0)) ? { atk: card.attack ?? 0, def: card.defense ?? 0 } : null));
   return { type: "stats", monsters: [zones(0), zones(1)] };
 }
 

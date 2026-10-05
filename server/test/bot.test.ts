@@ -49,6 +49,7 @@ describe("bot", () => {
     onTestFinished(() => wss.close());
     await once(wss, "listening");
     const answer = vi.spyOn(Bot.prototype, "answer");
+    const see = vi.spyOn(Bot.prototype, "see");
 
     const socket = new WebSocket(`ws://localhost:${(wss.address() as AddressInfo).port}`);
     const received: Wire<ServerMessage>[] = [];
@@ -76,7 +77,7 @@ describe("bot", () => {
     expect(credit).not.toHaveBeenCalled();
     for (const msg of received) if (msg.type === "question") expect(msg.question).toMatchObject({ player: 0 });
     expect(answer).toHaveBeenCalled();
-    const log = answer.mock.lastCall?.[1] ?? [];
+    const log = see.mock.calls.flatMap(([events]) => events);
     // Everything the bot got had already gone through the filter of its seat.
     const engine = log.flatMap((msg) => (msg.type === "stats" ? [] : [msg]));
     expect(engine.map((msg) => visibleTo(msg, 1))).toEqual(engine);
@@ -86,6 +87,7 @@ describe("bot", () => {
     expect(hidden.length).toBeGreaterThan(5);
     expect(hidden.filter((card) => card.code !== 0)).toEqual([]);
     answer.mockRestore();
+    see.mockRestore();
   });
 });
 
