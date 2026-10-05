@@ -12,6 +12,7 @@ import { boosterState, BOOSTERS, creditBoosters, openBooster, WIN_BOOSTER_REWARD
 import { Bot } from "./bot.ts";
 import { clientCard, RULE_CARDS } from "./cards.ts";
 import { dbDeckStore, deckReply, isDeckMessage, poolCard, validDeckMessage, type DeckMessage, type DeckStore } from "./collection.ts";
+import { ROOM_LIMITS, roomRules, validRoomOptions } from "./custom.ts";
 import { activeDeck, createProfile, findProfile, openDb, type ActiveDeck, type Db, type Profile } from "./db.ts";
 import { EXTRA_MAX, isFusion, limitError, MAIN_MAX, MAIN_MIN } from "./deckcheck.ts";
 import { KAIBA } from "./decks.ts";
@@ -23,7 +24,7 @@ import { dbFriendStore, friendHub, isFriendMessage, validFriendMessage, type Fri
 import { GOAT } from "./limits.ts";
 import { isAllowed, POOL, SETS, type Printing } from "./pool.ts";
 import { dbProfileStore, isProfileMessage, profileReply, validProfileMessage, type ProfileMessage, type ProfileStore } from "./profile.ts";
-import { PUZZLE_FAILED, REPORT_MAX, SPECTATORS_MAX, type BotLevel, type CardInfo, type ClientMessage, type DeckResult, type DuelEvent, type RevengeResult, type Seat, type ServerMessage, type StoryLevel, type StoryResult, type TowerView } from "./protocol.ts";
+import { PUZZLE_FAILED, REPORT_MAX, SPECTATORS_MAX, type BotLevel, type CardInfo, type ClientMessage, type DeckResult, type DuelEvent, type RevengeResult, type RoomOptions, type Seat, type ServerMessage, type StoryLevel, type StoryResult, type TowerView } from "./protocol.ts";
 import { PUZZLE_IDS, PUZZLE_TURNS, puzzleField, puzzleRules, puzzleView, solvedPuzzles, solvePuzzle } from "./puzzles.ts";
 import { dbRankedStore, pairUp, type RankedStore, type Waiting } from "./ranked.ts";
 import { REPORT_BYTES, RESPONSE_BYTES, saveReport, type Report } from "./report.ts";
@@ -54,6 +55,8 @@ export type Room = {
   rules?: Rules;
   // The event of the week this room plays under: its `rules` are the event's.
   event?: WeeklyEvent;
+  // The custom rules of a private room or of a challenge: its `rules` are built from them.
+  options?: RoomOptions;
   // A puzzle: the cards placed before the start, and the last turn before the duel is lost by seat 0.
   field?: Placed[];
   turnLimit?: number;
@@ -298,7 +301,8 @@ function parse(data: string): ClientMessage | undefined {
     (msg.type === "auth" && typeof msg.token === "string" && msg.token.length <= 4096) ||
     (msg.type === "pseudo" && typeof msg.pseudo === "string") ||
     (msg.type === "starter" && (msg.starter === "yugi" || msg.starter === "kaiba")) ||
-    (msg.type === "create" && isOptionalFlag(msg.event)) ||
+    (msg.type === "create" && isOptionalFlag(msg.event) && (msg.options === undefined || (msg.event !== true && validRoomOptions(msg.options)))) ||
+    (msg.type === "room_rules" && typeof msg.room === "string") ||
     (msg.type === "bot" && (msg.level === undefined || BOT_LEVELS.has(msg.level)) && isOptionalFlag(msg.event)) ||
     msg.type === "story" ||
     msg.type === "duel_results" ||
@@ -545,9 +549,13 @@ function declineRematch(room: Room) {
   sendAll(room, { type: "rematch_declined" });
 }
 
+// The custom rules of a room: its options and the duel rules built from them, nothing for a standard room.
+const customRoom = (options?: RoomOptions): Pick<Room, "options" | "rules"> => (options ? { options, rules: roomRules(options) } : {});
+
 function joinedMessage(room: Room, seat: Seat, log: DuelEvent[]): Extract<ServerMessage, { type: "joined" }> {
   const [lp, opponentLp] = [lpOf(rulesOf(room), seat), lpOf(rulesOf(room), 1 - seat)];
-  return { type: "joined", room: room.code, seat, lp, opponentLp: opponentLp === lp ? undefined : opponentLp, decks: deckSizes(room), extras: extraSizes(room), opponent: room.players[1 - seat]?.name, opponentAvatar: room.players[1 - seat]?.avatar, special: room.event && [room.event.rule], log, floor: room.tower?.floor };
+  const rule = room.event?.rule ?? room.options?.rule;
+  return { type: "joined", room: room.code, seat, lp, opponentLp: opponentLp === lp ? undefined : opponentLp, decks: deckSizes(room), extras: extraSizes(room), opponent: room.players[1 - seat]?.name, opponentAvatar: room.players[1 - seat]?.avatar, special: rule ? [rule] : undefined, options: room.options, log, floor: room.tower?.floor };
 }
 
 function sendJoined(room: Room, seat: Seat) {
@@ -675,7 +683,13 @@ const validDeck = ({ main, extra }: ActiveDeck) =>
 // Where the Goat list applies besides the ranked queue: a room or a bot duel of the weekly event.
 const EVENT_LIMITS = "en événement";
 
-type FriendEntry = { deck: () => Promise<ActiveDeck | string>; enter: (room: Room, deck: ActiveDeck) => string | undefined };
+// Where the Goat list holds the decks of a room (or of a message that creates one), undefined when it does not.
+function limitsOf(source?: { event?: unknown; options?: RoomOptions }): string | undefined {
+  if (source?.event) return EVENT_LIMITS;
+  return source?.options?.goat ? ROOM_LIMITS : undefined;
+}
+
+type FriendEntry = { deck: (where?: string) => Promise<ActiveDeck | string>; enter: (room: Room, deck: ActiveDeck) => string | undefined };
 
 // While the server stops for an update: what a new duel gets, and the end of a duel still running at the deadline.
 const MAINTENANCE = "mise à jour en cours : les nouveaux duels reprennent dans quelques minutes";
@@ -775,11 +789,12 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
   }
 
   // A challenge between friends: the challenger hosts a new online room, the one who accepted joins it.
-  const friends = friendHub<FriendEntry>(accounts, send, async (challenger, acceptor) => {
-    const [host, guest] = await Promise.all([challenger.deck(), acceptor.deck()]);
+  const friends = friendHub<FriendEntry>(accounts, send, async (challenger, acceptor, options) => {
+    const where = limitsOf({ options });
+    const [host, guest] = await Promise.all([challenger.deck(where), acceptor.deck(where)]);
     if (typeof host === "string") return "l'adversaire n'a pas de deck actif valide";
     if (typeof guest === "string") return guest;
-    const room: Room = { code: newCode(rooms), players: [], mode: { mode: "online" } };
+    const room: Room = { code: newCode(rooms), players: [], mode: { mode: "online" }, ...customRoom(options) };
     room.onWin = (winner) => creditWinner(room, winner as Seat, accounts);
     return challenger.enter(room, host) ?? acceptor.enter(room, guest);
   }, (code) => rooms.get(code)?.watch !== undefined);
@@ -980,10 +995,10 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
     // An online room rewards its winner with a booster, a quick duel against the bot rewards nothing.
     async function enterRoom(userId: string, msg: Extract<ClientMessage, { type: "create" | "join" | "bot" }>): Promise<string | undefined> {
       const joined = msg.type === "join" ? rooms.get(msg.room.toUpperCase()) : undefined;
-      const deck = await duelDeck(userId, (msg.type === "join" ? joined?.event : msg.event) ? EVENT_LIMITS : undefined);
+      const deck = await duelDeck(userId, limitsOf(msg.type === "join" ? joined : msg));
       if (typeof deck === "string") return deck;
       if (msg.type === "join") return joined ? enter(userId, joined, deck) : "salle introuvable";
-      const room: Room = { code: newCode(rooms), players: [], mode: { mode: "online" } };
+      const room: Room = { code: newCode(rooms), players: [], mode: { mode: "online" }, ...(msg.type === "create" && customRoom(msg.options)) };
       if (msg.event) {
         room.event = eventOf();
         room.rules = eventRules(room.event);
@@ -1152,7 +1167,7 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
       }
       if (room.rematch === index) return undefined;
       room.over = false;
-      const decks = await Promise.all(room.players.map((player) => duelDeck(player.id, room.event && EVENT_LIMITS)));
+      const decks = await Promise.all(room.players.map((player) => duelDeck(player.id, limitsOf(room))));
       const invalid = decks.find((deck): deck is string => typeof deck === "string");
       if (invalid !== undefined) {
         room.over = true;
@@ -1223,7 +1238,7 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
     // What the friend hub needs to seat this connection in the room of an accepted challenge.
     function joinFriends(id: string, pseudo: string) {
       friends.join(socket, id, pseudo, {
-        deck: () => duelDeck(id),
+        deck: (where) => duelDeck(id, where),
         enter: (room, deck) => (socket.readyState === socket.OPEN ? enter(id, room, deck) : "adversaire déconnecté"),
       });
     }
@@ -1254,6 +1269,20 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
       if (waiting.get(userId)?.socket === socket) waiting.delete(userId);
     }
 
+    // A challenge under the Goat list is sent only by a host whose own deck follows it.
+    async function challengeFriend(userId: string, msg: Extract<ClientMessage, { type: "challenge" }>): Promise<string | undefined> {
+      const deck = msg.options?.goat ? await duelDeck(userId, ROOM_LIMITS) : undefined;
+      return typeof deck === "string" ? deck : friends.handle(socket, msg);
+    }
+
+    // The custom rules of a room, shown to a guest before they join.
+    function showRoomRules(code: string): string | undefined {
+      const room = rooms.get(code.toUpperCase());
+      if (!room) return "salle introuvable";
+      send(socket, { type: "room_rules", room: room.code, options: room.options });
+      return undefined;
+    }
+
     // Returns an error for the sender, if any.
     function handle(msg: ClientMessage): string | undefined | Promise<string | undefined> {
       if (msg.type === "auth") return identify(msg.token);
@@ -1267,6 +1296,7 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
       if (isWonderMessage(msg)) return manageWonder(user, msg);
       if (isProfileMessage(msg)) return manageProfile(user, msg);
       if (isSealedMessage(msg) || isDraftMessage(msg)) return manageLimited(user, msg);
+      if (msg.type === "challenge") return challengeFriend(user.id, msg);
       if (isFriendMessage(msg)) return friends.handle(socket, msg);
       if (msg.type === "booster_state") return sendBoosterState(user);
       if (msg.type === "open_booster") return openBoosterFor(user, msg.set);
@@ -1292,6 +1322,7 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
       // Before any side effect: a tower duel starts by resetting the floor, the ranked queue would wait for nothing.
       if (draining && !RESUMING.has(msg.type)) return MAINTENANCE;
       if (msg.type === "spectate") return spectate(msg.room);
+      if (msg.type === "room_rules") return showRoomRules(msg.room);
       if (msg.type === "ranked_queue") return queueRanked(user.id);
       if (msg.type === "story_duel") return playStory(user.id, msg.duel, msg.level, msg.revenge);
       if (msg.type === "puzzle") return playPuzzle(user.id, msg.id);

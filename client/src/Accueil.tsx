@@ -5,6 +5,7 @@ import { cardName, stat, strongest, useDuelView } from "./cards.ts";
 import { GoatReminder } from "./goat.tsx";
 import { countdown, inviteLink, type DeckList, type LobbyState } from "./lobby.ts";
 import { RuleBlock, specialRules } from "./regles.tsx";
+import { RoomForm } from "./SalleOptions.tsx";
 import type { Page } from "./Shell.tsx";
 import { towerLine } from "./Tour.tsx";
 import "./styles/accueil.css";
@@ -51,6 +52,7 @@ export function Accueil({ state, send, go }: Readonly<{ state: LobbyState; send:
   }, []);
 
   const [choosingLevel, setChoosingLevel] = useState(false);
+  const [creating, setCreating] = useState(false);
   const deck = activeDeck(state.decks);
   const [star] = useMemo(() => strongest(deck?.main ?? [], cards, 1), [deck, cards]);
   const hour = new Date().getHours();
@@ -76,11 +78,14 @@ export function Accueil({ state, send, go }: Readonly<{ state: LobbyState; send:
               <p>Un duel contre un ami, avec votre deck actif. Le gagnant reçoit un booster.</p>
             </div>
           </div>
+          {creating && (
+            <RoomForm title="Règles de la salle" action="Créer la salle" submit={(options) => send({ type: "create", options })} cancel={() => setCreating(false)} />
+          )}
           <div className="mode__actions">
-            <button type="button" className="btn" onClick={() => send({ type: "create" })}>
+            <button type="button" className="btn" onClick={() => setCreating(true)}>
               Créer une salle
             </button>
-            <CodeForm id="code-salle" action="Rejoindre" className="btn btn--holo" send={(room) => send({ type: "join", room })} />
+            <CodeForm id="code-salle" action="Rejoindre" className="btn btn--holo" send={(room) => send({ type: "room_rules", room })} />
             <CodeForm id="code-regarder" action="Regarder un duel" className="btn btn--fantome" send={(room) => send({ type: "spectate", room })} />
           </div>
         </article>

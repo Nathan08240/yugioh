@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { FRIENDS_MAX, type ClientMessage, type Friend, type Presence } from "../../server/src/protocol.ts";
 import { minutes, type LobbyState } from "./lobby.ts";
+import { RoomForm, RoomRules } from "./SalleOptions.tsx";
 import "./styles/amis.css";
 import { Avatar } from "./ui.tsx";
 
@@ -28,6 +29,8 @@ function Ami({ friend, children }: Readonly<{ friend: Friend; children: ReactNod
 // The friends screen once the list is there: requests received, friends with their presence, requests sent.
 export function AmisView({ friends, send }: Readonly<{ friends?: Friend[]; send: Send }>) {
   const [pseudo, setPseudo] = useState("");
+  // The friend being challenged: the host picks the rules of the duel first.
+  const [challenging, setChallenging] = useState<string>();
   const received = friends?.filter((friend) => friend.status === "received") ?? [];
   const sent = friends?.filter((friend) => friend.status === "sent") ?? [];
   const accepted = friends?.filter((friend) => isPresence(friend.status)) ?? [];
@@ -74,6 +77,17 @@ export function AmisView({ friends, send }: Readonly<{ friends?: Friend[]; send:
           </ul>
         </section>
       )}
+      {challenging && (
+        <RoomForm
+          title={`Défier ${challenging}`}
+          action="Envoyer le défi"
+          submit={(options) => {
+            send({ type: "challenge", pseudo: challenging, options });
+            setChallenging(undefined);
+          }}
+          cancel={() => setChallenging(undefined)}
+        />
+      )}
       {friends && (
         <section className="panneau amis__bloc" aria-label="Mes amis" data-entree>
           <h2 className="titre-bloc">Mes amis</h2>
@@ -82,7 +96,7 @@ export function AmisView({ friends, send }: Readonly<{ friends?: Friend[]; send:
             {accepted.map((friend) => (
               <Ami key={friend.pseudo} friend={friend}>
                 {friend.status === "online" && (
-                  <button type="button" className="btn btn--holo" onClick={() => send({ type: "challenge", pseudo: friend.pseudo })}>
+                  <button type="button" className="btn btn--holo" onClick={() => setChallenging(friend.pseudo)}>
                     Défier
                   </button>
                 )}
@@ -129,11 +143,12 @@ export function AlertesView({ challenges, notice, send, now }: Readonly<AlertsPr
   if (open.length === 0 && !notice) return null;
   return (
     <div className="alertes-amis" aria-live="polite">
-      {open.map(({ from, until }) => (
+      {open.map(({ from, until, options }) => (
         <div key={from} className="panneau alerte-ami" role="alertdialog" aria-label={`Défi de ${from}`}>
           <p>
             <b>{from}</b> vous défie en duel <span className="chiffres texte-3">{minutes(until, now)}</span>
           </p>
+          {options && <RoomRules options={options} />}
           <div className="alerte-ami__actions">
             <button type="button" className="btn" onClick={() => send({ type: "challenge_reply", pseudo: from, accept: true })}>
               Accepter

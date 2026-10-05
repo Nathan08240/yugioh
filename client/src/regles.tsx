@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import type { RoomOptions } from "../../server/src/protocol.ts";
 import "./styles/histoire.css";
 
 // `name`: the short name of a special rule, for titles.
@@ -66,7 +67,7 @@ const BASICS: Rule[] = [
     title: "La liste des cartes limitées",
     details: [
       "La liste TCG d'avril 2005 interdit certaines cartes, en limite d'autres à 1 exemplaire (limitées) ou à 2 (semi-limitées).",
-      "Elle s'applique seulement en mode Classé et dans les duels de l'événement de la semaine, contre le bot comme en salle en ligne.",
+      "Elle s'applique en mode Classé, dans les duels de l'événement de la semaine (contre le bot comme en salle en ligne) et dans les salles privées et les défis dont l'hôte l'a choisie.",
       "Dans tous les autres modes, chaque carte reste permise en 3 exemplaires.",
       "Un deck qui dépasse la liste ne peut pas entrer en Classé ni en événement : le constructeur de deck indique combien de cartes sont en trop.",
     ],
@@ -133,6 +134,15 @@ export const allRules = (): Rule[] => [...BASICS, ...RULES.values()];
 
 // The rules to show for the `special` names of a story duel.
 export const specialRules = (names: readonly string[]): Rule[] => names.flatMap((name) => RULES.get(name) ?? []);
+
+// What the host chose for a private room: starting LP and hand, and the Goat list. Its story rule is one of `specialRules`.
+export const roomSummary = ({ lp, hand, goat }: RoomOptions): Rule => ({
+  title: "Règles de la salle",
+  details: [`${lp} LP de départ.`, `${hand} cartes en main au départ.`, goat ? "Liste des cartes limitées Goat appliquée aux deux decks." : "Liste Goat non appliquée : 3 exemplaires par carte."],
+});
+
+// The rules of the duel screen badge: those of the room, then its special rules.
+export const duelRules = (special: readonly string[], options?: RoomOptions): Rule[] => [...(options ? [roomSummary(options)] : []), ...specialRules(special)];
 
 export function RuleBlock({ rule, open }: Readonly<{ rule: Rule; open?: boolean }>) {
   return (
