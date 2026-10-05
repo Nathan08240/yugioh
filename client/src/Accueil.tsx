@@ -22,7 +22,7 @@ export const activeDeck = (decks?: DeckList) => decks?.decks.find((deck) => deck
 
 // The arc being played: the first one with a duel left to win, else the last one.
 function currentArc(arcs: StoryArcView[]) {
-  const arc = arcs.find((candidate) => candidate.duels.some((duel) => duel.status !== "done")) ?? arcs.at(-1);
+  const arc = arcs.find((candidate) => candidate.duels.some((duel) => duel.status !== "done" && !duel.optional)) ?? arcs.at(-1);
   if (!arc) return undefined;
   return { title: arc.title, won: arc.duels.filter((duel) => duel.status === "done").length, total: arc.duels.length };
 }

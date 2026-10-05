@@ -15,12 +15,12 @@ const wins = (duels: StoryDuelView[]) => duels.filter((duel) => duel.status === 
 const stars = (duels: StoryDuelView[]) => duels.reduce((sum, duel) => sum + duel.stars, 0);
 const plural = (count: number, word: string) => `${count} ${word}${count > 1 ? "s" : ""}`;
 
-// The arc being played: the first one with a duel left to win, else the last one.
-export const currentArc = (arcs: StoryArcView[]) => arcs.find((arc) => arc.duels.some((duel) => duel.status !== "done")) ?? arcs.at(-1);
+// The arc being played: the first one with a duel left to win (optional ones apart), else the last one.
+export const currentArc = (arcs: StoryArcView[]) => arcs.find((arc) => arc.duels.some((duel) => duel.status !== "done" && !duel.optional)) ?? arcs.at(-1);
 
 export type ArcState = "fini" | "encours" | "verrou";
 export function arcState(arc: StoryArcView): ArcState {
-  if (arc.duels.every((duel) => duel.status === "done")) return "fini";
+  if (arc.duels.every((duel) => duel.status === "done" || duel.optional)) return "fini";
   return arc.duels.every((duel) => duel.status === "locked") ? "verrou" : "encours";
 }
 
@@ -150,10 +150,10 @@ type PathProps = { arc: StoryArcView; arcs: StoryArcView[]; pick: (id: string) =
 // The duels of the arc, joined by a line: gold up to the last duel won, cyan up to the one available.
 function Path({ arc, arcs, pick }: Readonly<PathProps>) {
   const count = arc.duels.length;
-  const won = wins(arc.duels);
-  const available = arc.duels.findIndex((duel) => duel.status === "available");
+  const lastWon = arc.duels.findLastIndex((duel) => duel.status === "done");
+  const available = arc.duels.findIndex((duel) => duel.status === "available" && !duel.optional);
   const at = (index: number) => `${(Math.max(index, 0) / Math.max(count - 1, 1)) * 100}%`;
-  const line = { "--n": count, "--fait": at(won - 1), "--dispo": at(available >= 0 ? available : won - 1) } as CSSProperties;
+  const line = { "--n": count, "--fait": at(lastWon), "--dispo": at(available >= 0 ? available : lastWon) } as CSSProperties;
   return (
     <ol className="parcours" style={line} aria-label={`Duels de ${arc.title}`}>
       {arc.duels.map((duel, index) => (
@@ -163,6 +163,7 @@ function Path({ arc, arcs, pick }: Readonly<PathProps>) {
             {duel.status === "done" && <Icon id="ui-coche" />}
             {duel.status === "locked" && <Icon id="ui-cadenas" />}
             {STATUS[duel.status]}
+            {duel.optional && " · Facultatif"}
           </p>
           {duel.status === "done" && <Stars count={duel.stars} />}
           <h2>{duel.title}</h2>
