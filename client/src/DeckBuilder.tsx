@@ -586,7 +586,7 @@ export function DeckLines({ draft, setDraft }: Readonly<{ draft: DeckDraft; setD
         const name = cardName(cards, code);
         return (
           <li key={code} data-code={code} className={`t-${frame(info?.type ?? 0)}`}>
-            {info?.image ? <img src={`/api/art/${code}.jpg`} alt="" loading="lazy" /> : <span className="liste-deck__repli" />}
+            {info?.image ? <img src={`/api/art/${code}.jpg`} alt="" loading="lazy" decoding="async" /> : <span className="liste-deck__repli" />}
             <button type="button" className="liste-deck__nom" title="Voir la carte" onMouseEnter={() => show(code)} onFocus={() => show(code)} onClick={() => (ouvrir ?? show)(code)}>
               {name}
             </button>

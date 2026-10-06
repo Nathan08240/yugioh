@@ -253,7 +253,7 @@ function Gain({ duel }: Readonly<{ duel: StoryDuelView }>) {
   }
   return (
     <p className={className}>
-      {codes.map((code) => cards.get(code)?.image && <img key={code} src={`/api/art/${code}.jpg`} alt="" />)}
+      {codes.map((code) => cards.get(code)?.image && <img key={code} src={`/api/art/${code}.jpg`} alt="" loading="lazy" decoding="async" />)}
       <span className="etape__libelle">
         {codes.map((code) => cardName(cards, code)).join(" et ")}
         {more}

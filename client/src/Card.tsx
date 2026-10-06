@@ -59,6 +59,7 @@ function Carte({ code, position = 0, location = 0, full = false, rarity, classNa
             src={`/api/art/${code}.jpg`}
             alt=""
             loading="lazy"
+            decoding="async"
             draggable={false}
             onError={(event) => {
               event.currentTarget.hidden = true;
