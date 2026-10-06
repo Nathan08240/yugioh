@@ -1,9 +1,7 @@
-// The 3D board (react-three-fiber), loaded on its own chunk when a duel starts: the other screens pay nothing for it.
+// The 3D board (plain three.js), loaded on its own chunk when a duel starts: the other screens pay nothing for it.
 import { OcgLocation } from "@n1xx1/ocgcore-wasm";
-import { Html } from "@react-three/drei";
-import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
-import type { PerspectiveCamera } from "three";
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
+import { PerspectiveCamera, Scene, Timer, Vector3, WebGLRenderer } from "three";
 import type { Board } from "../board.ts";
 import type { Cards } from "../cards.ts";
 import { pointDe, type Appui, type Point } from "../question.ts";
@@ -32,100 +30,77 @@ export type Props = {
   onPerdu: () => void;
 };
 
-type Monté = RefObject<Monde | null>;
+type Taille = { width: number; height: number };
+type Rendu = {
+  gl: WebGLRenderer;
+  scene: Scene;
+  camera: PerspectiveCamera;
+  taille: Taille;
+  // Asks for one frame: the world calls it whenever something changes or moves, none is drawn at rest.
+  invalider: () => void;
+  // Pins the labels ([data-x]) on their point of the board.
+  placer: () => void;
+  arreter: () => void;
+};
 
-export default function Plateau3D(props: Readonly<Props>) {
-  const { board, seat, cibles, choisies } = props;
+const POINT = new Vector3();
+
+function creerRendu(canvas: HTMLCanvasElement, hote: HTMLElement, monde: RefObject<Monde | null>): Rendu {
+  const gl = new WebGLRenderer({ canvas, antialias: false, alpha: true, powerPreference: "high-performance" });
+  const camera = new PerspectiveCamera(32, 1, 0.1, 100);
+  const timer = new Timer();
+  const poses = new WeakMap<HTMLElement, string>();
+  let image = 0;
+  const rendu: Rendu = {
+    gl,
+    scene: new Scene(),
+    camera,
+    taille: { width: 0, height: 0 },
+    invalider() {
+      image ||= requestAnimationFrame(dessiner);
+    },
+    placer() {
+      const { width, height } = rendu.taille;
+      for (const el of hote.querySelectorAll<HTMLElement>("[data-x]")) {
+        const p = POINT.set(Number(el.dataset.x), 0, Number(el.dataset.z)).project(camera);
+        const pose = `translate3d(${((p.x + 1) * width) / 2}px,${((1 - p.y) * height) / 2}px,0)`;
+        if (poses.get(el) === pose) continue;
+        poses.set(el, pose);
+        el.style.transform = pose;
+      }
+    },
+    arreter() {
+      cancelAnimationFrame(image);
+      image = 0;
+    },
+  };
+  function dessiner() {
+    image = 0;
+    timer.update();
+    monde.current?.frame(timer.getDelta(), timer.getElapsed());
+    rendu.placer();
+  }
+  return rendu;
+}
+
+export default function Plateau3D({ board, seat, cards, cibles, choisies, onZone, onSurvol, onAppui, sonde, regie, cadre, onPerdu }: Readonly<Props>) {
   const [reglage] = useReglages();
   const [degradee, setDegradee] = useState(false);
   const qualite: Qualite = reglage.qualite === "basse" || degradee ? "basse" : "haute";
   const [pret, setPret] = useState(false);
   const monde = useRef<Monde>(null);
   const etat = useMemo(() => etatScene(board, seat), [board, seat]);
+  const hote = useRef<HTMLDivElement>(null);
+  const toile = useRef<HTMLCanvasElement>(null);
+  const moteur = useRef<Rendu>(null);
+  // Set once the canvas has a size; `taille` follows it.
+  const [rendu, setRendu] = useState<Rendu>();
+  const [taille, setTaille] = useState<Taille>({ width: 0, height: 0 });
 
-  // Layout effects: a message applied with flushSync is on the scene before its animation starts.
-  useLayoutEffect(() => {
-    if (pret) monde.current?.sync(etat, board.chain);
-  }, [etat, board.chain, pret]);
-  useLayoutEffect(() => {
-    if (pret) monde.current?.question(cibles, choisies);
-  }, [cibles, choisies, pret]);
-
-  return (
-    <Canvas
-      className={pret ? "plateau-3d est-pret" : "plateau-3d"}
-      style={{ position: "absolute", inset: 0 }}
-      dpr={qualite === "haute" ? [1, 2] : 1}
-      frameloop="demand"
-      gl={{ antialias: false, powerPreference: "high-performance" }}
-      camera={{ fov: 32, near: 0.1, far: 100 }}
-      onCreated={({ gl }) => gl.domElement.setAttribute("aria-hidden", "true")}
-    >
-      {/* The canvas draws on demand; under 45 frames per second for 3 s of motion (cadence.ts): low quality, for good. */}
-      <Scene {...props} monde={monde} qualite={qualite} pret={pret} onPret={() => setPret(true)} onLent={() => setDegradee(true)} />
-      {pret && <Etiquettes etat={etat} seat={seat} cibles={cibles} onZone={props.onZone} onSurvol={props.onSurvol} onAppui={props.onAppui} />}
-    </Canvas>
-  );
-}
-
-type SceneProps = Props & { monde: Monté; qualite: Qualite; pret: boolean; onPret: () => void; onLent: () => void };
-
-function Scene({ seat, cards, monde, qualite, pret, onPret, onLent, cadre, regie, onZone, onSurvol, onAppui, sonde, onPerdu }: Readonly<SceneProps>) {
-  const { gl, scene, camera, size, invalidate } = useThree();
-
+  // The effects are cleaned up in this order: listeners, world, then renderer.
   useEffect(() => {
-    let vivant = true;
-    let cree: Monde | undefined;
-    charger()
-      .then((res) => {
-        if (!vivant) return;
-        cree = new Monde(gl, scene, camera as PerspectiveCamera, res, cards, seat, { invalider: invalidate, lent: onLent });
-        monde.current = cree;
-        onPret();
-      })
-      .catch((error: unknown) => {
-        console.error(error);
-        if (vivant) onPerdu();
-      });
-    return () => {
-      vivant = false;
-      cree?.dispose();
-      monde.current = null;
-    };
-    // onPret and onLent only set a flag: the world is built once per renderer and seat.
-  }, [gl, scene, camera, cards, seat, monde, invalidate]);
-
-  useEffect(() => {
-    monde.current?.qualite(qualite, size.width, size.height);
-  }, [qualite, pret, size, monde]);
-
-  // The board is framed again when the canvas or the frame left by the HUD changes size.
-  useEffect(() => {
-    const el = cadre.current;
-    if (!el || !pret) return;
-    const cadrer = () => {
-      const canvas = gl.domElement.getBoundingClientRect();
-      const r = el.getBoundingClientRect();
-      monde.current?.cadrer(size.width, size.height, { left: r.left - canvas.left, top: r.top - canvas.top, width: r.width, height: r.height });
-    };
-    cadrer();
-    const observer = new ResizeObserver(cadrer);
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [cadre, gl, size, pret, monde]);
-
-  // Priority 1: the world renders the frame itself (post-processing).
-  useFrame((state, dt) => monde.current?.frame(dt, state.clock.elapsedTime), 1);
-
-  useEffect(() => {
-    regie.scene = (effet, jeu) => monde.current?.jouer(effet, jeu) ?? Promise.resolve();
-    return () => {
-      regie.scene = undefined;
-    };
-  }, [regie, monde]);
-
-  useEffect(() => {
-    const canvas = gl.domElement;
+    const canvas = toile.current;
+    if (!canvas) return;
     const sousPoint = (x: number, y: number) => {
       const r = canvas.getBoundingClientRect();
       return monde.current?.toucher(((x - r.left) / r.width) * 2 - 1, -((y - r.top) / r.height) * 2 + 1);
@@ -167,19 +142,123 @@ function Scene({ seat, cards, monde, qualite, pret, onPret, onLent, cadre, regie
       canvas.removeEventListener("click", click);
       canvas.removeEventListener("webglcontextlost", lost);
     };
-  }, [gl, monde, onZone, onSurvol, onAppui, sonde, onPerdu]);
+  }, [onZone, onSurvol, onAppui, sonde, onPerdu]);
 
-  return null;
+  useEffect(() => {
+    regie.scene = (effet, jeu) => monde.current?.jouer(effet, jeu) ?? Promise.resolve();
+    return () => {
+      regie.scene = undefined;
+    };
+  }, [regie]);
+
+  // The world is built once per renderer and seat.
+  useEffect(() => {
+    if (!rendu) return;
+    let vivant = true;
+    let cree: Monde | undefined;
+    charger()
+      .then((res) => {
+        if (!vivant) return;
+        cree = new Monde(rendu.gl, rendu.scene, rendu.camera, res, cards, seat, { invalider: rendu.invalider, lent: () => setDegradee(true) });
+        monde.current = cree;
+        setPret(true);
+      })
+      .catch((error: unknown) => {
+        console.error(error);
+        if (vivant) onPerdu();
+      });
+    return () => {
+      vivant = false;
+      cree?.dispose();
+      monde.current = null;
+    };
+    // onPerdu only switches to the 2D board.
+  }, [rendu, cards, seat]);
+
+  // One renderer per canvas, freed once the canvas leaves the page (StrictMode runs the effects twice on the same canvas).
+  useEffect(() => {
+    const canvas = toile.current;
+    const div = hote.current;
+    if (!canvas || !div) return;
+    const r = (moteur.current ??= creerRendu(canvas, div, monde));
+    const observer = new ResizeObserver(([entree]) => {
+      const { width, height } = entree.contentRect;
+      r.taille = { width, height };
+      r.gl.setSize(width, height);
+      setTaille(r.taille);
+      if (width > 0 && height > 0) setRendu(r);
+      r.invalider();
+    });
+    observer.observe(div);
+    return () => {
+      observer.disconnect();
+      r.arreter();
+      if (canvas.isConnected) return;
+      r.gl.dispose();
+      r.gl.forceContextLoss();
+    };
+  }, []);
+
+  // High quality: up to twice the pixels on a dense screen. The framing (cadrer) resizes the post-processing.
+  useEffect(() => {
+    if (!rendu || !pret) return;
+    rendu.gl.setPixelRatio(qualite === "haute" ? Math.min(Math.max(1, devicePixelRatio), 2) : 1);
+    monde.current?.qualite(qualite, rendu.taille.width, rendu.taille.height);
+  }, [rendu, qualite, pret]);
+
+  // The board is framed again when the canvas or the frame left by the HUD changes size.
+  useEffect(() => {
+    const el = cadre.current;
+    if (!el || !rendu || !pret) return;
+    const cadrer = () => {
+      const canvas = rendu.gl.domElement.getBoundingClientRect();
+      const r = el.getBoundingClientRect();
+      monde.current?.cadrer(taille.width, taille.height, { left: r.left - canvas.left, top: r.top - canvas.top, width: r.width, height: r.height });
+    };
+    cadrer();
+    const observer = new ResizeObserver(cadrer);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [cadre, rendu, taille, pret]);
+
+  // Layout effects: a message applied with flushSync is on the scene before its animation starts.
+  useLayoutEffect(() => {
+    if (pret) monde.current?.sync(etat, board.chain);
+  }, [etat, board.chain, pret]);
+  useLayoutEffect(() => {
+    if (pret) monde.current?.question(cibles, choisies);
+  }, [cibles, choisies, pret]);
+
+  return (
+    <div ref={hote} className={pret ? "plateau-3d est-pret" : "plateau-3d"} style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
+      <canvas ref={toile} style={{ display: "block" }} aria-hidden="true" />
+      {/* The canvas draws on demand; under 45 frames per second for 3 s of motion (cadence.ts): low quality, for good. */}
+      {pret && rendu && <Etiquettes etat={etat} seat={seat} cibles={cibles} onZone={onZone} onSurvol={onSurvol} onAppui={onAppui} placer={rendu.placer} />}
+    </div>
+  );
 }
 
 const NOMS: Record<string, string> = { monstre: "Zone Monstre", magie: "Zone Magie/Piège", terrain: "Zone Terrain", cimetiere: "Cimetière", deck: "Deck", extra: "Extra Deck" };
 const nomZone = (zone: Zone) => `${NOMS[zone.type]}${zone.type === "monstre" || zone.type === "magie" ? ` ${zone.col}` : ""}${zone.camp === 0 ? "" : " adverse"}`;
 
-type EtiquettesProps = Pick<Props, "onZone" | "onSurvol" | "onAppui"> & { etat: EtatScene; seat: number; cibles: Set<string> };
+// A DOM element centered on a point of the board, above the canvas (`couche`: its z-index); the renderer moves it at each frame.
+function Repere({ x, z, couche, className, children }: Readonly<{ x: number; z: number; couche: number; className?: string; children: ReactNode }>) {
+  return (
+    <div data-x={x} data-z={z} style={{ position: "absolute", top: 0, left: 0, transformOrigin: "0 0", zIndex: couche }}>
+      <div className={className} style={{ position: "absolute", transform: "translate3d(-50%,-50%,0)" }}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+type EtiquettesProps = Pick<Props, "onZone" | "onSurvol" | "onAppui"> & { etat: EtatScene; seat: number; cibles: Set<string>; placer: () => void };
 
 // Pile counters, banished cards beside the Graveyard, and one focusable button per zone to choose (keyboard, screen reader).
-function Etiquettes({ etat, seat, cibles, onZone, onSurvol, onAppui }: Readonly<EtiquettesProps>) {
+function Etiquettes({ etat, seat, cibles, onZone, onSurvol, onAppui, placer }: Readonly<EtiquettesProps>) {
   const liste = useMemo(() => zones(seat), [seat]);
+  // A label that appears is on its point before it is painted.
+  useLayoutEffect(placer);
   return (
     <>
       {liste.map((zone) => {
@@ -188,9 +267,9 @@ function Etiquettes({ etat, seat, cibles, onZone, onSurvol, onAppui }: Readonly<
         const versLeBord = zone.rangee === 1;
         const dz = (versLeBord === (zone.camp === 0) ? 1 : -1) * (ZONE.p / 2 + 0.08);
         return (
-          <group key={zone.id}>
+          <Fragment key={zone.id}>
             {pile && (
-              <Html position={[zone.x, 0, zone.z + dz]} center zIndexRange={[4, 0]} className={versLeBord === (zone.camp === 0) ? "etiquette" : "etiquette etiquette--haut"}>
+              <Repere x={zone.x} z={zone.z + dz} couche={4} className={versLeBord === (zone.camp === 0) ? "etiquette" : "etiquette etiquette--haut"}>
                 {zone.type === "cimetiere" ? (
                   <Cimetiere zone={zone} etat={etat} cibles={cibles} onZone={onZone} />
                 ) : (
@@ -198,10 +277,10 @@ function Etiquettes({ etat, seat, cibles, onZone, onSurvol, onAppui }: Readonly<
                     {NOMS[zone.type]} <b className="chiffres">{pile.nombre}</b>
                   </span>
                 )}
-              </Html>
+              </Repere>
             )}
             {cibles.has(zone.id) && zone.type !== "cimetiere" && (
-              <Html position={[zone.x, 0, zone.z]} center zIndexRange={[5, 0]}>
+              <Repere x={zone.x} z={zone.z} couche={5}>
                 <button
                   type="button"
                   className="zone-3d"
@@ -211,9 +290,9 @@ function Etiquettes({ etat, seat, cibles, onZone, onSurvol, onAppui }: Readonly<
                   onFocus={() => onSurvol(zone.id)}
                   onPointerEnter={() => onSurvol(zone.id)}
                 />
-              </Html>
+              </Repere>
             )}
-          </group>
+          </Fragment>
         );
       })}
     </>

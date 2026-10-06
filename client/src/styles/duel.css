@@ -37,7 +37,7 @@
   text-align: center;
 }
 
-/* Libellés posés sur le plateau (drei <Html>) */
+/* Libellés posés sur le plateau (Repere de Plateau3D.tsx) */
 .etiquette {
   transform: translateY(50%);
   font: 700 12px / 1.1 var(--police-etroite);
