@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type Dispatch, type SetStateAction } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type Dispatch, type SetStateAction } from "react";
 import { COPIES_MAX, countBy, deckError, EXTRA_MAX, isFusion, MAIN_MAX, MAIN_MIN, NAME_MAX, type DeckCard, type DeckDraft } from "../../server/src/deckcheck.ts";
 import suggested from "../../server/data/suggested-decks.json";
 import type { ClientMessage, Deck, DeckResult } from "../../server/src/protocol.ts";
@@ -47,6 +47,8 @@ export function DeckBuilder({ collection, rarities, decks, results, send }: Read
   }, [cards]);
   const [draft, setDraft] = useState<DeckDraft>();
   const copies = useMemo(() => copiesByRarity(collection ?? [], rarities ?? []), [collection, rarities]);
+  // Stable while the deck does not change: hovering a card does not render the collection again.
+  const onAdd = useCallback((code: number) => draft && setDraft(add(draft, code, cards.get(code))), [draft, cards]);
 
   // Once per visit of the screen: `send` changes on every render of the lobby.
   useEffect(() => {
@@ -69,7 +71,7 @@ export function DeckBuilder({ collection, rarities, decks, results, send }: Read
   return (
     <DuelView value={view}>
       <div className="atelier">
-        <CollectionPanel collection={collection} copies={copies} draft={draft} onAdd={(code) => draft && setDraft(add(draft, code, cards.get(code)))} onCreate={setDraft} />
+        <CollectionPanel collection={collection} copies={copies} draft={draft} onAdd={onAdd} onCreate={setDraft} />
         <aside className={fiche ? "panneau fiche atelier__detail est-ouverte" : "panneau fiche atelier__detail"} aria-label="Détail de la carte" data-entree>
           <FermerFiche fermer={() => setFiche(false)} />
           <CardDetail code={shown} copies={shown === undefined ? undefined : copies.get(shown)} />
@@ -116,10 +118,11 @@ const LEAVE: Keyframe[] = [
 // `suggest`: offers the suggested decks, which the Sealed reserve cannot follow.
 type CollectionProps = { collection: [number, number][]; copies: ReadonlyMap<number, Copies>; draft?: DeckDraft; onAdd: (code: number) => void; onCreate: (draft: DeckDraft) => void; suggest?: boolean };
 
-export function CollectionPanel({ collection, copies, draft, onAdd, onCreate, suggest = true }: Readonly<CollectionProps>) {
+export const CollectionPanel = memo(function CollectionPanel({ collection, copies, draft, onAdd, onCreate, suggest = true }: Readonly<CollectionProps>) {
   const { cards, show, ouvrir } = useDuelView();
   const [filters, setFilters] = useState<Filters>(noFilters);
   const shownCards = useMemo(() => filterCollection(collection, cards, filters), [collection, cards, filters]);
+  const { limite, suite } = useSuite(shownCards.length);
   const used = countBy(draft ? [...draft.main, ...draft.extra] : []);
   const total = collection.reduce((sum, [, quantity]) => sum + quantity, 0);
 
@@ -140,7 +143,7 @@ export function CollectionPanel({ collection, copies, draft, onAdd, onCreate, su
         </p>
       )}
       <ul className="grille-collection">
-        {shownCards.map(([code, quantity]) => {
+        {shownCards.slice(0, limite).map(([code, quantity]) => {
           const inDeck = used.get(code) ?? 0;
           const spent = !draft || inDeck >= quantity;
           return (
@@ -175,9 +178,27 @@ export function CollectionPanel({ collection, copies, draft, onAdd, onCreate, su
             </li>
           );
         })}
+        {shownCards.length > limite && <li ref={suite} className="grille-collection__suite" aria-hidden="true" />}
       </ul>
     </section>
   );
+});
+
+const PAS = 120;
+
+// The grid grows by PAS cards as it scrolls: laying out 1300 cards at once takes seconds.
+function useSuite(total: number) {
+  const [limite, setLimite] = useState(PAS);
+  const suite = useRef<HTMLLIElement>(null);
+  // Observed again after each step: a sentinel still in view asks for the next one.
+  useEffect(() => {
+    const el = suite.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(([entree]) => entree.isIntersecting && setLimite((n) => n + PAS), { root: el.parentElement, rootMargin: "800px" });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [limite, total]);
+  return { limite, suite };
 }
 
 type SuggestionsProps = { collection: [number, number][]; onCreate: (draft: DeckDraft) => void };
@@ -298,7 +319,8 @@ function Range({ label, value: [min, max], onChange }: Readonly<RangeProps>) {
 
 type DeckPanelProps = { decks: DeckList; results?: DeckResult[]; draft?: DeckDraft; owned: [number, number][]; setDraft: SetDraft; send: Send };
 
-function DeckPanel({ decks, results, draft, owned, setDraft, send }: Readonly<DeckPanelProps>) {
+// Memoized like CollectionPanel: hovering a card only renders its detail.
+const DeckPanel = memo(function DeckPanel({ decks, results, draft, owned, setDraft, send }: Readonly<DeckPanelProps>) {
   const { cards } = useDuelView();
   const ownedMap = useMemo(() => new Map(owned), [owned]);
 
@@ -316,7 +338,7 @@ function DeckPanel({ decks, results, draft, owned, setDraft, send }: Readonly<De
       )}
     </aside>
   );
-}
+});
 
 type EditorProps = { decks: DeckList; results?: DeckResult[]; draft: DeckDraft; error?: string; owned: ReadonlyMap<number, number>; setDraft: SetDraft; send: Send };
 
