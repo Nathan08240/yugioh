@@ -11,6 +11,18 @@ import { visibleTo } from "./visibility.ts";
 // Finished duels kept per player, the oldest deleted first.
 export const HISTORY_MAX = 20;
 const MAX_STEPS = 20_000;
+// Each replay reruns a whole duel in the engine: REPLAYS_PER_MINUTE asked per player at most.
+export const REPLAYS_PER_MINUTE = 5;
+export const REPLAYS_LIMITED = "trop de duels revus d'un coup, réessayez dans une minute";
+
+// Counts a replay asked by `userId` in `asked` (times by player), false when they already asked REPLAYS_PER_MINUTE this last minute.
+export function replayAllowed(asked: Map<string, number[]>, userId: string, now = Date.now()): boolean {
+  const recent = (asked.get(userId) ?? []).filter((at) => now - at < 60_000);
+  const allowed = recent.length < REPLAYS_PER_MINUTE;
+  if (allowed) recent.push(now);
+  asked.set(userId, recent);
+  return allowed;
+}
 
 // A bug report of the finished duel (report.ts) and how it ended, which the server may have decided (surrender, clock).
 export type Replay = Report & { end: { winner: number; reason: number } };

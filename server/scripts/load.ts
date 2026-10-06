@@ -16,7 +16,7 @@ import { respond } from "../src/respond.ts";
 import { advance, startServer, type Room } from "../src/server.ts";
 import { fakeAccounts } from "../test/fakes.ts";
 
-type Result = { duels: number; finished: number; seconds: number; cpuSeconds: number; rssMb: number; heapMb: number; decisions: number[]; loopMaxMs: number; openMs: number; errors: string[] };
+type Result = { duels: number; finished: number; seconds: number; cpuSeconds: number; rssMb: number; heapMb: number; decisions: number[]; loopMaxMs: number; openMs: number; kbPerDuel: number; errors: string[] };
 
 const DEADLINE = 10 * 60_000;
 const mb = (bytes: number) => Math.round(bytes / 1024 / 1024);
@@ -24,7 +24,7 @@ const median = (values: number[]) => [...values].sort((a, b) => a - b)[Math.floo
 const seedOf = (i: number): Seed => [BigInt(i + 1), 2n, 3n, 4n];
 
 // Samples the memory while `running()` holds, and collects console.error as errors.
-async function measure(run: () => Promise<{ running: () => boolean; finished: () => number; decisions: number[]; openMs?: number[] }>, duels: number): Promise<Result> {
+async function measure(run: () => Promise<{ running: () => boolean; finished: () => number; decisions: number[]; openMs?: number[]; bytes?: () => number }>, duels: number): Promise<Result> {
   const errors: string[] = [];
   const original = console.error;
   console.error = (...args) => errors.push(args.join(" "));
@@ -45,7 +45,7 @@ async function measure(run: () => Promise<{ running: () => boolean; finished: ()
   const used = process.cpuUsage(cpu);
   loop.disable();
   console.error = original;
-  return { duels, finished: state.finished(), seconds, cpuSeconds: (used.user + used.system) / 1e6, rssMb: mb(rss), heapMb: mb(heap), decisions: state.decisions, loopMaxMs: loop.max / 1e6, openMs: median(state.openMs ?? []), errors };
+  return { duels, finished: state.finished(), seconds, cpuSeconds: (used.user + used.system) / 1e6, rssMb: mb(rss), heapMb: mb(heap), decisions: state.decisions, loopMaxMs: loop.max / 1e6, openMs: median(state.openMs ?? []), kbPerDuel: (state.bytes?.() ?? 0) / 1024 / duels, errors };
 }
 
 // A bot that adds the engine time spent since its last answer to its own thinking time: one decision.
@@ -117,6 +117,8 @@ function viaWebSocket(n: number, delay: number) {
     const decisions: number[] = [];
     let finished = 0;
     let open = n;
+    // What the clients received, in bytes of JSON.
+    let bytes = 0;
     for (let i = 0; i < n; i++) {
       const socket = new WebSocket(url);
       const send = (msg: ClientMessage) => socket.send(JSON.stringify(msg));
@@ -126,7 +128,9 @@ function viaWebSocket(n: number, delay: number) {
         send({ type: "bot" });
       });
       socket.on("message", (data) => {
-        const msg: Wire<ServerMessage> = JSON.parse(String(data));
+        const text = String(data);
+        bytes += Buffer.byteLength(text);
+        const msg: Wire<ServerMessage> = JSON.parse(text);
         if (msg.type === "question") {
           if (sentAt) decisions.push(performance.now() - sentAt);
           sentAt = performance.now();
@@ -141,7 +145,7 @@ function viaWebSocket(n: number, delay: number) {
       });
       socket.on("close", () => open--);
     }
-    return { running: () => open > 0, finished: () => finished, decisions };
+    return { running: () => open > 0, finished: () => finished, decisions, bytes: () => bytes };
   }, n);
 }
 
@@ -162,11 +166,11 @@ const steps = positionals.length ? positionals : ["1", "10", "50", "100"];
 const label = values.ws ? "WebSocket (latence client, réponse -> question suivante)" : "direct (moteur + bot par décision)";
 console.log(`Mode ${label}, délai du bot ${delay} ms, Node ${process.version}
 `);
-console.log("| duels | terminés | durée (s) | CPU (s) | rss pic (Mo) | heap pic (Mo) | décisions | moy (ms) | max (ms) | ouverture méd. (ms) | retard boucle max (ms) | erreurs |");
-console.log("|---|---|---|---|---|---|---|---|---|---|---|---|");
+console.log("| duels | terminés | durée (s) | CPU (s) | rss pic (Mo) | heap pic (Mo) | décisions | moy (ms) | max (ms) | ouverture méd. (ms) | retard boucle max (ms) | reçu par duel (Ko) | erreurs |");
+console.log("|---|---|---|---|---|---|---|---|---|---|---|---|---|");
 for (const step of steps) {
   const args = [import.meta.filename, "--json", ...(values.ws ? ["--ws"] : []), "--delay", String(delay), step];
   const r = JSON.parse(execFileSync(process.execPath, args, { encoding: "utf8", stdio: ["ignore", "pipe", "inherit"] }));
-  console.log(`| ${r.duels} | ${r.finished} | ${fixed(r.seconds)} | ${fixed(r.cpuSeconds)} | ${r.rssMb} | ${r.heapMb} | ${r.decisions} | ${fixed(r.meanMs, 2)} | ${fixed(r.maxMs)} | ${r.openMs ? fixed(r.openMs) : "-"} | ${fixed(r.loopMaxMs)} | ${r.errors.length} |`);
+  console.log(`| ${r.duels} | ${r.finished} | ${fixed(r.seconds)} | ${fixed(r.cpuSeconds)} | ${r.rssMb} | ${r.heapMb} | ${r.decisions} | ${fixed(r.meanMs, 2)} | ${fixed(r.maxMs)} | ${r.openMs ? fixed(r.openMs) : "-"} | ${fixed(r.loopMaxMs)} | ${r.kbPerDuel ? fixed(r.kbPerDuel) : "-"} | ${r.errors.length} |`);
   for (const error of r.errors.slice(0, 3)) console.log(`  ${error}`);
 }

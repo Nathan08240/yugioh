@@ -97,7 +97,8 @@ describe("résultats des duels sur Postgres jetable", () => {
     send({ type: "surrender" });
     await vi.waitFor(async () => expect(await readResults(server, id)).toHaveLength(1));
     send({ type: "duel_results" });
-    await vi.waitFor(() => expect(received.at(-1)).toMatchObject({ type: "duel_results", results: [{ deck: expect.any(Number), mode: "bot", wins: 0, losses: 1 }] }));
+    // The missions of the duel may arrive before or after.
+    await vi.waitFor(() => expect(received.findLast((msg) => msg.type === "duel_results")).toMatchObject({ type: "duel_results", results: [{ deck: expect.any(Number), mode: "bot", wins: 0, losses: 1 }] }));
     socket.close();
 
     const rows = await admin`select mode, level, won, reason from yugioh.duel_results where user_id = ${id}`;

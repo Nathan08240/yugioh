@@ -3,7 +3,7 @@ import type { AddressInfo } from "node:net";
 import { OcgMessageType, type OcgMessage, type OcgResponse } from "@n1xx1/ocgcore-wasm";
 import { afterAll, describe, expect, it, vi } from "vitest";
 import { WebSocket } from "ws";
-import type { HistoryEntry } from "../src/history.ts";
+import { replayAllowed, REPLAYS_LIMITED, REPLAYS_PER_MINUTE, type HistoryEntry } from "../src/history.ts";
 import { PUZZLE_FAILED, type ClientMessage, type ServerMessage, type Wire } from "../src/protocol.ts";
 import { respond } from "../src/respond.ts";
 import { startServer } from "../src/server.ts";
@@ -104,5 +104,13 @@ describe("revoir ses derniers duels", () => {
     eve.send({ type: "replay", id: 1 });
     await vi.waitFor(() => expect(eve.received).toContainEqual({ type: "error", error: "duel introuvable" }));
     expect(eve.find("replay")).toBeUndefined();
+  });
+
+  it(`limite à ${REPLAYS_PER_MINUTE} les duels revus par minute`, async () => {
+    const zoe = await player("zoe", 0);
+    for (let i = 0; i <= REPLAYS_PER_MINUTE; i++) zoe.send({ type: "replay", id: 1 });
+    await vi.waitFor(() => expect(zoe.received.filter((msg) => msg.type === "error")).toHaveLength(REPLAYS_PER_MINUTE + 1));
+    expect(zoe.received.at(-1)).toEqual({ type: "error", error: REPLAYS_LIMITED });
+    expect(replayAllowed(new Map([["zoe", [0]]]), "zoe", 60_000)).toBe(true);
   });
 });

@@ -143,7 +143,10 @@ export async function activateDeck(db: Db, userId: string, id: number): Promise<
 
 export function dbDeckStore(db: Db): DeckStore {
   return {
-    collection: async (userId) => ({ cards: await readCollection(db, userId), rarities: await readRarities(db, userId), points: await readPoints(db, userId) }),
+    collection: async (userId) => {
+      const [cards, rarities, points] = await Promise.all([readCollection(db, userId), readRarities(db, userId), readPoints(db, userId)]);
+      return { cards, rarities, points };
+    },
     decks: (userId) => listDecks(db, userId),
     saveDeck: (userId, deck) => saveDeck(db, userId, deck),
     deleteDeck: (userId, id) => deleteDeck(db, userId, id),

@@ -62,7 +62,7 @@ it("le bot de la salle déclare la carte la plus présente de son propre deck", 
     code: "BOT",
     players: [
       { id: "a", log: [], deck: [BLUE_EYES] },
-      { id: "bot", log: [], deck: [GAIA, GAIA, GAIA, MYSTICAL_ELF, DARK_MAGICIAN, DARK_MAGICIAN], bot: { delay: 0, answer: vi.fn() } as never },
+      { id: "bot", log: [], deck: [GAIA, GAIA, GAIA, MYSTICAL_ELF, DARK_MAGICIAN, DARK_MAGICIAN], bot: { delay: 0, answer: vi.fn(), see: vi.fn() } as never },
     ],
     duel: waiting(announced(1), setResponse),
   };

@@ -18,17 +18,28 @@ const queries = ["cards.cdb", "cards-unofficial.cdb"].map((file) => {
   return query;
 });
 
-function findRow(code: number): Row | undefined {
+// The files never change while the server runs: each card and script is read once, the result shared by every caller.
+function memo<K, V>(load: (key: K) => V): (key: K) => V {
+  const cache = new Map<K, V>();
+  return (key) => {
+    if (!cache.has(key)) cache.set(key, load(key));
+    return cache.get(key) as V;
+  };
+}
+
+const findRow = memo((code: number): Row | null => {
   for (const query of queries) {
     const row = query.get(code);
     if (row) return row as Row;
   }
-  return undefined;
-}
+  return null;
+});
+
+// The same object for every caller and duel: read only.
+export const readCard = memo((code: number) => cardFromRow(code, findRow(code)));
 
 // ponytail: no pendulum scales or link markers, classic cards only.
-export function readCard(code: number): OcgCardData | null {
-  const row = findRow(code);
+function cardFromRow(code: number, row: Row | null): OcgCardData | null {
   if (!row) return null;
   return {
     code,
@@ -115,8 +126,9 @@ export function clientCard(code: number): Omit<CardInfo, "image"> | undefined {
 
 const scriptDirs = ["", "official", "unofficial"].map((dir) => join(vendor, "CardScripts", dir));
 
-export function readScript(name: string): string | null {
-  const file = name.split("/").at(-1) ?? name;
+const scriptFile = memo((file: string): string | null => {
   const dir = scriptDirs.find((d) => existsSync(join(d, file)));
   return dir === undefined ? null : readFileSync(join(dir, file), "utf-8");
-}
+});
+
+export const readScript = (name: string) => scriptFile(name.split("/").at(-1) ?? name);

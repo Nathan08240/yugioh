@@ -16,6 +16,18 @@ describe("filtrage des informations cachées", () => {
     };
     const codes = hideCards(question, 0).selects.map((selected) => selected.code);
     expect(codes).toEqual([0, 123, 123]);
+    expect(question.selects[0].code).toBe(123);
+  });
+
+  it("rend tel quel ce qui n'a rien à cacher, sans copie, et ne copie que la carte masquée", () => {
+    const shown = card(1, OcgLocation.MZONE, OcgPosition.FACEUP_ATTACK);
+    const question: OcgMessageSelectCard = { type: OcgMessageType.SELECT_CARD, player: 0, can_cancel: false, min: 1, max: 1, selects: [shown] };
+    expect(hideCards(question, 0)).toBe(question);
+    const hiddenSelects = [shown, card(1, OcgLocation.SZONE, OcgPosition.FACEDOWN_DEFENSE)];
+    const hidden = hideCards({ ...question, selects: hiddenSelects }, 0);
+    expect(hidden.selects[0]).toBe(shown);
+    expect(hidden.selects[1]).toEqual({ ...hiddenSelects[1], code: 0 });
+    expect(hiddenSelects[1].code).toBe(123);
   });
 
   it("cache une carte qui part dans la main adverse, montre le cimetière", () => {

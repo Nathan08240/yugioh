@@ -321,6 +321,11 @@ function describe(board: Board, msg: Message): LogEntry | undefined {
   }
 }
 
+// playAll in place and without the log, for the server's bot.
+export function applyAll(board: Board, messages: readonly Message[]) {
+  for (const msg of messages) apply(board, msg);
+}
+
 // Rebuilds the board from the engine messages the player received: from a fresh board, the whole visible history.
 export function playAll(board: Board, messages: readonly Message[]): Board {
   const next = structuredClone(board);
