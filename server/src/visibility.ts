@@ -22,14 +22,26 @@ function hiddenFrom(card: Record<string, unknown>, viewer: number): boolean {
   return typeof card.position !== "number" || !faceUp(card.position);
 }
 
-// Zeroes, at any depth, the code of every opponent card that is not face up or in a public zone.
+// Zeroes, at any depth, the code of every opponent card that is not face up or in a public zone. What has nothing
+// to hide is returned as is, never copied: the logs of both seats and of the spectators then share it.
 export function hideCards<T>(value: T, viewer: number): T {
-  if (Array.isArray(value)) return value.map((item) => hideCards(item, viewer)) as T;
+  if (Array.isArray(value)) {
+    const items = value.map((item) => hideCards(item, viewer));
+    return (items.some((item, index) => item !== value[index]) ? items : value) as T;
+  }
   if (typeof value !== "object" || value === null) return value;
-  const copy: Record<string, unknown> = {};
-  for (const [key, item] of Object.entries(value)) copy[key] = hideCards(item, viewer);
-  if (hiddenFrom(copy, viewer)) copy.code = 0;
-  return copy as T;
+  const source = value as Record<string, unknown>;
+  let copy: Record<string, unknown> | undefined;
+  for (const [key, item] of Object.entries(source)) {
+    const hidden = hideCards(item, viewer);
+    if (hidden !== item) {
+      copy ??= { ...source };
+      copy[key] = hidden;
+    }
+  }
+  const result = copy ?? source;
+  if (result.code !== 0 && hiddenFrom(result, viewer)) return { ...result, code: 0 } as T;
+  return result as T;
 }
 
 // Same rule as YGOPro: a card entering a deck, a hand or a face-down spot is only known to its new controller.
