@@ -150,7 +150,7 @@ function Selecteur({ title, collection, kind, artOnly, pick, close }: Readonly<P
         {list.map(([code]) => (
           <li key={code}>
             <button type="button" title={cardName(cards, code)} aria-label={cardName(cards, code)} onClick={() => pick(code)}>
-              {cards.get(code)?.image ? <img src={`/api/art/${code}.jpg`} alt="" loading="lazy" /> : <span>{cardName(cards, code)}</span>}
+              {cards.get(code)?.image ? <img src={`/api/art/${code}.jpg`} alt="" loading="lazy" decoding="async" /> : <span>{cardName(cards, code)}</span>}
             </button>
           </li>
         ))}

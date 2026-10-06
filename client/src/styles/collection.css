@@ -209,6 +209,11 @@
   gap: 4px;
 }
 
+/* Repère de fin de grille : les cartes suivantes s'affichent quand il approche (DeckBuilder.tsx useSuite) */
+.grille-collection .grille-collection__suite {
+  grid-column: 1 / -1;
+}
+
 .grille-collection button {
   grid-column: 1 / -1;
   padding: 0;

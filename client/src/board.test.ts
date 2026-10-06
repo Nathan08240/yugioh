@@ -40,6 +40,14 @@ describe("plateau reconstruit à partir des messages du moteur", () => {
     expect(start.log.at(-1)).toEqual({ player: 1, parts: ["Pioche 5 cartes"] });
   });
 
+  it("garde les lignes du journal déjà écrites sans toucher au plateau d'avant", () => {
+    expect(summoned.log.slice(0, start.log.length)).toEqual(start.log);
+    expect(summoned.log[0]).toBe(start.log[0]);
+    expect(summoned.log.length).toBeGreaterThan(start.log.length);
+    expect(start.players[0].hand).toHaveLength(5);
+    expect(summoned.players[0].hand).not.toBe(start.players[0].hand);
+  });
+
   it("invoque un monstre depuis la main", () => {
     expect(summoned.players[0].monsters[0]).toEqual({ code: DARK_MAGICIAN, position: FACEUP_ATTACK });
     expect(summoned.players[0].hand.map((card) => card.code)).toEqual([1, 2, 3, 4]);

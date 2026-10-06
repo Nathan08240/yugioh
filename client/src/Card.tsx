@@ -1,5 +1,5 @@
 import { OcgLocation, OcgPosition, OcgType } from "@n1xx1/ocgcore-wasm";
-import type { PointerEvent } from "react";
+import { memo, type PointerEvent } from "react";
 import type { CardInfo } from "../../server/src/protocol.ts";
 import { attributeKey, frame, has, ICONS, rarityKey, rarityLabel, stat, statChange, useDuelView } from "./cards.ts";
 import { bestRarity, type Copies } from "./collection.ts";
@@ -26,7 +26,10 @@ const SHINY: ReadonlySet<string> = new Set(["super", "ultra", "ultimate", "secre
 
 // A card drawn in CSS around its artwork (cartes.css), sized by --carte-l. Code 0 shows the back.
 // Hand and piles show every card upright: only the field turns defense monsters and veils set cards.
-export function CardView({ code, position = 0, location = 0, full = false, rarity, className, atk, def }: Readonly<Props>) {
+// Memoized: in a grid of 1300 cards, only the cards whose props change render again.
+export const CardView = memo(Carte);
+
+function Carte({ code, position = 0, location = 0, full = false, rarity, className, atk, def }: Readonly<Props>) {
   const { cards } = useDuelView();
   const classes = ["carte"];
   if (className) classes.push(className);
@@ -56,6 +59,7 @@ export function CardView({ code, position = 0, location = 0, full = false, rarit
             src={`/api/art/${code}.jpg`}
             alt=""
             loading="lazy"
+            decoding="async"
             draggable={false}
             onError={(event) => {
               event.currentTarget.hidden = true;

@@ -28,6 +28,8 @@ type Props = {
   // The menu of the screens after login, with the number of boosters to open.
   page?: Page;
   go?: (page: Page) => void;
+  // Starts fetching the next screen while the current one leaves.
+  prefetch?: (page: Page) => void;
   pending?: number;
   // Friend requests received, on the friends menu.
   requests?: number;
@@ -38,7 +40,7 @@ type Props = {
 };
 
 // Layout of every screen but the duel: background, top bar, transitions.
-export function Shell({ id, background = "ville", pseudo, page, go, pending = 0, requests = 0, signOut, notice = false, children }: Readonly<Props>) {
+export function Shell({ id, background = "ville", pseudo, page, go, prefetch, pending = 0, requests = 0, signOut, notice = false, children }: Readonly<Props>) {
   const body = useRef<HTMLDivElement>(null);
   const sweep = useRef<HTMLDivElement>(null);
   // On a phone the menu folds behind a button (shell.css).
@@ -52,6 +54,7 @@ export function Shell({ id, background = "ville", pseudo, page, go, pending = 0,
   const navigate = (next: Page) => {
     setMenu(false);
     if (!go || next === page || !body.current) return;
+    prefetch?.(next);
     screens.skip();
     screens.play(exit(body.current)).then(() => go(next));
   };

@@ -327,8 +327,9 @@ export function applyAll(board: Board, messages: readonly Message[]) {
 }
 
 // Rebuilds the board from the engine messages the player received: from a fresh board, the whole visible history.
+// The log lines are never changed once written: they are shared with the board before, not copied again on each message.
 export function playAll(board: Board, messages: readonly Message[]): Board {
-  const next = structuredClone(board);
+  const next: Board = { ...structuredClone({ ...board, log: [] }), log: [...board.log] };
   for (const msg of messages) {
     const line = describe(next, msg);
     if (line) next.log.push(line);

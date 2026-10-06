@@ -1,4 +1,4 @@
-// The 3D board in plain three.js, ported from design/plateau-3d: Plateau3D.tsx mounts it in a react-three-fiber canvas.
+// The 3D board in plain three.js, ported from design/plateau-3d: Plateau3D.tsx mounts it on its canvas.
 import { OcgLocation, OcgType } from "@n1xx1/ocgcore-wasm";
 import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
@@ -117,7 +117,7 @@ export class Monde {
   private holoZone: ZoneM | undefined;
   private survolee: ZoneM | undefined;
   private etatsQuestion = { cibles: new Set<string>(), choisies: new Set<string>() };
-  // Everything the world adds to the scene of react-three-fiber, removed as a whole.
+  // Everything the world adds to the scene, removed as a whole.
   private readonly racine = new THREE.Group();
   // On-demand rendering: the world asks for a frame (`invalider`) whenever something changes or moves, and none at rest.
   private readonly invalider: () => void;
@@ -150,8 +150,6 @@ export class Monde {
     gl.toneMapping = THREE.NeutralToneMapping;
     // As in production builds: no reading of the compile logs (ANGLE warns about the FXAA shader).
     gl.debug.checkShaderErrors = false;
-    // The framing sets the projection itself (setViewOffset): react-three-fiber leaves the camera alone.
-    Object.assign(camera, { manual: true });
     scene.add(this.racine);
     this.racine.add(new THREE.HemisphereLight(0xc8d0ff, 0x2a1850, 1.3));
     const lune = new THREE.DirectionalLight(0xeef1ff, 2.2);
@@ -1201,7 +1199,7 @@ export class Monde {
     return false;
   }
 
-  // Called by react-three-fiber on each frame it renders (`frameloop="demand"`); asks for the next one only while something moves.
+  // Called by Plateau3D on each frame it draws on demand; asks for the next one only while something moves.
   // `dt`: the real time since the last frame, which a frame after a rest does not follow (one 60th of a second then).
   frame(dt: number, t: number) {
     const pas = this.horloge.pas(dt);
@@ -1294,7 +1292,7 @@ export class Monde {
   // High: bloom and FXAA (MSAA 4x cost 12 ms a frame on an integrated GPU); low: no post-processing, a third of the particles.
   qualite(q: Qualite, l: number, h: number) {
     this.reveiller();
-    this.composer?.dispose();
+    this.jeterComposer();
     this.composer = null;
     this.particules.budget = q === "haute" ? PARTICULES : PARTICULES_BASSE;
     if (q === "haute") {
@@ -1309,9 +1307,15 @@ export class Monde {
     }
   }
 
+  // The composer frees its buffers only: the bloom keeps its own targets and materials.
+  private jeterComposer() {
+    for (const pass of this.composer?.passes ?? []) pass.dispose();
+    this.composer?.dispose();
+  }
+
   dispose() {
     clearTimeout(this.minuteur);
-    this.composer?.dispose();
+    this.jeterComposer();
     for (const tex of [...this.faces.values(), ...this.arts.values()]) tex.dispose();
     this.scene.remove(this.racine);
     this.racine.traverse((objet) => {

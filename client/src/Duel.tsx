@@ -1,5 +1,5 @@
 import { OcgLocation, OcgMessageType, OcgPhase, type OcgResponse } from "@n1xx1/ocgcore-wasm";
-import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
+import { lazy, memo, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
 import { flushSync } from "react-dom";
 import type { EmoteId } from "../../server/src/emotes.ts";
 import type { Seat } from "../../server/src/protocol.ts";
@@ -196,7 +196,8 @@ export function Duel({ board, seat, asked, respond, leave, surrender, answerBy, 
   };
   const onSurvol = (id: string | undefined) => {
     const code = id ? codeAt(shown, id) : 0;
-    if (code || (id && ui.targets.has(id))) setDetail({ code, place: id });
+    // Called on every move of the pointer: the same card keeps the same state, the duel does not render again.
+    if (code || (id && ui.targets.has(id))) setDetail((before) => (before?.code === code && before.place === id ? before : { code, place: id }));
   };
   // Current stats of the shown card while it stays on the field, followed live.
   const enJeu = detail?.place ? zoneCard(shown, detail.place) : undefined;
@@ -814,7 +815,8 @@ function Log({ log, opponent }: Readonly<{ log: LogEntry[]; opponent?: string }>
   );
 }
 
-function Entry({ entry, opponent }: Readonly<{ entry: LogEntry; opponent?: string }>) {
+// A line already written renders once: its object is kept from message to message (playAll).
+const Entry = memo(function Entry({ entry, opponent }: Readonly<{ entry: LogEntry; opponent?: string }>) {
   const { seat, moi } = useDuelView();
   const first = entry.parts[0];
   const turn = entry.parts.length === 1 && typeof first === "string" && first.startsWith("Tour ");
@@ -837,7 +839,7 @@ function Entry({ entry, opponent }: Readonly<{ entry: LogEntry; opponent?: strin
       })}
     </li>
   );
-}
+});
 
 function CardName({ code }: Readonly<{ code: number }>) {
   const { cards, show } = useDuelView();
