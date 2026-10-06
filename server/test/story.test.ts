@@ -254,10 +254,10 @@ describe("duel d'histoire sur le serveur", () => {
 
   it("joue un duel complet contre le bot aux règles de l'île, enregistre la victoire, rien de plus au second passage", { timeout: 60_000 }, async () => {
     const finished = (received: Received[]) => received.some((msg) => msg.type === "story_won");
-    // Seed 10 wins at "normal" with 400 LP of 2000 left: 2 stars.
+    // Seed 3 wins at "normal" with less than half of the 2000 LP left: 2 stars.
     const STARS = 2;
-    // With seed 10 the first valid option beats the bot on this duel: pick another seed if the bot changes.
-    const first = await play(10n, (socket) => story(socket, { type: "story_duel", duel: "dk-weevil" }));
+    // With seed 3 the first valid option beats the bot on this duel: pick another seed if the bot changes.
+    const first = await play(3n,(socket) => story(socket, { type: "story_duel", duel: "dk-weevil" }));
     await vi.waitFor(() => expect(finished(first)).toBe(true), { timeout: 25_000 });
     expect(first).toContainEqual(expect.objectContaining({ type: "joined", seat: 0, lp: 2000, decks: [41, 40], opponent: weevil.opponent }));
     expect(messages(first)).toContainEqual(expect.objectContaining({ type: OcgMessageType.WIN, player: 0 }));
@@ -266,7 +266,7 @@ describe("duel d'histoire sur le serveur", () => {
     const agreement = String((4014n << 20n) | 6n);
     expect(first.filter((msg) => msg.type === "question" && "description" in msg.question && msg.question.description === agreement)).toEqual([]);
 
-    const again = await play(10n, (socket) => story(socket, { type: "story_duel", duel: "dk-weevil" }));
+    const again = await play(3n,(socket) => story(socket, { type: "story_duel", duel: "dk-weevil" }));
     await vi.waitFor(() => expect(finished(again)).toBe(true), { timeout: 25_000 });
     expect(again).toContainEqual({ type: "story_won", duel: "dk-weevil", outro: weevil.outro, rewards: null, stars: STARS, best: STARS, starBooster: false, replays: 1 });
     expect(won).toEqual([["dk-weevil", STARS], ["dk-weevil", STARS]]);
