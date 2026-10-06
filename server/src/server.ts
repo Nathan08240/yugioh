@@ -21,7 +21,7 @@ import { CRAFT_COSTS, dbEconomyStore, economyReply, isEconomyMessage, validEcono
 import { EMOTE_DELAY, EMOTE_IDS, type EmoteId } from "./emotes.ts";
 import { claimEvent, eventOf, eventRules, eventWon, type WeeklyEvent } from "./event.ts";
 import { dbFriendStore, friendHub, isFriendMessage, validFriendMessage, type FriendStore } from "./friends.ts";
-import { historyEntry, listReplays, readReplay, replayMessage, saveReplay, type HistoryEntry, type StoredReplay } from "./history.ts";
+import { historyEntry, listReplays, readReplay, replayAllowed, replayMessage, REPLAYS_LIMITED, saveReplay, type HistoryEntry, type StoredReplay } from "./history.ts";
 import { GOAT } from "./limits.ts";
 import { countEvents, dbMissionStore, duelGains, fusionOnField, newTally, type MissionProgress, type MissionStore, type Tally } from "./missions.ts";
 import { isAllowed, POOL, SETS, type Printing } from "./pool.ts";
@@ -762,6 +762,8 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
   // Players waiting for a ranked duel, by user id, and the last ranked opponent of each player.
   const waiting = new Map<string, Waiting & { socket: WebSocket; join: (room: Room) => void }>();
   const lastOpponent = new Map<string, { opponent: string; at: number }>();
+  // When each player asked their last replays (history.ts).
+  const replaysAsked = new Map<string, number[]>();
 
   // Each pair found sits in a new online room; the window of each player widens as they wait.
   function matchQueue() {
@@ -1033,6 +1035,7 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
     }
 
     async function showReplay(userId: string, id: number): Promise<string | undefined> {
+      if (!replayAllowed(replaysAsked, userId)) return REPLAYS_LIMITED;
       const stored = await accounts.readReplay(userId, id);
       if (!stored) return "duel introuvable";
       send(socket, await replayMessage(stored, id));
