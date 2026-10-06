@@ -76,17 +76,21 @@ async function grant(sql: Sql, userId: string, { points, boosters }: MissionRewa
 
 // The missions of the day and the achievements; pays what was reached and not paid yet.
 export async function missionsView(db: Db, userId: string, day = parisDay()): Promise<MissionsView> {
-  const [today = NO_GAINS] = await db<Gains[]>`
-    select wins, fusion_wins as "fusionWins", summons, damage, story_wins as "storyWins", ranked, boosters
-    from yugioh.mission_days where user_id = ${userId} and day = ${day}::date`;
-  const [{ wins }] = await db<{ wins: number }[]>`select coalesce(sum(wins), 0)::int as wins from yugioh.mission_days where user_id = ${userId}`;
-  const owned = new Set((await readCollection(db, userId)).map(([code]) => code));
-  const view = missionsOf(userId, day, { today, wins, owned, story: await completedDuels(db, userId) });
-  const paid = new Set(
-    (await db<{ id: string }[]>`
+  // Independent reads, sent together.
+  const [[today = NO_GAINS], [{ wins }], collection, story, paidRows] = await Promise.all([
+    db<Gains[]>`
+      select wins, fusion_wins as "fusionWins", summons, damage, story_wins as "storyWins", ranked, boosters
+      from yugioh.mission_days where user_id = ${userId} and day = ${day}::date`,
+    db<{ wins: number }[]>`select coalesce(sum(wins), 0)::int as wins from yugioh.mission_days where user_id = ${userId}`,
+    readCollection(db, userId),
+    completedDuels(db, userId),
+    db<{ id: string }[]>`
       select unlock_id as id from yugioh.story_unlocks
-      where user_id = ${userId} and (unlock_id like 'succes:%' or unlock_id like ${`mission:${day}:%`})`).map(({ id }) => id),
-  );
+      where user_id = ${userId} and (unlock_id like 'succes:%' or unlock_id like ${`mission:${day}:%`})`,
+  ]);
+  const owned = new Set(collection.map(([code]) => code));
+  const view = missionsOf(userId, day, { today, wins, owned, story });
+  const paid = new Set(paidRows.map(({ id }) => id));
   const unpaid = rewardsDue(view, day).filter(([key]) => !paid.has(key));
   if (unpaid.length > 0) {
     await db.begin(async (sql) => {

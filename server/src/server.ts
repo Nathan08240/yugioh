@@ -902,8 +902,8 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
       const id = await accounts.verify(token);
       if (!id) return "jeton invalide";
       const profile = await accounts.findProfile(id);
-      user = { id, pseudo: profile?.pseudo, avatar: profile && ((await accounts.profileCards(id)).avatar ?? undefined) };
-      const daily = profile !== undefined && (await accounts.claimDaily(id));
+      const [cards, daily] = profile ? await Promise.all([accounts.profileCards(id), accounts.claimDaily(id)]) : [undefined, false];
+      user = { id, pseudo: profile?.pseudo, avatar: cards?.avatar ?? undefined };
       if (user.pseudo) joinFriends(user.id, user.pseudo);
       send(socket, { type: "profile", pseudo: user.pseudo ?? null, needsStarter: profile !== undefined && profile.activeDeckId === null, ...adminFlag(id), ...dailyFlag(daily) });
       return undefined;
