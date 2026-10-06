@@ -15,6 +15,7 @@
     "record-duel": "node scripts/record-duel.ts",
     "replay": "node scripts/replay.ts",
     "economie": "node scripts/economie.ts",
+    "banc-histoire": "node scripts/banc-histoire.ts",
     "dev": "node --env-file-if-exists=.env --watch src/server.ts",
     "start": "node --env-file-if-exists=.env src/server.ts",
     "test:db": "vitest run pg.test"
