@@ -94,6 +94,8 @@ export async function missionsView(db: Db, userId: string, day = parisDay()): Pr
   const unpaid = rewardsDue(view, day).filter(([key]) => !paid.has(key));
   if (unpaid.length > 0) {
     await db.begin(async (sql) => {
+      // The profile first: two payouts of the same player wait for each other instead of deadlocking on the unlock keys.
+      await sql`select 1 from yugioh.profiles where user_id = ${userId} for update`;
       for (const [key, reward] of unpaid) if (await unlock(sql, userId, key)) await grant(sql, userId, reward);
     });
   }
