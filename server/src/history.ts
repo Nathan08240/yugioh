@@ -5,7 +5,7 @@ import { fieldMoves, fieldStats, lpOf, openDuel, type Seed } from "./duel.ts";
 import type { DuelEvent, HistoryMode, ReplaySummary, Seat, ServerMessage } from "./protocol.ts";
 import type { Report } from "./report.ts";
 import { engineForm } from "./respond.ts";
-import { ANSWERS, type Room } from "./server.ts";
+import { ANSWERS, type Room } from "./room.ts";
 import { visibleTo } from "./visibility.ts";
 
 // Finished duels kept per player, the oldest deleted first.
