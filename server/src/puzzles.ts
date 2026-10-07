@@ -66,13 +66,12 @@ export function checkSide(side: PuzzleSide, name: string): string[] {
 }
 
 // Every problem of the data, prefixed by the puzzle id. Empty when the puzzles can be played.
-export function validatePuzzles(puzzles: Puzzle[]): string[] {
+export function validatePuzzles(puzzles: Omit<Puzzle, "difficulty">[]): string[] {
   const errors: string[] = [];
   if (new Set(puzzles.map((puzzle) => puzzle.id)).size !== puzzles.length) errors.push("identifiant de puzzle en double");
   for (const puzzle of puzzles) {
     const problems = [...checkSide(puzzle.player, "joueur"), ...checkSide(puzzle.opponent, "adversaire")];
     for (const text of [puzzle.title, puzzle.goal]) if (typeof text !== "string" || !text.trim() || text.length > MAX_TEXT) problems.push(`texte vide ou de plus de ${MAX_TEXT} caractères`);
-    if (!PUZZLE_DIFFICULTIES.includes(puzzle.difficulty)) problems.push(`difficulté inconnue ${puzzle.difficulty}`);
     if (puzzle.solution.length === 0) problems.push("solution absente");
     errors.push(...problems.map((problem) => `${puzzle.id} : ${problem}`));
   }
@@ -80,7 +79,9 @@ export function validatePuzzles(puzzles: Puzzle[]): string[] {
 }
 
 export const PUZZLES: Puzzle[] = JSON.parse(readFileSync(join(import.meta.dirname, "..", "data", "puzzles.json"), "utf-8"));
-const errors = validatePuzzles(PUZZLES);
+// The lessons share the positions but have no difficulty.
+const unknownLevels = PUZZLES.filter(({ difficulty }) => !PUZZLE_DIFFICULTIES.includes(difficulty)).map(({ id, difficulty }) => `${id} : difficulté inconnue ${difficulty}`);
+const errors = [...validatePuzzles(PUZZLES), ...unknownLevels];
 if (errors.length > 0) throw new Error(`data/puzzles.json invalide :\n${errors.join("\n")}`);
 
 export const PUZZLE_IDS: ReadonlyMap<string, Puzzle> = new Map(PUZZLES.map((puzzle) => [puzzle.id, puzzle]));

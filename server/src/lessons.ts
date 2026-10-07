@@ -12,7 +12,7 @@ import { unlock } from "./story.ts";
 
 // Format of data/lessons.json: a puzzle (a position set up by hand, won in the player's first turn) plus the Extra Deck of the
 // player. The bubbles that guide each lesson are in client/src/lecons.ts, by id.
-export type Lesson = Puzzle & { extra?: number[] };
+export type Lesson = Omit<Puzzle, "difficulty"> & { extra?: number[] };
 
 export function validateLessons(lessons: Lesson[]): string[] {
   const errors = validatePuzzles(lessons);
