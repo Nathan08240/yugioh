@@ -110,6 +110,12 @@
   padding-inline: var(--e-4);
 }
 
+.jouer__attente {
+  display: grid;
+  gap: var(--e-2);
+  align-self: end;
+}
+
 .mode__actions {
   display: flex;
   flex-wrap: wrap;
@@ -623,7 +629,7 @@
     block-size: 28px;
   }
 
-  .jouer__mode :is(p, .jouer__actions) {
+  .jouer__mode :is(p, .jouer__actions, .jouer__attente) {
     grid-column: 1 / -1;
   }
 

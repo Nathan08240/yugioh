@@ -982,6 +982,87 @@ describe("mode classé", () => {
   });
 });
 
+describe("partie rapide", () => {
+  afterEach(() => vi.restoreAllMocks());
+  async function quick(user: string, answer?: Answer) {
+    decks.set(user, YUGI);
+    const client = await connect(user, answer);
+    client.send({ type: "quick_queue" });
+    await vi.waitFor(() => expect(client.received).toContainEqual({ type: "quick_queue", waiting: true }));
+    return client;
+  }
+
+  it("apparie deux joueurs en attente sans classement ni liste Goat, et récompense le vainqueur comme un duel en ligne", { timeout: 30_000 }, async () => {
+    vi.spyOn(accounts, "rateDuel");
+    const a = await quick("rapide-a", () => undefined);
+    const b = await quick("rapide-b", () => undefined);
+    await vi.waitFor(() => expect(joined(a.received)).toBeDefined());
+    await vi.waitFor(() => expect(joined(b.received)).toBeDefined());
+    expect(joined(b.received)?.room).toBe(joined(a.received)?.room);
+    expect([joined(a.received)?.seat, joined(b.received)?.seat]).toEqual([0, 1]);
+    await vi.waitFor(() => expect(a.received.some((msg) => msg.type === "question") || b.received.some((msg) => msg.type === "question")).toBe(true), { timeout: 20_000 });
+    a.send({ type: "surrender" });
+    await vi.waitFor(() => expect(b.received).toContainEqual({ type: "online_won", earned: true }));
+    expect(accounts.rateDuel).not.toHaveBeenCalled();
+    expect(a.received.some((msg) => msg.type === "ranked_result")).toBe(false);
+    a.socket.close();
+    b.socket.close();
+  });
+
+  it("retire de la file un joueur qui annule ou se déconnecte, et refuse une autre salle pendant l'attente", { timeout: 30_000 }, async () => {
+    const annule = await quick("rapide-annule");
+    annule.send({ type: "create" });
+    await vi.waitFor(() => expect(annule.received).toContainEqual({ type: "error", error: "recherche d'une partie rapide en cours" }));
+    annule.send({ type: "quick_cancel" });
+    await vi.waitFor(() => expect(annule.received).toContainEqual({ type: "quick_queue", waiting: false }));
+    const parti = await quick("rapide-parti");
+    parti.socket.close();
+    await once(parti.socket, "close");
+    const b = await quick("rapide-b2");
+    const c = await quick("rapide-c2");
+    await vi.waitFor(() => expect(joined(b.received)).toBeDefined());
+    expect(joined(c.received)?.room).toBe(joined(b.received)?.room);
+    expect(annule.received.filter((msg) => msg.type === "joined")).toEqual([]);
+    for (const client of [annule, b, c]) client.socket.close();
+  });
+
+  it("refuse un deck invalide sans le mettre en attente, et ne mélange pas la file classée", { timeout: 30_000 }, async () => {
+    const sansDeck = await connect("rapide-sans-deck");
+    sansDeck.send({ type: "quick_queue" });
+    await vi.waitFor(() => expect(sansDeck.received).toContainEqual({ type: "error", error: "deck actif requis" }));
+    expect(sansDeck.received).not.toContainEqual({ type: "quick_queue", waiting: true });
+    decks.set("rapide-classe", GOAT_YUGI);
+    ratings.set("rapide-classe", 1000);
+    const classe = await connect("rapide-classe");
+    classe.send({ type: "ranked_queue" });
+    await vi.waitFor(() => expect(classe.received).toContainEqual({ type: "ranked_queue", waiting: true }));
+    const rapide = await quick("rapide-seul");
+    await new Promise((resolve) => setTimeout(resolve, 2200));
+    expect([joined(classe.received), joined(rapide.received)]).toEqual([undefined, undefined]);
+    for (const client of [sansDeck, classe, rapide]) client.socket.close();
+  });
+
+  it("refuse la file pendant l'arrêt du serveur et en sort ceux qui attendent", { timeout: 30_000 }, async () => {
+    const server = startServer(0, accounts, () => [1n, 2n, 3n, 4n]);
+    await once(server, "listening");
+    const to = `ws://localhost:${(server.address() as AddressInfo).port}`;
+    decks.set("rapide-arret-a", YUGI);
+    decks.set("rapide-arret-b", YUGI);
+    const waiting = await connect("rapide-arret-a", undefined, to);
+    waiting.send({ type: "quick_queue" });
+    await vi.waitFor(() => expect(waiting.received).toContainEqual({ type: "quick_queue", waiting: true }));
+    const stop = server.shutdown(60_000);
+    await vi.waitFor(() => expect(waiting.received).toContainEqual({ type: "quick_queue", waiting: false }));
+    const late = await connect("rapide-arret-b", undefined, to);
+    late.send({ type: "quick_queue" });
+    await vi.waitFor(() => expect(late.received).toContainEqual({ type: "error", error: "mise à jour en cours : les nouveaux duels reprennent dans quelques minutes" }));
+    expect(late.received).not.toContainEqual({ type: "quick_queue", waiting: true });
+    await stop;
+    for (const client of [waiting, late]) client.socket.close();
+    server.close();
+  });
+});
+
 describe("arrêt pour une mise à jour", () => {
   afterEach(() => vi.restoreAllMocks());
 

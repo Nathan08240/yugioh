@@ -70,7 +70,7 @@ type Send = (msg: ClientMessage) => void;
 let invite = inviteFromUrl(location.href);
 
 // Messages that open a room outside the ranked queue.
-const NOT_RANKED: ReadonlySet<string> = new Set(["create", "join", "room_rules", "bot", "story_duel", "puzzle", "tower_duel", "sealed_duel", "draft_duel", "challenge", "challenge_reply"]);
+const NOT_RANKED: ReadonlySet<string> = new Set(["create", "join", "room_rules", "bot", "story_duel", "puzzle", "tower_duel", "sealed_duel", "draft_duel", "challenge", "challenge_reply", "quick_queue"]);
 
 export function Lobby() {
   const [state, dispatch] = useReducer(reduce, initialLobby);
@@ -156,7 +156,7 @@ export function Lobby() {
       storyDuel.current = msg.duel;
       storyEasy.current = msg.level === "facile";
     }
-    if (msg.type === "create" || msg.type === "join" || msg.type === "room_rules" || msg.type === "challenge" || msg.type === "challenge_reply" || msg.type === "ranked_queue") {
+    if (msg.type === "create" || msg.type === "join" || msg.type === "room_rules" || msg.type === "challenge" || msg.type === "challenge_reply" || msg.type === "ranked_queue" || msg.type === "quick_queue") {
       vsBot.current = false;
       sealedDuel.current = false;
       draftDuel.current = false;

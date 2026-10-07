@@ -123,6 +123,8 @@ export type LobbyState = {
   // epoch), and the rating change of the last ranked duel.
   ranked?: RankedView;
   rankedSince?: number;
+  // Likewise for the quick match queue (no rating).
+  quickSince?: number;
   rankedResult?: { delta: number; rating: number };
   // The server stops for an update: no new duel until the next one runs.
   maintenance?: boolean;
@@ -145,7 +147,7 @@ export const initialLobby: LobbyState = { started: false, spectators: 0, asked: 
 export function reduce(state: LobbyState, action: Action): LobbyState {
   switch (action.type) {
     case "connecting":
-      return { ...state, pseudo: undefined, error: undefined, closed: false, rankedSince: undefined, maintenance: undefined, rejoining: state.room !== undefined };
+      return { ...state, pseudo: undefined, error: undefined, closed: false, rankedSince: undefined, quickSince: undefined, maintenance: undefined, rejoining: state.room !== undefined };
     case "closed":
       return { ...state, closed: true };
     case "left":
@@ -182,6 +184,7 @@ export function reduce(state: LobbyState, action: Action): LobbyState {
         onlineEarned: action.log.length === 0 ? undefined : state.onlineEarned,
         rankedResult: action.log.length === 0 ? undefined : state.rankedResult,
         rankedSince: undefined,
+        quickSince: undefined,
         rejoining: undefined,
         replay: undefined,
       };
@@ -282,6 +285,8 @@ export function reduce(state: LobbyState, action: Action): LobbyState {
       return { ...state, ranked: action };
     case "ranked_queue":
       return { ...state, rankedSince: action.waiting ? Date.now() : undefined, error: undefined };
+    case "quick_queue":
+      return { ...state, quickSince: action.waiting ? Date.now() : undefined, error: undefined };
     case "ranked_result":
       return { ...state, rankedResult: { delta: action.delta, rating: action.rating } };
     case "missions":

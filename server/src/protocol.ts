@@ -159,6 +159,9 @@ export type ClientMessage =
   | { type: "ranked" }
   | { type: "ranked_queue" }
   | { type: "ranked_cancel" }
+  // Quick match: the same wait with the active deck, for the first other player waiting, with no rating nor Goat list. Both are answered with `quick_queue`.
+  | { type: "quick_queue" }
+  | { type: "quick_cancel" }
   // Daily missions and achievements (missions.ts), answered with `missions`.
   | { type: "missions" }
   // Duels to watch again (history.ts), the last 20 finished of the player: `replays` is answered with `replays`, `replay` with
@@ -270,6 +273,7 @@ export type ServerMessage =
   | { type: "draft"; run: DraftRun | null }
   | ({ type: "ranked" } & RankedView)
   | { type: "ranked_queue"; waiting: boolean }
+  | { type: "quick_queue"; waiting: boolean }
   // End of a ranked duel: the change of the player's rating, and the new one.
   | { type: "ranked_result"; delta: number; rating: number }
   // Also sent after each duel or booster that moved them. A mission or achievement is paid once its `progress` reaches `goal`.
