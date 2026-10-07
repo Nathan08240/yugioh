@@ -121,6 +121,16 @@ Migrations appliquées en production le 2026-10-05 avant la fusion (missions, é
 - [x] Écran d'accueil repensé : hiérarchie, grille des modes, missions lisibles (feat/F-accueil-refonte)
 - [x] Vague 3 : server.ts découpé par domaine (refactor/F-decoupage-serveur), tests e2e des parcours principaux et liste du deck visible sur un écran de 720 px (chore/F-tests-e2e)
 
+## Troisième lot (2026-10-07, par ordre de taille)
+
+- [x] Tests automatiques sur GitHub, mise en ligne seulement si tout est vert (chore/F-ci-github) ; à régler : secrets GitHub et Auto Deploy coupé dans Coolify (DEPLOY.md)
+- [x] Économie : 5 boosters par jour au plus pour les victoires en ligne, paliers de la Tour chaque semaine, événement à 2 boosters (feat/F-economie-reglages)
+- [ ] M1 : cartes qui coupent un duel (Momie Errante), petits correctifs, page admin des signalements et des erreurs, vignettes des illustrations, application installable
+- [ ] M2 : 20 puzzles, tutoriel avancé, partie rapide en ligne, decks publics, Extra Deck mis en avant
+- [ ] L : bot Expert avec anticipation, parcours de Joey, tournoi entre amis
+- [ ] GX : formats (Classique Goat, GX, puis 5D's, plus un format « Toutes les cartes »), sets de l'ère GX, arcs d'histoire GX
+- [ ] 5D's : Synchros, sets et arcs d'histoire 5D's
+
 ## Mise en ligne
 
 - [x] Passer le repo GitHub en public (licence AGPL du moteur)
