@@ -40,6 +40,8 @@ export type Lobby = {
   lastOpponent: Map<string, { opponent: string; at: number }>;
   // When each player asked their last replays (history.ts).
   replaysAsked: Map<string, number[]>;
+  // When each player last sent a browser error (admin.ts).
+  errorsSent: Map<string, number[]>;
   friends: ReturnType<typeof friendHub<FriendEntry>>;
   draining: boolean;
 };

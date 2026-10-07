@@ -1,5 +1,6 @@
 import type { WebSocket } from "ws";
 import type { Accounts } from "./accounts.ts";
+import { errorAllowed, type AdminMessage } from "./admin.ts";
 import { deckReply, isDeckMessage } from "./collection.ts";
 import { draftReply, isDraftMessage } from "./draft.ts";
 import { economyReply, isEconomyMessage } from "./economy.ts";
@@ -7,7 +8,7 @@ import { eventOf } from "./event.ts";
 import { replayAllowed, replayMessage, REPLAYS_LIMITED } from "./history.ts";
 import { joinFriends, progressMissions, type Connection, type Lobby, type User } from "./lobby.ts";
 import { profileReply, type ProfileMessage } from "./profile.ts";
-import type { ClientMessage, ServerMessage } from "./protocol.ts";
+import type { ClientError, ClientMessage, ServerMessage } from "./protocol.ts";
 import { puzzleView } from "./puzzles.ts";
 import { isSealedMessage, sealedReply } from "./sealed.ts";
 import type { Starter } from "./starter.ts";
@@ -85,6 +86,38 @@ export async function grantBoosters(conn: Connection, player: { id: string }, co
   if (!conn.lobby.admins.has(player.id)) return "commande réservée";
   await conn.lobby.accounts.creditBoosters(player.id, count);
   return sendBoosterState(conn, player);
+}
+
+// The admin pages: each read and action is checked here, whatever the client shows.
+export async function adminReply(conn: Connection, user: User, msg: AdminMessage): Promise<string | undefined> {
+  const { accounts, admins, replaysAsked } = conn.lobby;
+  if (!admins.has(user.id)) return "commande réservée";
+  switch (msg.type) {
+    case "admin_reports":
+      send(conn.socket, { type: "admin_reports", reports: await accounts.adminReports() });
+      return undefined;
+    case "admin_errors":
+      send(conn.socket, { type: "admin_errors", errors: await accounts.clientErrors() });
+      return undefined;
+    case "admin_report_handled":
+      if (!(await accounts.markReport(msg.id, msg.handled))) return "signalement introuvable";
+      send(conn.socket, { type: "admin_reports", reports: await accounts.adminReports() });
+      return undefined;
+    default: {
+      if (!replayAllowed(replaysAsked, user.id)) return REPLAYS_LIMITED;
+      const report = await accounts.readReport(msg.id);
+      if (!report) return "signalement introuvable";
+      send(conn.socket, { ...(await replayMessage({ seat: msg.seat, opponent: `Siège ${2 - msg.seat}`, replay: report }, msg.id)), self: `Siège ${msg.seat + 1}` });
+      return undefined;
+    }
+  }
+}
+
+// Stores a browser error of the player, grouped with the identical ones. Never answered, a failure included: the player can do nothing about it.
+export async function reportClientError(conn: Connection, userId: string, error: ClientError): Promise<undefined> {
+  const { accounts, errorsSent } = conn.lobby;
+  if (errorAllowed(errorsSent, userId)) await accounts.saveClientError(userId, error).catch((failure: unknown) => console.error(failure));
+  return undefined;
 }
 
 export async function sendBoosterState(conn: Connection, player: { id: string }): Promise<string | undefined> {

@@ -1,7 +1,8 @@
 import type { WebSocket } from "ws";
+import { isAdminMessage } from "./admin.ts";
 import { isFriendMessage } from "./friends.ts";
 import { leave, MAINTENANCE, type Connection, type Lobby, type User } from "./lobby.ts";
-import { choosePseudo, grantBoosters, identify, manageProfile, openBoosterFor, pickStarter, sendBoosterState, sendReplays, sendReply, sendResults, showEvent, showMissions, showPuzzles, showRanked, showReplay, showStory, showTower, storeReply } from "./menus.ts";
+import { adminReply, choosePseudo, grantBoosters, identify, manageProfile, openBoosterFor, pickStarter, reportClientError, sendBoosterState, sendReplays, sendReply, sendResults, showEvent, showMissions, showPuzzles, showRanked, showReplay, showStory, showTower, storeReply } from "./menus.ts";
 import { challengeFriend, enterRoom, leaveQueue, playDraft, playPuzzle, playSealed, playStory, playTower, playTutorial, queueRanked, showRoomRules, spectate, stopWatching } from "./modes.ts";
 import { isProfileMessage } from "./profile.ts";
 import type { ClientMessage } from "./protocol.ts";
@@ -25,6 +26,8 @@ function handle(conn: Connection, msg: ClientMessage): Reply {
   if (!user.pseudo) return "pseudo à choisir d'abord";
   const stored = storeReply(lobby.accounts, user.id, msg);
   if (stored) return sendReply(socket, stored);
+  if (msg.type === "client_error") return reportClientError(conn, user.id, msg);
+  if (isAdminMessage(msg)) return adminReply(conn, user, msg);
   if (isProfileMessage(msg)) return manageProfile(conn, user, msg);
   if (msg.type === "challenge") return challengeFriend(conn, user.id, msg);
   if (isFriendMessage(msg)) return lobby.friends.handle(socket, msg);

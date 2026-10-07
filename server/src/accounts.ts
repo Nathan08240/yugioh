@@ -1,4 +1,5 @@
 import postgres from "postgres";
+import { dbAdminStore, type AdminStore } from "./admin.ts";
 import { verifySession } from "./auth.ts";
 import { boosterState, creditBoosters, openBooster } from "./boosters.ts";
 import { dbDeckStore, type DeckStore } from "./collection.ts";
@@ -27,7 +28,7 @@ import { dbWishStore, type WishStore } from "./wishlist.ts";
 import { dbWonderStore, type WonderStore } from "./wonder.ts";
 
 // Identity, profile, deck, booster and Story mode storage, faked in tests.
-export type Accounts = DeckStore & WishStore & EconomyStore & WonderStore & ProfileStore & SealedStore & DraftStore & FriendStore & TradeStore & RankedStore & MissionStore & {
+export type Accounts = DeckStore & WishStore & EconomyStore & WonderStore & ProfileStore & SealedStore & DraftStore & FriendStore & TradeStore & RankedStore & MissionStore & AdminStore & {
   verify: (token: string) => Promise<string | null>;
   findProfile: (userId: string) => Promise<Profile | undefined>;
   // Resolves to undefined when the pseudo is already taken.
@@ -117,5 +118,6 @@ export function dbAccounts(db: Db): Accounts {
     ...dbTradeStore(db),
     ...dbRankedStore(db),
     ...dbMissionStore(db),
+    ...dbAdminStore(db),
   };
 }

@@ -1,5 +1,5 @@
 import type { EmoteId } from "../../server/src/emotes.ts";
-import type { ClientMessage, DeckResult, DraftRun, Friend, PuzzleView, RankedView, ReplaySummary, RoomOptions, SealedRun, Seat, ServerMessage, StoryArcView, TowerView, Wire } from "../../server/src/protocol.ts";
+import type { AdminError, AdminReport, ClientMessage, DeckResult, DraftRun, Friend, PuzzleView, RankedView, ReplaySummary, RoomOptions, SealedRun, Seat, ServerMessage, StoryArcView, TowerView, Wire } from "../../server/src/protocol.ts";
 import { newBoard, playAll, type Board, type EngineMessage, type Message } from "./board.ts";
 
 export type DeckList = Extract<Wire<ServerMessage>, { type: "decks" }>;
@@ -133,6 +133,9 @@ export type LobbyState = {
   // The last finished duels of the player, loaded by the profile screen, and the one being watched again.
   replays?: ReplaySummary[];
   replay?: ReplayView;
+  // The admin page: bug reports and grouped browser errors.
+  adminReports?: AdminReport[];
+  adminErrors?: AdminError[];
 };
 
 export const ROOM_GONE = "Ce duel n'est plus disponible : le serveur a été mis à jour ou la salle a expiré.";
@@ -289,6 +292,10 @@ export function reduce(state: LobbyState, action: Action): LobbyState {
       return { ...state, replay: action, error: undefined };
     case "replay_closed":
       return { ...state, replay: undefined };
+    case "admin_reports":
+      return { ...state, adminReports: action.reports };
+    case "admin_errors":
+      return { ...state, adminErrors: action.errors };
   }
 }
 

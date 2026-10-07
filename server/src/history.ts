@@ -25,7 +25,8 @@ export function replayAllowed(asked: Map<string, number[]>, userId: string, now 
 }
 
 // A bug report of the finished duel (report.ts) and how it ended, which the server may have decided (surrender, clock).
-export type Replay = Report & { end: { winner: number; reason: number } };
+// A bug report of a duel in progress has no `end`: it is played up to its last response.
+export type Replay = Report & { end?: { winner: number; reason: number } };
 export type HistoryEntry = { userId: string; seat: Seat; mode: HistoryMode; opponent: string | null; won: boolean | null; replay: Replay };
 export type StoredReplay = Pick<HistoryEntry, "seat" | "opponent" | "replay">;
 
@@ -82,8 +83,8 @@ function stopAt(events: readonly OcgMessage[], turns: { seen: number; max: numbe
 // Runs the engine on the recorded responses, as advance() did, and hands each batch to `show`. False when the server ended the duel.
 function rerun(duel: Awaited<ReturnType<typeof openDuel>>, replay: Replay, show: (messages: OcgMessage[]) => void): boolean {
   const { lib, handle } = duel;
-  const turns = { seen: 0, max: replay.turn };
-  const end: OcgMessage = { type: OcgMessageType.WIN, player: replay.end.winner, reason: replay.end.reason };
+  const turns = { seen: 0, max: replay.end ? replay.turn : Infinity };
+  const end: OcgMessage = { type: OcgMessageType.WIN, player: replay.end?.winner ?? 0, reason: replay.end?.reason ?? 0 };
   let next = 0;
   for (let step = 0; step < MAX_STEPS; step++) {
     const status = lib.duelProcess(handle);
@@ -123,7 +124,7 @@ export async function replayBatches(replay: Replay, seat: Seat): Promise<DuelEve
   };
   try {
     if (replay.field) show(fieldMoves(replay.field));
-    if (!rerun(duel, replay, show)) show([{ type: OcgMessageType.WIN, player: replay.end.winner, reason: replay.end.reason }]);
+    if (!rerun(duel, replay, show) && replay.end) show([{ type: OcgMessageType.WIN, player: replay.end.winner, reason: replay.end.reason }]);
   } finally {
     duel.lib.destroyDuel(duel.handle);
   }
