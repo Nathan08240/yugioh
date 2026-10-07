@@ -1,5 +1,5 @@
 import type { OcgResponse } from "@n1xx1/ocgcore-wasm";
-import { lazy, startTransition, Suspense, useEffect, useMemo, useReducer, useRef, useState } from "react";
+import { lazy, startTransition, Suspense, useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import type { ClientMessage, PuzzleView } from "../../server/src/protocol.ts";
 import { Accueil, Salle } from "./Accueil.tsx";
 import { AlertesAmis, Amis } from "./Amis.tsx";
@@ -7,6 +7,8 @@ import { DuelView, useCards } from "./cards.ts";
 import { brancher, contexte } from "./erreurs.ts";
 import { duelLabel, duelLp, duelSpecial, initialLobby, inviteFromUrl, reduce, type Action, type LobbyState } from "./lobby.ts";
 import { puzzleRule, Puzzles } from "./Puzzles.tsx";
+import { useNotifications } from "./notifications.ts";
+import { BandeauMiseAJour } from "./Pwa.tsx";
 import { autoAnswer } from "./question.ts";
 import { reglages } from "./reglages.ts";
 import { duelRules, Regles } from "./regles.tsx";
@@ -123,9 +125,11 @@ export function Lobby() {
     invite = undefined;
     history.replaceState(null, "", location.pathname);
   }, [ready]);
-  // The avatar is shown on the plate of the duel, whatever screen the player came from.
+  // The avatar is shown on the plate of the duel, whatever screen the player came from. The trade offers are the baseline of the notifications.
   useEffect(() => {
-    if (ready) socket.current?.send(JSON.stringify({ type: "player_profile" } satisfies ClientMessage));
+    if (!ready) return;
+    socket.current?.send(JSON.stringify({ type: "player_profile" } satisfies ClientMessage));
+    socket.current?.send(JSON.stringify({ type: "trades" } satisfies ClientMessage));
   }, [ready]);
   // The browser errors go to the server once logged in (erreurs.ts).
   useEffect(() => {
@@ -182,11 +186,15 @@ export function Lobby() {
   };
   // The story screen stays open across its duels: it lives in the lobby state.
   // A transition: the current screen stays until the chunk of the next one has arrived.
-  const go = (next: Page) =>
-    startTransition(() => {
-      dispatch({ type: "story_menu", open: next === "histoire" });
-      if (next !== "histoire") setPage(next);
-    });
+  const go = useCallback(
+    (next: Page) =>
+      startTransition(() => {
+        dispatch({ type: "story_menu", open: next === "histoire" });
+        if (next !== "histoire") setPage(next);
+      }),
+    [],
+  );
+  useNotifications(state, go);
 
   const shown = state.storyOpen ? "histoire" : page;
   useEffect(() => {
@@ -208,6 +216,7 @@ export function Lobby() {
         </p>
       )}
       <AlertesAmis state={state} send={send} />
+      {!state.room && <BandeauMiseAJour />}
       <ApercuSalle preview={state.preview} send={send} close={() => dispatch({ type: "preview_close" })} />
       <Suspense fallback={CHARGEMENT}>
         {state.replay && !state.room ? (

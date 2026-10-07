@@ -88,6 +88,11 @@
   max-inline-size: min(360px, calc(100vw - 2 * var(--e-4)));
 }
 
+/* Mise à jour du jeu (Pwa.tsx) : en bas à gauche, pour ne pas recouvrir les défis */
+.alerte-maj {
+  inset: auto auto var(--e-4) var(--e-4);
+}
+
 .alerte-ami {
   margin: 0;
   padding: var(--e-3) var(--e-4);

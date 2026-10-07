@@ -1,10 +1,14 @@
+import { useState } from "react";
+import { demander, prises } from "./notifications.ts";
+import { installer, usePwa } from "./pwa.ts";
 import { useReglages, type Choisi, type Reglages } from "./reglages.ts";
 import "./styles/parametres.css";
 
-type GroupeProps<K extends Choisi> = { cle: K; titre: string; aide: string; choix: readonly (readonly [Reglages[K], string])[] };
+// `accepter`: asked before a choice is kept, which it refuses by answering false.
+type GroupeProps<K extends Choisi> = { cle: K; titre: string; aide: string; choix: readonly (readonly [Reglages[K], string])[]; accepter?: (valeur: Reglages[K]) => Promise<boolean> };
 
 // One setting as a group of radio buttons; the choice is kept at once.
-function Groupe<K extends Choisi>({ cle, titre, aide, choix }: Readonly<GroupeProps<K>>) {
+function Groupe<K extends Choisi>({ cle, titre, aide, choix, accepter }: Readonly<GroupeProps<K>>) {
   const [valeurs, regler] = useReglages();
   return (
     <fieldset className="reglage panneau" aria-describedby={`aide-${cle}`} data-entree>
@@ -15,7 +19,10 @@ function Groupe<K extends Choisi>({ cle, titre, aide, choix }: Readonly<GroupePr
       <div className="reglage__choix">
         {choix.map(([valeur, libelle]) => (
           <label key={valeur}>
-            <input type="radio" name={cle} value={valeur} checked={valeurs[cle] === valeur} onChange={() => regler({ [cle]: valeur } as Pick<Reglages, K>)} />
+            <input type="radio" name={cle} value={valeur} checked={valeurs[cle] === valeur} onChange={async () => {
+                if (!accepter || (await accepter(valeur))) regler({ [cle]: valeur } as Pick<Reglages, K>);
+              }}
+            />
             <span>{libelle}</span>
           </label>
         ))}
@@ -37,6 +44,50 @@ function Volume() {
       <output htmlFor="volume" className="chiffres">
         {volume}
       </output>
+    </div>
+  );
+}
+
+// The browser is asked for its permission here, when the player turns the notifications on, and nowhere else.
+function Notifications() {
+  const [refus, setRefus] = useState(false);
+  const accepter = async (valeur: Reglages["notifications"]) => {
+    const accepte = valeur === "non" || (await demander());
+    setRefus(!accepte);
+    return accepte;
+  };
+  return (
+    <>
+      <Groupe
+        cle="notifications"
+        titre="Notifications"
+        aide="Quand le jeu reste ouvert en arrière-plan (autre onglet, fenêtre réduite) : défi d'un ami, échange proposé, booster gratuit prêt. Une fois le jeu fermé, il ne peut pas vous prévenir."
+        choix={[
+          ["oui", "Activées"],
+          ["non", "Coupées"],
+        ]}
+        accepter={accepter}
+      />
+      {refus && (
+        <p className="message message--erreur" role="status">
+          {prises() ? "Notifications refusées : autorisez-les pour ce site dans les réglages de votre navigateur, puis réessayez." : "Ce navigateur ne gère pas les notifications."}
+        </p>
+      )}
+    </>
+  );
+}
+
+// Only when the browser offers the install (pwa.ts): it does not on an installed app, nor on every browser.
+function Installation() {
+  const { installable } = usePwa();
+  if (!installable) return null;
+  return (
+    <div className="reglage panneau" data-entree>
+      <h2 className="titre-bloc">Application</h2>
+      <p className="texte-2">Installez le jeu sur cet appareil : une icône sur l'écran d'accueil et un affichage plein écran, sans la barre du navigateur.</p>
+      <button type="button" className="btn" onClick={installer}>
+        Installer le jeu
+      </button>
     </div>
   );
 }
@@ -106,6 +157,8 @@ export function Parametres() {
           ["non", "Non"],
         ]}
       />
+      <Notifications />
+      <Installation />
     </div>
   );
 }

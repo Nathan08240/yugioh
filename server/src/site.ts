@@ -10,6 +10,7 @@ const TYPES = new Map([
   [".svg", "image/svg+xml"],
   [".png", "image/png"],
   [".ico", "image/x-icon"],
+  [".webmanifest", "application/manifest+json"],
 ]);
 
 const isFile = (path: string) => statSync(path, { throwIfNoEntry: false })?.isFile() ?? false;
@@ -22,8 +23,8 @@ export function serveClient(req: IncomingMessage, res: ServerResponse, dist = DI
   const file = join(dist, new URL(req.url ?? "/", "http://localhost").pathname);
   const asset = file.startsWith(dist + sep) && isFile(file);
   const path = asset ? file : index;
-  // Vite hashes the asset names: only index.html must be revalidated.
-  const cache = path === index ? "no-cache" : "max-age=31536000, immutable";
+  // Vite hashes the names of assets/ only: index.html, the service worker, the manifest and the other public files are revalidated.
+  const cache = asset && path.startsWith(join(dist, "assets") + sep) ? "max-age=31536000, immutable" : "no-cache";
   res.writeHead(200, { "content-type": TYPES.get(extname(path)) ?? "application/octet-stream", "cache-control": cache });
   createReadStream(path).pipe(res);
   return true;

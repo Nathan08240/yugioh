@@ -1,0 +1,18 @@
+{
+  "id": "/",
+  "name": "Duel Monsters",
+  "short_name": "Duel Monsters",
+  "description": "Duels en ligne, boosters et mode Histoire.",
+  "lang": "fr",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#060817",
+  "theme_color": "#060817",
+  "icons": [
+    { "src": "/icones/icone-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icones/icone-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icones/icone-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

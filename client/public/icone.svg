@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Icône de l'application : l'emblème du jeu (icons.svg#embleme) sur le ciel de la charte, dans la zone sûre des icônes masquables. -->
+  <defs>
+    <radialGradient id="ciel" cx="50%" cy="38%" r="75%">
+      <stop offset="0" stop-color="#1f2760"/>
+      <stop offset="0.65" stop-color="#0b1030"/>
+      <stop offset="1" stop-color="#060817"/>
+    </radialGradient>
+    <linearGradient id="horizon" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3a1f6e" stop-opacity="0"/>
+      <stop offset="1" stop-color="#3a1f6e" stop-opacity="0.9"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#ciel)"/>
+  <rect y="256" width="512" height="256" fill="url(#horizon)"/>
+  <g transform="translate(256 256) scale(17.5) translate(-12 -12)" fill="none" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M12 2.5l8.2 4.75v9.5L12 21.5l-8.2-4.75v-9.5z" stroke="#43f0ff" stroke-width="1.2"/>
+    <path d="M12 7l4.3 2.5v5L12 17l-4.3-2.5v-5z" stroke="#7df7ff" stroke-width="1.2"/>
+    <circle cx="12" cy="12" r="1.9" fill="#ffc53d" stroke="#ffe08a" stroke-width="0.5"/>
+  </g>
+</svg>
