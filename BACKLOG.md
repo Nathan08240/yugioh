@@ -117,7 +117,7 @@ Migrations appliquées en production le 2026-10-05 avant la fusion (missions, é
 - [x] Animations de duel façon Master Duel (feat/F-animations-combat)
 - [x] Lancers de dé et de pièce visibles (fix/F-des-pieces)
 - [x] Déclarer un nom de carte depuis son deck (fix/F-declarer-deck)
-- [ ] Vague 2 : banc bot contre bot de l'histoire, performances client et serveur
+- [x] Vague 2 : banc bot contre bot de l'histoire et decks adverses rééquilibrés (feat/F-banc-bots), performances client (perf/F-perf-client, plateau 3D sans react-three-fiber) et serveur (perf/F-perf-serveur, index appliqué le 2026-10-07)
 - [x] Écran d'accueil repensé : hiérarchie, grille des modes, missions lisibles (feat/F-accueil-refonte)
 - [ ] Vague 3 : découpage de server.ts, tests e2e
 
