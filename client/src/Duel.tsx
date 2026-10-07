@@ -21,7 +21,7 @@ import { RulesBadge, type Rule } from "./regles.tsx";
 import { Signaler, type Report } from "./Signaler.tsx";
 import { jouer as jouerSon, sonDe } from "./son.ts";
 import "./styles/duel.css";
-import { avancer, ETAPES } from "./tutoriel.ts";
+import { avancer, type Etape, type Parcours } from "./tutoriel.ts";
 import { Apercu, Avatar, Icon } from "./ui.tsx";
 
 // The 3D board and three.js are fetched when a duel starts (their own chunk).
@@ -63,8 +63,8 @@ type Props = {
   // A spectator watching from seat 0's side (`pseudo` and `opponent` name the seats), and how many spectators the room has.
   spectateur?: boolean;
   spectators?: number;
-  // The guided duel of the tutorial: its instructions beside the question, leaving it quits the duel.
-  tutoriel?: boolean;
+  // A guided duel (the tutorial, a lesson): its instructions beside the question, leaving it quits the duel.
+  tutoriel?: Parcours;
   // A finished duel watched again (Revoir.tsx), from a spectator's seat: its playback controls in place of the question.
   rejeu?: ReactNode;
 };
@@ -185,8 +185,9 @@ export function Duel({ board, seat, asked, respond, leave, surrender, answerBy, 
   const cadre = useRef<HTMLDivElement>(null);
   const start = lp ?? Math.max(...board.players.map((side) => side.lp), 1);
   const opponentStart = opponentLp ?? start;
-  const etape = useEtape(feed, seat);
-  const conseil = tutoriel ? ETAPES[etape]?.carte : undefined;
+  const etapes = tutoriel?.etapes ?? AUCUNE_ETAPE;
+  const etape = useEtape(feed, seat, etapes);
+  const conseil = etapes[etape]?.carte;
 
   const onZone = (id: string, point: Point) => {
     const location = Number(id.split(":")[1]);
@@ -271,7 +272,7 @@ export function Duel({ board, seat, asked, respond, leave, surrender, answerBy, 
             {rules?.length ? <RulesBadge rules={rules} /> : null}
             {shown.chain.length > 0 && <Chain chain={shown.chain} seat={seat} opponent={opponent} />}
             <Log log={shown.log} opponent={opponent} />
-            {tutoriel && <Consigne etape={etape} passer={leave} />}
+            {tutoriel && <Consigne parcours={tutoriel} etape={etape} passer={leave} />}
             <section className="panneau question" aria-live="polite">
               <p className="surtitre surtitre--or">{asked && idle ? "À vous de répondre" : "Duel en cours"}</p>
               {absent !== undefined && (
@@ -318,30 +319,32 @@ export function Duel({ board, seat, asked, respond, leave, surrender, answerBy, 
 
 const cartes = (n: number) => (n > 1 ? `${n} cartes` : `${n} carte`);
 
-// Step of the tutorial the messages reached, each batch counted once.
-function useEtape(feed: Feed | undefined, seat: number): number {
+const AUCUNE_ETAPE: readonly Etape[] = [];
+
+// Step of the guided duel the messages reached, each batch counted once.
+function useEtape(feed: Feed | undefined, seat: number, etapes: readonly Etape[]): number {
   const [suivi, setSuivi] = useState({ id: 0, etape: 0 });
   if (!feed || feed.id === suivi.id) return suivi.etape;
-  const suivant = { id: feed.id, etape: avancer(suivi.etape, feed.messages, seat) };
+  const suivant = { id: feed.id, etape: avancer(suivi.etape, feed.messages, seat, etapes) };
   setSuivi(suivant);
   return suivant.etape;
 }
 
-// The instruction of the current step of the tutorial, none once it is won.
-function Consigne({ etape, passer }: Readonly<{ etape: number; passer: () => void }>) {
-  const courante = ETAPES.at(etape);
+// The instruction of the current step of the guided duel, none once it is won.
+function Consigne({ parcours, etape, passer }: Readonly<{ parcours: Parcours; etape: number; passer: () => void }>) {
+  const courante = parcours.etapes.at(etape);
   if (!courante) return null;
   return (
-    <section className="panneau consigne" aria-label="Tutoriel">
+    <section className="panneau consigne" aria-label={parcours.nom}>
       <div aria-live="polite">
         <p className="surtitre surtitre--or">
-          Tutoriel · étape {etape + 1} sur {ETAPES.length}
+          {parcours.nom} · étape {etape + 1} sur {parcours.etapes.length}
         </p>
         <h2 className="titre-bloc">{courante.titre}</h2>
         <p className="consigne__texte">{courante.consigne}</p>
       </div>
       <button type="button" className="btn btn--fantome" onClick={passer}>
-        Passer le tutoriel
+        {parcours.quitter}
       </button>
     </section>
   );

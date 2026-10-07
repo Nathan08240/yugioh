@@ -7,7 +7,7 @@ import type { Step } from "../src/puzzles.ts";
 import { respond } from "../src/respond.ts";
 
 // Index of each code in the list, a different card each time.
-function pick(list: readonly { code: number }[], codes: readonly number[]): number[] {
+export function pick(list: readonly { code: number }[], codes: readonly number[]): number[] {
   const taken: number[] = [];
   for (const code of codes) {
     const index = list.findIndex((card, i) => card.code === code && !taken.includes(i));
@@ -40,7 +40,7 @@ function selection(question: OcgMessage, codes: readonly number[]): OcgResponse 
 }
 
 // The response of a step to this question, undefined when the step is for a later question.
-const play = (question: OcgMessage, [action, ...codes]: Step) => (action === "select" ? selection(question, codes) : command(question, action, codes));
+export const play = (question: OcgMessage, [action, ...codes]: Step) => (action === "select" ? selection(question, codes) : command(question, action, codes));
 
 export const ACTIONS = new Set(["activate", "summon", "pos", "chain", "battle", "attack", "main2", "select"]);
 

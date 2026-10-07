@@ -5,7 +5,7 @@ import "./styles/puzzles.css";
 import { Icon } from "./ui.tsx";
 
 // The goal of the puzzle during its duel, with the rules badge.
-export const puzzleRule = (puzzle: PuzzleView): Rule[] => [
+export const puzzleRule = (puzzle: Pick<PuzzleView, "title" | "goal">): Rule[] => [
   { title: puzzle.title, details: [puzzle.goal, "Faites tomber les LP adverses à 0 avant la fin de ce tour : le finir échoue le puzzle."] },
 ];
 

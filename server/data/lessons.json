@@ -1,0 +1,51 @@
+[
+  {
+    "id": "tribut-simple",
+    "title": "Un sacrifice",
+    "goal": "Curse of Dragon est de niveau 5 : il demande un sacrifice. L'adversaire n'a plus que 3500 LP : choisissez bien le monstre sacrifié.",
+    "player": { "lp": 4000, "hand": [28279543], "monsters": [[39552864, "attack"], [47060154, "attack"]] },
+    "opponent": { "lp": 3500 },
+    "solution": [["summon", 28279543], ["select", 39552864], ["battle"], ["attack", 28279543], ["attack", 47060154]]
+  },
+  {
+    "id": "tribut-double",
+    "title": "Deux sacrifices",
+    "goal": "Blue-Eyes White Dragon est de niveau 8 : il demande deux sacrifices. L'adversaire a 4500 LP : gardez votre monstre le plus fort.",
+    "player": { "lp": 4000, "hand": [89631139], "monsters": [[39552864, "attack"], [83464209, "attack"], [47060154, "attack"]] },
+    "opponent": { "lp": 4500 },
+    "solution": [["summon", 89631139], ["select", 39552864, 83464209], ["battle"], ["attack", 89631139], ["attack", 47060154]]
+  },
+  {
+    "id": "fusion",
+    "title": "Fusion",
+    "goal": "Aucun monstre de votre main n'atteint les 2600 LP de l'adversaire. Fusionnez-en deux avec Polymérisation.",
+    "player": { "lp": 4000, "hand": [24094653, 6368038, 28279543] },
+    "extra": [66889139],
+    "opponent": { "lp": 2600 },
+    "solution": [["activate", 24094653], ["select", 66889139], ["select", 6368038, 28279543], ["battle"], ["attack", 66889139]]
+  },
+  {
+    "id": "chaine",
+    "title": "Répondre en chaîne",
+    "goal": "L'adversaire a un Piège face cachée qui détruira votre attaquant. Répondez en chaîne : la dernière carte activée se résout la première.",
+    "player": { "lp": 4000, "monsters": [[70781052, "attack"]], "spells": [3819470] },
+    "opponent": { "lp": 2500, "spells": [56120475] },
+    "solution": [["battle"], ["attack", 70781052], ["chain", 3819470]]
+  },
+  {
+    "id": "jeu-rapide",
+    "title": "Jeu-rapide et pièges posés",
+    "goal": "Votre monstre est plus faible que celui de l'adversaire, qui n'a plus que 200 LP. Une Magie jeu-rapide s'active depuis la main, même en plein combat.",
+    "player": { "lp": 4000, "hand": [70046172, 44095762], "monsters": [[47060154, "attack"]] },
+    "opponent": { "lp": 200, "monsters": [[28279543, "attack"]] },
+    "solution": [["set", 44095762], ["battle"], ["attack", 47060154], ["select", 28279543], ["chain", 70046172], ["select", 47060154]]
+  },
+  {
+    "id": "combat",
+    "title": "Combat et retournement",
+    "goal": "Un monstre en défense de 2000 DEF bloque la route. Retournez votre monstre face cachée pour le détruire, puis finissez en attaquant.",
+    "player": { "lp": 4000, "monsters": [[28279543, "attack"], [54652250, "set"]] },
+    "opponent": { "lp": 950, "monsters": [[15025844, "defense"], [47060154, "attack"]] },
+    "solution": [["flip", 54652250], ["select", 15025844], ["battle"], ["attack", 28279543], ["select", 47060154], ["attack", 54652250]]
+  }
+]

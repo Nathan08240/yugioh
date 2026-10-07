@@ -84,9 +84,12 @@ export function OffreTutoriel({ send, go }: Readonly<{ send: Send; go: (page: Pa
         <h1 id="offre-tutoriel" className="titre-panneau">
           Apprendre les bases ?
         </h1>
-        <p className="texte-2">Un duel guidé de quelques minutes : invoquer, attaquer, poser un Piège, l'enchaîner. Première victoire : 1 booster. Il reste disponible depuis l'accueil et la page Règles.</p>
+        <p className="texte-2">Un duel guidé de quelques minutes : invoquer, attaquer, poser un Piège, l'enchaîner. Première victoire : 1 booster. Il reste disponible depuis l'accueil et la page Règles, avec des leçons avancées pour la suite.</p>
         <button type="button" className="btn btn--grand" onClick={jouer}>
           Jouer le tutoriel
+        </button>
+        <button type="button" className="btn btn--fantome" onClick={() => go("lecons")}>
+          Voir les leçons avancées
         </button>
         <button type="button" className="btn btn--fantome" onClick={() => go("accueil")}>
           Plus tard

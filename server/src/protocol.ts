@@ -131,6 +131,9 @@ export type ClientMessage =
   | { type: "puzzle"; id: string }
   // The guided duel of the tutorial against the bot; its first win is announced as `puzzle_won` with the id "tutorial".
   | { type: "tutorial" }
+  // Lessons of the tutorial: `lessons` asks for the list, answered with `lessons`; `lesson` starts one against the bot.
+  | { type: "lessons" }
+  | { type: "lesson"; id: string }
   // Wins and losses of the player per deck, answered with `duel_results`.
   | { type: "duel_results" }
   // The event of the week, answered with `event`.
@@ -262,6 +265,9 @@ export type ServerMessage =
   | { type: "puzzles"; puzzles: PuzzleView[] }
   // A solved puzzle (or the tutorial won, id "tutorial"), recorded: `booster` the first time only.
   | { type: "puzzle_won"; id: string; booster: boolean }
+  | { type: "lessons"; lessons: LessonView[] }
+  // A lesson won, recorded: `points` of collection earned the first time, 0 after.
+  | { type: "lesson_won"; id: string; points: number }
   | ({ type: "tower" } & TowerView)
   // A won tower duel, recorded: `boosters` earned by the first win of a reward floor this week, 0 otherwise.
   | { type: "tower_won"; floor: number; best: number; boosters: number }
@@ -347,6 +353,9 @@ export type WonderView =
 export const PUZZLE_DIFFICULTIES = ["easy", "medium", "hard"] as const;
 export type PuzzleDifficulty = (typeof PUZZLE_DIFFICULTIES)[number];
 export type PuzzleView = { id: string; title: string; goal: string; difficulty: PuzzleDifficulty; done: boolean };
+export type LessonView = Omit<PuzzleView, "difficulty">;
+// Collection points of the first win of each lesson: all of them together stay under a booster's worth (9 cards, 40 points or more each to craft).
+export const LESSON_POINTS = 15;
 // WIN reason of a failed puzzle: the player's turn ended with the opponent still standing.
 export const PUZZLE_FAILED = 0x60;
 

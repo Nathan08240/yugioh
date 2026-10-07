@@ -2,8 +2,8 @@ import type { WebSocket } from "ws";
 import { isAdminMessage } from "./admin.ts";
 import { isFriendMessage } from "./friends.ts";
 import { leave, MAINTENANCE, type Connection, type Lobby, type User } from "./lobby.ts";
-import { adminReply, choosePseudo, grantBoosters, identify, manageProfile, openBoosterFor, pickStarter, reportClientError, sendBoosterState, sendReplays, sendReply, sendResults, showEvent, showMissions, showPuzzles, showRanked, showReplay, showStory, showTower, storeReply } from "./menus.ts";
-import { challengeFriend, enterRoom, leaveQueue, playDraft, playPuzzle, playSealed, playStory, playTower, playTutorial, queueRanked, showRoomRules, spectate, stopWatching } from "./modes.ts";
+import { adminReply, choosePseudo, grantBoosters, identify, manageProfile, openBoosterFor, pickStarter, reportClientError, sendBoosterState, sendReplays, sendReply, sendResults, showEvent, showLessons, showMissions, showPuzzles, showRanked, showReplay, showStory, showTower, storeReply } from "./menus.ts";
+import { challengeFriend, enterRoom, leaveQueue, playDraft, playLesson, playPuzzle, playSealed, playStory, playTower, playTutorial, queueRanked, showRoomRules, spectate, stopWatching } from "./modes.ts";
 import { isProfileMessage } from "./profile.ts";
 import type { ClientMessage } from "./protocol.ts";
 import { answer, emote, surrender } from "./room.ts";
@@ -54,6 +54,8 @@ function handleMenu(conn: Connection, user: User, msg: ClientMessage): Reply {
       return showEvent(conn, user.id);
     case "puzzles":
       return showPuzzles(conn, user.id);
+    case "lessons":
+      return showLessons(conn, user.id);
     case "tower":
       return showTower(conn, user.id);
     case "ranked":
@@ -112,6 +114,8 @@ function enterDuel(conn: Connection, user: User, msg: ClientMessage): Reply {
       return playPuzzle(conn, user.id, msg.id);
     case "tutorial":
       return playTutorial(conn, user.id);
+    case "lesson":
+      return playLesson(conn, user.id, msg.id);
     case "tower_duel":
       return playTower(conn, user.id);
     case "sealed_duel":

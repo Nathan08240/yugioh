@@ -53,6 +53,8 @@ const CHECKS: ReadonlyMap<unknown, Check> = new Map<ClientMessage["type"], Check
   ["puzzles", always],
   ["puzzle", hasString("id")],
   ["tutorial", always],
+  ["lessons", always],
+  ["lesson", hasString("id")],
   ["tower", always],
   ["tower_duel", always],
   ["missions", always],

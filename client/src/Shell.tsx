@@ -3,8 +3,8 @@ import { createQueue, entrance, exit } from "./motion.ts";
 import "./styles/shell.css";
 import { Icon } from "./ui.tsx";
 
-// "scelle" and "draft" open from the home screen only, "tutoriel" (its offer) right after the starter.
-export type Page = "accueil" | "classe" | "collection" | "boosters" | "histoire" | "puzzles" | "tour" | "regles" | "profil" | "amis" | "parametres" | "scelle" | "draft" | "tutoriel" | "admin";
+// "scelle" and "draft" open from the home screen only, "tutoriel" (its offer) right after the starter, "lecons" from the tutorial and the rules.
+export type Page = "accueil" | "classe" | "collection" | "boosters" | "histoire" | "puzzles" | "tour" | "regles" | "profil" | "amis" | "parametres" | "scelle" | "draft" | "tutoriel" | "lecons" | "admin";
 
 const NAV: [Page, string][] = [
   ["accueil", "Accueil"],

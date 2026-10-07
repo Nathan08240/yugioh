@@ -1,9 +1,10 @@
-import { OcgMessageType, OcgPosition } from "@n1xx1/ocgcore-wasm";
+import { OcgLocation, OcgMessageType, OcgPosition } from "@n1xx1/ocgcore-wasm";
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, it, vi } from "vitest";
 import { newBoard, playAll } from "./board.ts";
 import { Duel, webgl2 } from "./Duel.tsx";
-import { CELTIC, MIRROR_FORCE } from "./tutoriel.ts";
+import { parcoursDeLecon } from "./lecons.ts";
+import { CELTIC, MIRROR_FORCE, TUTORIEL } from "./tutoriel.ts";
 
 it("sans WebGL 2, garde le HUD et joue le duel sur le plateau 2D avec un message", () => {
   expect(webgl2()).toBe(false);
@@ -42,7 +43,7 @@ it("vu par un spectateur : ni abandon, ni emotes, ni signalement ; les deux joue
 
 it("tutoriel : la consigne suit les messages du moteur, la carte à jouer est mise en évidence dans la main", () => {
   const board = playAll(newBoard(4000, [40, 40]), [{ type: OcgMessageType.DRAW, player: 0, drawn: [CELTIC, MIRROR_FORCE].map((code) => ({ code, position: OcgPosition.FACEDOWN })) }]);
-  const duel = (feed?: Parameters<typeof Duel>[0]["feed"]) => renderToStaticMarkup(<Duel board={board} seat={0} respond={() => {}} leave={() => {}} surrender={() => {}} feed={feed} tutoriel />);
+  const duel = (feed?: Parameters<typeof Duel>[0]["feed"]) => renderToStaticMarkup(<Duel board={board} seat={0} respond={() => {}} leave={() => {}} surrender={() => {}} feed={feed} tutoriel={TUTORIEL} />);
   const start = duel();
   expect(start).toContain("Tutoriel · étape 1 sur 8");
   expect(start).toContain("Invoquer un monstre");
@@ -54,4 +55,21 @@ it("tutoriel : la consigne suit les messages du moteur, la carte à jouer est mi
   expect(summoned).toContain("Attaquer directement");
   expect(summoned).not.toContain("est-conseillee");
   expect(renderToStaticMarkup(<Duel board={board} seat={0} respond={() => {}} leave={() => {}} surrender={() => {}} />)).not.toContain("Tutoriel");
+});
+
+it("leçon : ses propres bulles, la carte à jouer en évidence et le bouton pour la quitter", () => {
+  const POLYMERIZATION = 24094653;
+  const board = playAll(newBoard(4000, [40, 40]), [{ type: OcgMessageType.DRAW, player: 0, drawn: [POLYMERIZATION, CELTIC].map((code) => ({ code, position: OcgPosition.FACEDOWN })) }]);
+  const duel = (feed?: Parameters<typeof Duel>[0]["feed"]) => renderToStaticMarkup(<Duel board={board} seat={0} respond={() => {}} leave={() => {}} surrender={() => {}} feed={feed} tutoriel={parcoursDeLecon("fusion")} />);
+  const start = duel();
+  expect(start).toContain("Leçon · étape 1 sur 3");
+  expect(start).toContain("Activer Polymérisation");
+  expect(start).toContain("Quitter la leçon");
+  expect(start).toContain(`Carte ${POLYMERIZATION}, à jouer pour le tutoriel`);
+  expect(start.match(/est-conseillee/g)).toHaveLength(1);
+
+  const where = { location: OcgLocation.SZONE, sequence: 0 };
+  const chaining = { type: OcgMessageType.CHAINING, code: POLYMERIZATION, controller: 0, ...where, position: OcgPosition.FACEUP_ATTACK, triggering_controller: 0, triggering_location: where.location, triggering_sequence: 0, description: "0", chain_size: 1 } as const;
+  const chained = duel({ id: 1, messages: [chaining] });
+  expect(chained).toContain("Choisir la Fusion");
 });

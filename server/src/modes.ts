@@ -7,8 +7,9 @@ import { KAIBA } from "./decks.ts";
 import { lpLeft, lpOf } from "./duel.ts";
 import type { EmoteId } from "./emotes.ts";
 import { eventOf, eventRules } from "./event.ts";
+import { LESSON_IDS } from "./lessons.ts";
 import { duelDeck, enter, limitsOf, type Connection, type FriendEntry, type Lobby } from "./lobby.ts";
-import { SPECTATORS_MAX, type BotLevel, type ClientMessage, type RevengeResult, type RoomOptions, type Seat, type ServerMessage, type StoryLevel, type StoryResult } from "./protocol.ts";
+import { LESSON_POINTS, SPECTATORS_MAX, type BotLevel, type ClientMessage, type RevengeResult, type RoomOptions, type Seat, type ServerMessage, type StoryLevel, type StoryResult } from "./protocol.ts";
 import { PUZZLE_IDS, PUZZLE_TURNS, puzzleField, puzzleRules } from "./puzzles.ts";
 import { pairUp } from "./ranked.ts";
 import { creditWinner, towerFloor } from "./rewards.ts";
@@ -236,12 +237,12 @@ export async function playStory(conn: Connection, userId: string, id: string, le
 }
 
 // The player keeps seat 0 against the Normal bot, from a state set up by hand, without their deck; only their win counts,
-// recorded by `solve` and announced as `puzzle_won` with `id`.
-function playSetUp(conn: Connection, userId: string, room: Room, id: string, solve: () => Promise<boolean>, retry: string): string | undefined {
+// recorded by `solve` (true the first time) and announced by `won`. `extra`: the Extra Deck of the player.
+function playSetUp(conn: Connection, userId: string, room: Room, solve: () => Promise<boolean>, won: (first: boolean) => ServerMessage, retry: string, extra: number[] = []): string | undefined {
   room.onWin = (winner) => {
     if (winner !== 0) return;
     solve().then(
-      (booster) => send(room.players[0]?.socket, { type: "puzzle_won", id, booster }),
+      (first) => send(room.players[0]?.socket, won(first)),
       (error: unknown) => {
         console.error(error);
         send(room.players[0]?.socket, { type: "error", error: retry });
@@ -249,20 +250,28 @@ function playSetUp(conn: Connection, userId: string, room: Room, id: string, sol
     );
   };
   const empty = { main: [], extra: [] };
-  return enter(conn, userId, room, empty, { deck: empty, name: "Bot", level: "normal" });
+  return enter(conn, userId, room, { main: [], extra }, { deck: empty, name: "Bot", level: "normal" });
 }
 
 export function playPuzzle(conn: Connection, userId: string, id: string): string | undefined {
   const puzzle = PUZZLE_IDS.get(id);
   if (!puzzle) return "puzzle inconnu";
   const room: Room = { code: newCode(conn.lobby.rooms), players: [], rules: puzzleRules(puzzle), field: puzzleField(puzzle), turnLimit: PUZZLE_TURNS };
-  return playSetUp(conn, userId, room, id, () => conn.lobby.accounts.solvePuzzle(userId, id), "réussite non enregistrée, rejouez le puzzle plus tard");
+  return playSetUp(conn, userId, room, () => conn.lobby.accounts.solvePuzzle(userId, id), (booster) => ({ type: "puzzle_won", id, booster }), "réussite non enregistrée, rejouez le puzzle plus tard");
+}
+
+// A lesson of client/src/lecons.ts: a puzzle with the Extra Deck of the lesson.
+export function playLesson(conn: Connection, userId: string, id: string): string | undefined {
+  const lesson = LESSON_IDS.get(id);
+  if (!lesson) return "leçon inconnue";
+  const room: Room = { code: newCode(conn.lobby.rooms), players: [], rules: puzzleRules(lesson), field: puzzleField(lesson), turnLimit: PUZZLE_TURNS };
+  return playSetUp(conn, userId, room, () => conn.lobby.accounts.solveLesson(userId, id), (first) => ({ type: "lesson_won", id, points: first ? LESSON_POINTS : 0 }), "réussite non enregistrée, rejouez la leçon plus tard", lesson.extra);
 }
 
 // The guided duel of client/src/tutoriel.ts, without turn limit.
 export function playTutorial(conn: Connection, userId: string): string | undefined {
   const room: Room = { code: newCode(conn.lobby.rooms), players: [], rules: TUTORIAL_RULES, field: TUTORIAL_FIELD };
-  return playSetUp(conn, userId, room, "tutorial", () => conn.lobby.accounts.finishTutorial(userId), "victoire non enregistrée, rejouez le tutoriel plus tard");
+  return playSetUp(conn, userId, room, () => conn.lobby.accounts.finishTutorial(userId), (booster) => ({ type: "puzzle_won", id: "tutorial", booster }), "victoire non enregistrée, rejouez le tutoriel plus tard");
 }
 
 // The player keeps seat 0 against the bot of the floor. The deck is checked first: an invalid one keeps the progression.

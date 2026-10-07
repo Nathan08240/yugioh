@@ -10,6 +10,7 @@ import { claimEvent, eventWon } from "./event.ts";
 import { onlineToday, winOnline } from "./online.ts";
 import { dbFriendStore, type FriendStore } from "./friends.ts";
 import { listReplays, readReplay, saveReplay, type HistoryEntry, type StoredReplay } from "./history.ts";
+import { solvedLessons, solveLesson } from "./lessons.ts";
 import { dbMissionStore, type MissionStore } from "./missions.ts";
 import type { Printing } from "./pool.ts";
 import { dbProfileStore, type ProfileStore } from "./profile.ts";
@@ -58,6 +59,9 @@ export type Accounts = DeckStore & WishStore & EconomyStore & WonderStore & Prof
   solvePuzzle: (userId: string, id: string) => Promise<boolean>;
   // Records a win of the tutorial: true the first time, which earns a booster.
   finishTutorial: (userId: string) => Promise<boolean>;
+  // Ids of the lessons won; recording a won lesson resolves to true the first time, which earns collection points.
+  solvedLessons: (userId: string) => Promise<ReadonlySet<string>>;
+  solveLesson: (userId: string, id: string) => Promise<boolean>;
   // Resolves to false when the player already sent too many reports this hour.
   saveReport: (userId: string, message: string, report: Report) => Promise<boolean>;
   // Duels to watch again (history.ts): keeps one (the last HISTORY_MAX per player), lists them, reads one of the player's.
@@ -99,6 +103,8 @@ export function dbAccounts(db: Db): Accounts {
     solvedPuzzles: (userId) => solvedPuzzles(db, userId),
     solvePuzzle: (userId, id) => solvePuzzle(db, userId, id),
     finishTutorial: (userId) => finishTutorial(db, userId),
+    solvedLessons: (userId) => solvedLessons(db, userId),
+    solveLesson: (userId, id) => solveLesson(db, userId, id),
     saveReport: (userId, message, report) => saveReport(db, userId, message, report),
     saveReplay: (entry) => saveReplay(db, entry),
     replays: (userId) => listReplays(db, userId),
