@@ -1,31 +1,31 @@
 import { spawn } from "node:child_process";
 import { randomInt } from "node:crypto";
-import { createReadStream, existsSync } from "node:fs";
-import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { existsSync } from "node:fs";
+import { createServer } from "node:http";
 import { join } from "node:path";
 import { OcgMessageType, OcgProcessResult, OcgResponseType, type OcgMessage, type OcgResponse } from "@n1xx1/ocgcore-wasm";
 import { WebSocketServer, type WebSocket } from "ws";
 import { dbAccounts, type Accounts } from "./accounts.ts";
 import { announceCard, declarable, declarableFromDeck } from "./announce.ts";
-import { BOOSTERS, WIN_BOOSTER_REWARD } from "./boosters.ts";
+import { WIN_BOOSTER_REWARD } from "./boosters.ts";
 import { Bot } from "./bot.ts";
-import { clientCard, RULE_CARDS } from "./cards.ts";
 import { deckReply, isDeckMessage, poolCard, validDeckMessage, type DeckMessage } from "./collection.ts";
 import { ROOM_LIMITS, roomRules, validRoomOptions } from "./custom.ts";
 import { openDb, type ActiveDeck } from "./db.ts";
 import { EXTRA_MAX, isFusion, limitError, MAIN_MAX, MAIN_MIN } from "./deckcheck.ts";
 import { KAIBA } from "./decks.ts";
 import { agreeToRules, fieldMonsters, fieldMoves, fieldStats, lpLeft, lpOf, openDuel, STANDARD_RULES, type FieldMonsters, type Placed, type Rules, type Seed } from "./duel.ts";
-import { CRAFT_COSTS, economyReply, isEconomyMessage, validEconomyMessage, type EconomyMessage } from "./economy.ts";
+import { economyReply, isEconomyMessage, validEconomyMessage, type EconomyMessage } from "./economy.ts";
 import { EMOTE_DELAY, EMOTE_IDS, type EmoteId } from "./emotes.ts";
 import { eventOf, eventRules, type WeeklyEvent } from "./event.ts";
 import { friendHub, isFriendMessage, validFriendMessage } from "./friends.ts";
 import { historyEntry, replayAllowed, replayMessage, REPLAYS_LIMITED } from "./history.ts";
 import { GOAT } from "./limits.ts";
 import { countEvents, duelGains, fusionOnField, newTally, type MissionProgress, type Tally } from "./missions.ts";
-import { isAllowed, POOL, SETS } from "./pool.ts";
+import { serveHttp, SERVED, artFile } from "./http.ts";
+import { isAllowed } from "./pool.ts";
 import { isProfileMessage, profileReply, validProfileMessage, type ProfileMessage } from "./profile.ts";
-import { PUZZLE_FAILED, REPORT_MAX, SPECTATORS_MAX, type BotLevel, type CardInfo, type ClientMessage, type DuelEvent, type RevengeResult, type RoomOptions, type Seat, type ServerMessage, type StoryLevel, type StoryResult } from "./protocol.ts";
+import { PUZZLE_FAILED, REPORT_MAX, SPECTATORS_MAX, type BotLevel, type ClientMessage, type DuelEvent, type RevengeResult, type RoomOptions, type Seat, type ServerMessage, type StoryLevel, type StoryResult } from "./protocol.ts";
 import { PUZZLE_IDS, PUZZLE_TURNS, puzzleField, puzzleRules, puzzleView } from "./puzzles.ts";
 import { pairUp, type Waiting } from "./ranked.ts";
 import { REPORT_BYTES, RESPONSE_BYTES, type Report } from "./report.ts";
@@ -33,10 +33,8 @@ import { engineForm, respond } from "./respond.ts";
 import type { DuelResult } from "./results.ts";
 import { draftReply, isDraftMessage, validDraftMessage, type DraftMessage } from "./draft.ts";
 import { botDeck, isSealedMessage, sealedReply, validSealedMessage, type SealedMessage } from "./sealed.ts";
-import { serveClient } from "./site.ts";
-import { starterCards, type Starter } from "./starter.ts";
+import type { Starter } from "./starter.ts";
 import { isUnlocked, playerDeck, STORY, STORY_DUELS, STORY_REVENGES, storyDeck, storyExtra, storyRules, storyStars, storyView, type StoryDuel } from "./story.ts";
-import { systemStrings } from "./strings.ts";
 import { TOWER, towerLevel, towerRules } from "./tower.ts";
 import { TUTORIAL_FIELD, TUTORIAL_RULES } from "./tutorial.ts";
 import { hideCards, visibleTo } from "./visibility.ts";
@@ -145,58 +143,6 @@ export const ANSWERS = new Map<OcgMessageType, OcgResponseType>([
   [OcgMessageType.ANNOUNCE_CARD, OcgResponseType.ANNOUNCE_CARD],
   [OcgMessageType.ANNOUNCE_NUMBER, OcgResponseType.ANNOUNCE_NUMBER],
 ]);
-
-const artFile = (code: number) => join(import.meta.dirname, "..", "vendor", "art", `${code}.jpg`);
-const ART_URL = /^\/api\/art\/(\d{1,10})\.jpg$/;
-// The pool, the anime cards of the story opponents and the rule cards.
-const SERVED: ReadonlySet<number> = new Set([...POOL, ...STORY.anime, ...RULE_CARDS.keys()]);
-let cards: [number, Omit<CardInfo, "image">][] | undefined;
-
-// Card data, system strings and artworks for the client (see CardInfo). Artworks are optional: `pnpm images` downloads them.
-function serveHttp(req: IncomingMessage, res: ServerResponse) {
-  if (req.method === "GET" && req.url === "/api/cards") {
-    cards ??= [...SERVED].flatMap((code) => {
-      const info = clientCard(code);
-      return info ? [[code, info] as const] : [];
-    });
-    const body = Object.fromEntries(cards.map(([code, info]) => [code, { ...info, image: existsSync(artFile(code)) } satisfies CardInfo]));
-    res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify(body));
-    return;
-  }
-  if (req.method === "GET" && req.url === "/api/strings") {
-    res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify(Object.fromEntries(systemStrings())));
-    return;
-  }
-  if (req.method === "GET" && req.url === "/api/starters") {
-    const body = { yugi: starterCards("yugi"), kaiba: starterCards("kaiba") };
-    res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify(body));
-    return;
-  }
-  if (req.method === "GET" && req.url === "/api/boosters") {
-    const body = [...BOOSTERS.values()].map(({ code, name, date }) => ({ code, name, date }));
-    res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify(body));
-    return;
-  }
-  if (req.method === "GET" && req.url === "/api/craft") {
-    // Points to obtain each booster card as [passcode, cost].
-    res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify([...CRAFT_COSTS]));
-    return;
-  }
-  if (req.method === "GET" && req.url === "/api/sets") {
-    // Boosters then starter decks, each passcode once per set (an Ultimate Rare variant repeats it).
-    const body = SETS.map(({ code, name, date, cards }) => ({ code, name, date, cards: [...new Set(cards.map((card) => card.code))] }));
-    res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify(body));
-    return;
-  }
-  const code = Number(ART_URL.exec(req.url ?? "")?.[1]);
-  if (req.method === "GET" && SERVED.has(code) && existsSync(artFile(code))) {
-    res.writeHead(200, { "content-type": "image/jpeg", "cache-control": "max-age=86400" });
-    createReadStream(artFile(code)).pipe(res);
-    return;
-  }
-  if (serveClient(req, res)) return;
-  res.writeHead(404).end();
-}
 
 export const randomSeed = (): Seed => [...crypto.getRandomValues(new BigUint64Array(4))] as Seed;
 
