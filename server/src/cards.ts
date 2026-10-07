@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import type { OcgCardData } from "@n1xx1/ocgcore-wasm";
+import { isExtraDeck } from "./deckcheck.ts";
 import type { CardInfo } from "./protocol.ts";
 import { attributeName, typeLine } from "./strings.ts";
 
@@ -115,12 +116,14 @@ export function clientCard(code: number): Omit<CardInfo, "image"> | undefined {
   const info = cardInfo(code);
   if (!info) return undefined;
   const text = frenchText(code);
+  const materials = isExtraDeck(info) ? fusionMaterials(code) : undefined;
   return {
     ...info,
     name: text?.name ?? info.name,
     desc: text?.desc ?? info.desc,
     attributeName: attributeName(info.attribute),
     typeLine: typeLine(info.type, info.race),
+    ...(materials && { materials }),
   };
 }
 
@@ -132,3 +135,22 @@ const scriptFile = memo((file: string): string | null => {
 });
 
 export const readScript = (name: string) => scriptFile(name.split("/").at(-1) ?? name);
+
+// The CARD_* names the scripts give to passcodes (CARD_DARK_MAGICIAN = 46986414).
+const cardConstants = memo((file: string) => new Map([...(scriptFile(file) ?? "").matchAll(/^(CARD_\w+)\s*=\s*(\d+)/gm)].map(([, name, passcode]) => [name, Number(passcode)] as const)));
+
+// Fusion.AddProcMix(c,substitute,insufficient,material,...) lists the materials; AddProcMixN takes (material,count) pairs.
+const FUSION_MATERIALS = /Fusion\.AddProcMix(N?)\(c,[^,]*,[^,]*,([^)]*)\)/;
+
+// The named materials of a Fusion monster, read from its script, one entry per card needed; undefined when one is a condition
+// (a filter function). ponytail: Fusion Substitute is ignored; Synchro, Xyz and Link would add their own reader here.
+const fusionMaterials = memo((code: number): number[] | undefined => {
+  const [, counted, args] = FUSION_MATERIALS.exec(readScript(`c${code}.lua`) ?? "") ?? [];
+  if (args === undefined) return undefined;
+  const constants = cardConstants("card_counter_constants.lua");
+  const values = args.split(",").map((arg) => Number(arg) || constants.get(arg.trim()));
+  const named = values.filter((value) => value !== undefined);
+  if (named.length !== values.length) return undefined;
+  if (!counted) return named;
+  return named.length % 2 === 0 ? named.flatMap((value, i) => (i % 2 === 0 ? Array<number>(named[i + 1]).fill(value) : [])) : undefined;
+});

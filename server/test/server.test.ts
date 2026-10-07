@@ -369,12 +369,13 @@ describe("serveur de partie", () => {
     const host = await connect("hote2");
     host.send({ type: "create" });
     await vi.waitFor(() => expect(joined(host.received)).toBeDefined());
-    expect(joined(host.received)).toMatchObject({ seat: 0, decks: [40, 0], extras: [2, 0] });
+    // Each player gets the cards of their own Extra Deck only, the other's is a count.
+    expect(joined(host.received)).toMatchObject({ seat: 0, decks: [40, 0], extras: [2, 0], extra: [FLAME_SWORDSMAN, FLAME_SWORDSMAN] });
     expect(joined(host.received)?.opponent).toBeUndefined();
     const guest = await connect("invite2");
     guest.send({ type: "join", room: joined(host.received)?.room ?? "" });
-    await vi.waitFor(() => expect(joined(guest.received)).toMatchObject({ seat: 1, decks: [40, 40], extras: [2, 1] }));
-    await vi.waitFor(() => expect(host.received.filter((msg) => msg.type === "joined").at(-1)).toMatchObject({ extras: [2, 1], opponent: "invite2" }));
+    await vi.waitFor(() => expect(joined(guest.received)).toMatchObject({ seat: 1, decks: [40, 40], extras: [2, 1], extra: [FLAME_SWORDSMAN] }));
+    await vi.waitFor(() => expect(host.received.filter((msg) => msg.type === "joined").at(-1)).toMatchObject({ extras: [2, 1], extra: [FLAME_SWORDSMAN, FLAME_SWORDSMAN], opponent: "invite2" }));
   });
 
   it("refuse un deck actif dont l'extra deck a plus de 15 cartes ou une carte qui n'est pas une fusion", async () => {

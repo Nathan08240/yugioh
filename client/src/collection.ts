@@ -1,9 +1,10 @@
 import { OcgType } from "@n1xx1/ocgcore-wasm";
+import { isExtraDeck } from "../../server/src/deckcheck.ts";
 import type { CardInfo } from "../../server/src/protocol.ts";
 import { rarityRank } from "./boosterReveal.ts";
 import { has, type Cards } from "./cards.ts";
 
-export type Kind = "" | "monster" | "spell" | "trap" | "fusion";
+export type Kind = "" | "monster" | "spell" | "trap" | "extra";
 
 // Empty fields do not filter. Attribute, level and stats keep monsters only.
 export type Filters = { name: string; text: boolean; kind: Kind; attribute: number; level: number; atk: [string, string]; def: [string, string] };
@@ -16,8 +17,8 @@ export function kindOf(type: number): "monster" | "spell" | "trap" {
   return "monster";
 }
 
-// Fusions are monsters too: the filter keeps them apart for the Extra Deck.
-const kindMatches = (type: number, kind: Kind) => (kind === "fusion" ? has(type, OcgType.FUSION) : kindOf(type) === kind);
+// Extra Deck monsters are monsters too: the filter keeps them apart.
+const kindMatches = (type: number, kind: Kind) => (kind === "extra" ? isExtraDeck({ type }) : kindOf(type) === kind);
 
 // Monsters, spells and traps of a deck, for its breakdown bar.
 export function kindCounts(codes: readonly number[], cards: Cards): Record<"monster" | "spell" | "trap", number> {

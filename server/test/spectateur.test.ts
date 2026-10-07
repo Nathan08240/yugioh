@@ -10,6 +10,8 @@ import type { DuelResult } from "../src/results.ts";
 import { startServer } from "../src/server.ts";
 import { fakeAccounts } from "./fakes.ts";
 
+const FLAME_SWORDSMAN = 45231177;
+
 type Received = Wire<ServerMessage>;
 type Client = Awaited<ReturnType<Awaited<ReturnType<typeof setup>>["connect"]>>;
 
@@ -17,7 +19,7 @@ type Client = Awaited<ReturnType<Awaited<ReturnType<typeof setup>>["connect"]>>;
 async function setup() {
   const recorded: DuelResult[] = [];
   const accounts = fakeAccounts({
-    activeDeck: async (userId) => ({ main: userId === "bob" ? KAIBA : YUGI, extra: [] }),
+    activeDeck: async (userId) => ({ main: userId === "bob" ? KAIBA : YUGI, extra: userId === "alice" ? [FLAME_SWORDSMAN] : [] }),
     recordResult: async (result) => void recorded.push(result),
   });
   const wss = startServer(0, accounts, () => [1n, 2n, 3n, 4n], 0);
@@ -100,6 +102,10 @@ describe("mode spectateur", () => {
     // Neither hand nor face-down monster of either player: not a code, not a stat.
     const seen = JSON.stringify([late.received, early.received]);
     for (const code of set) expect(seen).not.toMatch(new RegExp(String.raw`"(code|card)":${code}\b`));
+    // Nor the Extra Deck of a player: only its owner gets it, from the `joined` message.
+    expect(seen).not.toContain(String(FLAME_SWORDSMAN));
+    expect(joined(a)?.extra).toEqual([FLAME_SWORDSMAN]);
+    expect(joined(b)?.extra).toBeUndefined();
     const log = joined(late)?.log ?? [];
     for (const msg of log) if (msg.type === OcgMessageType.DRAW) expect(msg.drawn.every((card) => card.code === 0)).toBe(true);
     expect(log).toContainEqual(expect.objectContaining({ type: OcgMessageType.SET, controller: 0, code: 0 }));

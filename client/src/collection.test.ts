@@ -24,7 +24,7 @@ it("filtre la collection par nom, type, attribut, niveau et ATK/DEF", () => {
   expect(names({ kind: "trap" })).toEqual(["Mirror Force"]);
   expect(names({ kind: "monster", attribute: OcgAttribute.LIGHT })).toEqual(["Blue-Eyes White Dragon", "Mystical Elf"]);
   expect(names({ level: 7 })).toEqual(["Dark Magician"]);
-  expect(names({ kind: "fusion" })).toEqual(["Gaia the Dragon Champion"]);
+  expect(names({ kind: "extra" })).toEqual(["Gaia the Dragon Champion"]);
   expect(names({ atk: ["2000", ""] })).toEqual(["Blue-Eyes White Dragon", "Dark Magician", "Gaia the Dragon Champion"]);
   expect(names({ atk: ["", "1000"], def: ["2000", "2000"] })).toEqual(["Mystical Elf"]);
   expect(filterCollection(owned, cards, { ...noFilters, name: "elf" })).toEqual([[3, 1]]);

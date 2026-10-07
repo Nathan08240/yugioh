@@ -166,7 +166,7 @@ export function reduce(state: LobbyState, action: Action): LobbyState {
         spectating: action.spectating,
         lp: action.lp,
         opponentLp: action.opponentLp,
-        board: playAll(newBoard(action.seat === 0 ? [action.lp, action.opponentLp ?? action.lp] : [action.opponentLp ?? action.lp, action.lp], action.decks, action.extras), action.log),
+        board: playAll(newBoard(action.seat === 0 ? [action.lp, action.opponentLp ?? action.lp] : [action.opponentLp ?? action.lp, action.lp], action.decks, action.extras, action.extra && { seat: action.seat, extra: action.extra }), action.log),
         started: action.log.length > 0 || action.spectating !== undefined,
         question: undefined,
         error: undefined,

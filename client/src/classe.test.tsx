@@ -5,7 +5,7 @@ import { DuelView } from "./cards.ts";
 import { ClasseView, ofSeason } from "./Classe.tsx";
 import { initialLobby, type LobbyState } from "./lobby.ts";
 
-const cards = new Map([[100, { name: "Magicien Sombre", image: true, type: 1, alias: 0, desc: "", level: 7, attribute: 1, race: 1, atk: 2500, def: 2100, strings: [], attributeName: "", typeLine: "" } satisfies CardInfo]]);
+const cards = new Map<number, CardInfo>([[100, { name: "Magicien Sombre", image: true, type: 1, alias: 0, desc: "", level: 7, attribute: 1, race: 1, atk: 2500, def: 2100, strings: [], attributeName: "", typeLine: "" } satisfies CardInfo]]);
 const ranked = {
   rating: 1016,
   games: 12,

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { poolCard } from "../src/collection.ts";
-import { COPIES_MAX, countBy, EXTRA_MAX, isFusion, MAIN_MIN, sameCard, type DeckCard } from "../src/deckcheck.ts";
+import { COPIES_MAX, countBy, EXTRA_MAX, isExtraDeck, MAIN_MIN, sameCard, type DeckCard } from "../src/deckcheck.ts";
 import { BOOSTERS } from "../src/boosters.ts";
 import { KAIBA, YUGI } from "../src/decks.ts";
 import { botDeck, SEALED_PACKS, sealedDeckError, sealedPool } from "../src/sealed.ts";
@@ -19,9 +19,9 @@ describe("mode Scellé", () => {
       const card = (code: number) => poolCard(code) as DeckCard;
       expect(main.length).toBeLessThanOrEqual(MAIN_MIN);
       expect(main.length).toBeGreaterThan(30);
-      expect(main.some((code) => isFusion(card(code)))).toBe(false);
+      expect(main.some((code) => isExtraDeck(card(code)))).toBe(false);
       expect(extra.length).toBeLessThanOrEqual(EXTRA_MAX);
-      expect(extra.every((code) => isFusion(card(code)))).toBe(true);
+      expect(extra.every((code) => isExtraDeck(card(code)))).toBe(true);
       expect(Math.max(...countBy(main, (code) => sameCard(code, card(code))).values())).toBeLessThanOrEqual(COPIES_MAX);
     }
   });

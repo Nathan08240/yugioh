@@ -4,7 +4,7 @@ import type { CardInfo, ClientMessage, ServerMessage, Wire } from "../../server/
 import recorded from "../src/fixtures/duel.json" with { type: "json" };
 
 // The cards of the opening hand of the recorded duel (src/fixtures/duel.json).
-const carte = (name: string, type: number): CardInfo => ({ name, alias: 0, desc: "", type, level: 4, attribute: 0, race: 0, atk: 1000, def: 1000, strings: [], attributeName: "", typeLine: "", image: false });
+export const carte = (name: string, type: number, materials?: number[]): CardInfo => ({ name, alias: 0, desc: "", type, level: 4, attribute: 0, race: 0, atk: 1000, def: 1000, strings: [], attributeName: "", typeLine: "", image: false, ...(materials && { materials }) });
 const { MONSTER, NORMAL, SPELL, TRAP } = OcgType;
 export const CARTES: Record<number, CardInfo> = {
   90357090: carte("Monstre invocable", MONSTER | NORMAL),
@@ -42,11 +42,11 @@ const SESSION = {
   user: { id: "e2e", aud: "authenticated", role: "authenticated", app_metadata: {}, user_metadata: {}, created_at: "2026-01-01T00:00:00Z" },
 };
 
-// `cartes`: more cards for /api/cards.
-type Options = { duel?: boolean; cartes?: Record<number, CardInfo> };
+// `cartes`: more cards for /api/cards. `extra`: the player's Extra Deck in the duel.
+type Options = { duel?: boolean; cartes?: Record<number, CardInfo>; extra?: number[] };
 
 // Opens the app logged in, against a fake game server that records what the client sends; `duel` replays the recorded duel, animations instant.
-export async function lancer(page: Page, { duel = false, cartes = {} }: Options = {}) {
+export async function lancer(page: Page, { duel = false, cartes = {}, extra }: Options = {}) {
   const envoyes: ClientMessage[] = [];
   let serveur: WebSocketRoute | undefined;
   const envoyer = (msg: Wire<ServerMessage> | object) => serveur?.send(JSON.stringify(msg));
@@ -76,7 +76,7 @@ export async function lancer(page: Page, { duel = false, cartes = {} }: Options 
       if (msg.type !== "auth") return;
       envoyer({ type: "profile", pseudo: "Yugi", needsStarter: false });
       if (!duel) return;
-      envoyer({ type: "joined", room: "E2E42", seat: 0, lp: recorded.lp, decks: recorded.decks, extras: [0, 0], opponent: "Kaiba", log: [] });
+      envoyer({ type: "joined", room: "E2E42", seat: 0, lp: recorded.lp, decks: recorded.decks, extras: [extra?.length ?? 0, 0], extra, opponent: "Kaiba", log: [] });
       for (const message of DEBUT_DU_DUEL) envoyer(message);
     });
   });

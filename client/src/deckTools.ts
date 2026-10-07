@@ -1,4 +1,4 @@
-import { countBy, isFusion, type DeckCard, type DeckDraft } from "../../server/src/deckcheck.ts";
+import { countBy, isExtraDeck, type DeckCard, type DeckDraft } from "../../server/src/deckcheck.ts";
 
 export const HAND_SIZE = 5;
 
@@ -48,7 +48,7 @@ export function importDeck(
     else if (count >= quantity) result.skipped.push({ code, reason: "trop d'exemplaires" });
     else {
       used.set(code, count + 1);
-      result[isFusion(info) ? "extra" : "main"].push(code);
+      result[isExtraDeck(info) ? "extra" : "main"].push(code);
     }
   }
   return result;
