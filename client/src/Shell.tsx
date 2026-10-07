@@ -4,7 +4,7 @@ import "./styles/shell.css";
 import { Icon } from "./ui.tsx";
 
 // "scelle" and "draft" open from the home screen only, "tutoriel" (its offer) right after the starter.
-export type Page = "accueil" | "classe" | "collection" | "boosters" | "histoire" | "puzzles" | "tour" | "regles" | "profil" | "amis" | "parametres" | "scelle" | "draft" | "tutoriel";
+export type Page = "accueil" | "classe" | "collection" | "boosters" | "histoire" | "puzzles" | "tour" | "regles" | "profil" | "amis" | "parametres" | "scelle" | "draft" | "tutoriel" | "admin";
 
 const NAV: [Page, string][] = [
   ["accueil", "Accueil"],
@@ -16,6 +16,8 @@ const NAV: [Page, string][] = [
   ["amis", "Amis"],
   ["parametres", "Paramètres"],
 ];
+// Only for the accounts the server lists as admins, which checks every request anyway.
+const NAV_ADMIN: [Page, string] = ["admin", "Admin"];
 
 // Screen transitions have their own queue: they never wait behind the animations of a duel.
 const screens = createQueue();
@@ -33,6 +35,8 @@ type Props = {
   pending?: number;
   // Friend requests received, on the friends menu.
   requests?: number;
+  // The menu gets the admin page.
+  admin?: boolean;
   signOut?: () => void;
   // Source link (AGPL license of the engine) and card ownership notice.
   notice?: boolean;
@@ -40,7 +44,7 @@ type Props = {
 };
 
 // Layout of every screen but the duel: background, top bar, transitions.
-export function Shell({ id, background = "ville", pseudo, page, go, prefetch, pending = 0, requests = 0, signOut, notice = false, children }: Readonly<Props>) {
+export function Shell({ id, background = "ville", pseudo, page, go, prefetch, pending = 0, requests = 0, admin = false, signOut, notice = false, children }: Readonly<Props>) {
   const body = useRef<HTMLDivElement>(null);
   const sweep = useRef<HTMLDivElement>(null);
   // On a phone the menu folds behind a button (shell.css).
@@ -82,7 +86,7 @@ export function Shell({ id, background = "ville", pseudo, page, go, prefetch, pe
           )}
           {go && (
             <nav id="menu-principal" className={menu ? "barre__nav est-ouvert" : "barre__nav"} aria-label="Menu principal">
-              {NAV.map(([target, label]) => (
+              {(admin ? [...NAV, NAV_ADMIN] : NAV).map(([target, label]) => (
                 <button key={target} type="button" aria-current={target === page ? "page" : undefined} onClick={() => navigate(target)}>
                   {label} {target === "boosters" && pending > 0 && <span className="pastille">{pending}</span>}
                   {target === "amis" && requests > 0 && <span className="pastille">{requests}</span>}

@@ -4,6 +4,7 @@ import type { ClientMessage, PuzzleView } from "../../server/src/protocol.ts";
 import { Accueil, Salle } from "./Accueil.tsx";
 import { AlertesAmis, Amis } from "./Amis.tsx";
 import { DuelView, useCards } from "./cards.ts";
+import { brancher, contexte } from "./erreurs.ts";
 import { duelLabel, duelLp, duelSpecial, initialLobby, inviteFromUrl, reduce, type Action, type LobbyState } from "./lobby.ts";
 import { puzzleRule, Puzzles } from "./Puzzles.tsx";
 import { autoAnswer } from "./question.ts";
@@ -25,6 +26,7 @@ const ECRANS: Partial<Record<Page, () => Promise<unknown>>> = {
   scelle: () => import("./Scelle.tsx"),
   draft: () => import("./Draft.tsx"),
   tutoriel: () => import("./Depart.tsx"),
+  admin: () => import("./Admin.tsx"),
 };
 const Classe = lazy(() => import("./Classe.tsx").then((m) => ({ default: m.Classe })));
 const Collection = lazy(() => import("./Collection.tsx").then((m) => ({ default: m.Collection })));
@@ -34,6 +36,7 @@ const Profil = lazy(() => import("./Profil.tsx").then((m) => ({ default: m.Profi
 const Parametres = lazy(() => import("./Parametres.tsx").then((m) => ({ default: m.Parametres })));
 const Scelle = lazy(() => import("./Scelle.tsx").then((m) => ({ default: m.Scelle })));
 const Draft = lazy(() => import("./Draft.tsx").then((m) => ({ default: m.Draft })));
+const Admin = lazy(() => import("./Admin.tsx").then((m) => ({ default: m.Admin })));
 const PseudoForm = lazy(() => import("./Depart.tsx").then((m) => ({ default: m.PseudoForm })));
 const StarterChoice = lazy(() => import("./Depart.tsx").then((m) => ({ default: m.StarterChoice })));
 const OffreTutoriel = lazy(() => import("./Depart.tsx").then((m) => ({ default: m.OffreTutoriel })));
@@ -124,6 +127,12 @@ export function Lobby() {
   useEffect(() => {
     if (ready) socket.current?.send(JSON.stringify({ type: "player_profile" } satisfies ClientMessage));
   }, [ready]);
+  // The browser errors go to the server once logged in (erreurs.ts).
+  useEffect(() => {
+    if (!ready) return;
+    brancher((msg) => socket.current?.send(JSON.stringify(msg)));
+    return () => brancher(undefined);
+  }, [ready]);
   // A room joined from elsewhere: an accepted challenge, an invitation link.
   useEffect(() => {
     if (state.room) prechargerDuel();
@@ -180,6 +189,10 @@ export function Lobby() {
     });
 
   const shown = state.storyOpen ? "histoire" : page;
+  useEffect(() => {
+    if (state.replay) contexte.ecran = "revoir";
+    else contexte.ecran = state.room ? "duel" : shown;
+  }, [state.replay, state.room, shown]);
   // A puzzle is only played from its screen.
   const puzzle = shown === "puzzles" ? state.puzzles?.find((candidate) => candidate.id === puzzleId.current) : undefined;
   return (
@@ -198,7 +211,7 @@ export function Lobby() {
       <ApercuSalle preview={state.preview} send={send} close={() => dispatch({ type: "preview_close" })} />
       <Suspense fallback={CHARGEMENT}>
         {state.replay && !state.room ? (
-          <Revoir key={state.replay.id} replay={state.replay} pseudo={state.pseudo ?? undefined} avatar={state.profile?.avatar ?? undefined} leave={() => dispatch({ type: "replay_closed" })} />
+          <Revoir key={state.replay.id} replay={state.replay} pseudo={state.replay.self ?? state.pseudo ?? undefined} avatar={state.replay.self ? undefined : (state.profile?.avatar ?? undefined)} leave={() => dispatch({ type: "replay_closed" })} />
         ) : (
           <Screen state={state} page={shown} send={send} reconnect={reconnect} leave={leave} respond={respond} go={go} vsBot={vsBot.current} ranked={ranked.current} storyDuel={storyDuel.current} easy={storyEasy.current} puzzle={puzzle} sealedDuel={sealedDuel.current} draftDuel={draftDuel.current} tutorial={tutorial.current} />
         )}
@@ -294,7 +307,7 @@ function Screen({ state, page, send, reconnect, leave, respond, go, vsBot, ranke
     );
   }
   return (
-    <Shell id={page} background={page === "collection" ? "nuit" : "ville"} pseudo={state.pseudo} page={page} go={go} pending={state.boosters?.pending} requests={(state.friends?.filter((friend) => friend.status === "received").length ?? 0) + (state.trades?.received.length ?? 0)} signOut={signOut} notice={page === "accueil"} prefetch={(next) => ECRANS[next]?.()}>
+    <Shell id={page} background={page === "collection" ? "nuit" : "ville"} pseudo={state.pseudo} page={page} go={go} pending={state.boosters?.pending} requests={(state.friends?.filter((friend) => friend.status === "received").length ?? 0) + (state.trades?.received.length ?? 0)} admin={state.admin} signOut={signOut} notice={page === "accueil"} prefetch={(next) => ECRANS[next]?.()}>
       {page === "accueil" && <Accueil state={state} send={send} go={go} />}
       {page === "classe" && <Classe state={state} send={send} go={go} />}
       {page === "collection" && <Collection collection={state.collection} rarities={state.rarities} decks={state.decks} results={state.results} wishlist={state.wishlist} points={state.points} conversion={state.conversion} send={send} />}
@@ -309,6 +322,7 @@ function Screen({ state, page, send, reconnect, leave, respond, go, vsBot, ranke
       {page === "parametres" && <Parametres />}
       {page === "scelle" && <Scelle run={state.sealed} send={send} go={go} />}
       {page === "draft" && <Draft run={state.draft} send={send} go={go} />}
+      {page === "admin" && state.admin && <Admin state={state} send={send} />}
     </Shell>
   );
 }

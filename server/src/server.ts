@@ -37,6 +37,7 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
     waiting: new Map(),
     lastOpponent: new Map(),
     replaysAsked: new Map(),
+    errorsSent: new Map(),
     friends: friendHub<FriendEntry>(accounts, send, (challenger, acceptor, options) => challengeDuel(lobby, challenger, acceptor, options), (code) => lobby.rooms.get(code)?.watch !== undefined),
     draining: false,
   };

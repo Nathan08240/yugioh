@@ -1,5 +1,6 @@
 import { YUGI } from "../src/decks.ts";
 import { GOAT } from "../src/limits.ts";
+import type { AdminStore } from "../src/admin.ts";
 import type { DraftStore } from "../src/draft.ts";
 import type { MissionStore } from "../src/missions.ts";
 import type { SealedStore } from "../src/sealed.ts";
@@ -37,6 +38,15 @@ export const noDraft: DraftStore = {
 export const noMissions: MissionStore = {
   missions: async () => ({ missions: [], achievements: [] }),
   progressMissions: async () => ({ missions: [], achievements: [] }),
+};
+
+// No bug report and no browser error.
+export const noAdmin: AdminStore = {
+  adminReports: async () => [],
+  readReport: async () => undefined,
+  markReport: async () => false,
+  saveClientError: async () => {},
+  clientErrors: async () => [],
 };
 
 // A player without any trade offer nor friend to trade with.
@@ -100,6 +110,7 @@ export function fakeAccounts(overrides: Partial<Accounts> = {}): Accounts {
     ...noSealed,
     ...noDraft,
     ...noMissions,
+    ...noAdmin,
     friendList: async () => [],
     requestFriend: async () => "joueur introuvable",
     acceptFriend: async () => undefined,

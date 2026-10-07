@@ -11,6 +11,11 @@ export type Seat = 0 | 1;
 // Longest text of a bug report.
 export const REPORT_MAX = 500;
 
+// Browser errors the client sends (admin.ts): the kinds, and the longest text of each field, which both sides cut to.
+export const ERROR_KINDS = ["error", "rejection", "render"] as const;
+export const ERROR_MAX = { message: 300, stack: 2000, page: 100, build: 40, browser: 200 } as const;
+export type ClientError = { kind: (typeof ERROR_KINDS)[number]; message: string; stack?: string; page?: string; build?: string; browser?: string };
+
 // Copies of a card a duplicate conversion keeps, and the most a card can be obtained up to with collection points.
 export const KEEP_COPIES = 3;
 
@@ -103,6 +108,15 @@ export type ClientMessage =
   | { type: "open_booster"; set: string }
   // Accounts listed in ADMIN_USER_IDS only: adds 1 to ADMIN_BOOSTERS_MAX earned boosters, answered with `booster_state`.
   | { type: "admin_boosters"; count: number }
+  // Accounts listed in ADMIN_USER_IDS only, any other gets an error. `admin_reports` and `admin_errors` are answered with the lists of
+  // the same name; `admin_report_handled` marks a bug report (un)handled, answered with `admin_reports`; `admin_report_replay` plays
+  // the duel of a bug report again as seen from `seat`, answered with `replay`.
+  | { type: "admin_reports" }
+  | { type: "admin_errors" }
+  | { type: "admin_report_handled"; id: number; handled: boolean }
+  | { type: "admin_report_replay"; id: number; seat: Seat }
+  // An error the browser did not catch. No answer: dropped when the player sent ERRORS_PER_HOUR of them this hour.
+  | ({ type: "client_error" } & ClientError)
   // Wonder pick, once a day (wonder.ts): `wonder` reads the state, `wonder_draw` draws the 5 cards, `wonder_pick` keeps the face-down
   // card `index` (0 to 4). Each is answered with `wonder`, or an error.
   | { type: "wonder" }
@@ -263,10 +277,18 @@ export type ServerMessage =
   // Newest first. `replay`: what `seat` was sent during duel `id`, one batch per `messages`, from the starting state (as `joined`),
   // and the emotes of the duel.
   | { type: "replays"; replays: ReplaySummary[] }
-  | { type: "replay"; id: number; seat: Seat; lp: number; opponentLp?: number; decks: [number, number]; extras: [number, number]; opponent?: string; batches: DuelEvent[][]; emotes: ReplayEmote[] };
+  // `self`: the name of the player's own seat when it is not their pseudo (an admin watching a bug report).
+  | { type: "replay"; id: number; seat: Seat; lp: number; opponentLp?: number; decks: [number, number]; extras: [number, number]; opponent?: string; self?: string; batches: DuelEvent[][]; emotes: ReplayEmote[] }
+  | { type: "admin_reports"; reports: AdminReport[] }
+  | { type: "admin_errors"; errors: AdminError[] };
 
 // An emote sent during a replayed duel: `at` batches had been shown when `seat` sent it.
 export type ReplayEmote = { at: number; seat: Seat; id: EmoteId };
+
+// A bug report as the admin list shows it: unhandled first, newest first.
+export type AdminReport = { id: number; date: string; pseudo: string; mode: "online" | "bot" | "histoire" | "puzzle"; turn: number; message: string; handled: boolean };
+// Identical browser errors grouped in one row: `count` occurrences between `firstSeen` and `lastSeen`, `pseudo` of the last player hit.
+export type AdminError = { id: number; kind: ClientError["kind"]; message: string; stack: string; page: string; build: string; browser: string; pseudo: string | null; count: number; firstSeen: string; lastSeen: string };
 
 // Missions of the day (Europe/Paris), 3 per player: counted duels are against the bot, in Story mode, ranked, in an event, or
 // online against an opponent not yet faced that day. MISSIONS_BONUS boosters once the 3 are done.

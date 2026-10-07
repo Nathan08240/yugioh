@@ -13,7 +13,7 @@ import { respond } from "../src/respond.ts";
 import { WISH_MAX } from "../src/wishlist.ts";
 import { drawWonder } from "../src/wonder.ts";
 import { advance, creditWinner, DECISION_TIME, RECONNECT_TIME, startServer, towerFloor, type Accounts, type Room } from "../src/server.ts";
-import { GOAT_YUGI, noDraft, noMissions, noSealed, noTrades } from "./fakes.ts";
+import { GOAT_YUGI, noAdmin, noDraft, noMissions, noSealed, noTrades } from "./fakes.ts";
 
 const FLAME_SWORDSMAN = 45231177;
 
@@ -129,6 +129,7 @@ const accounts: Accounts = {
   ...noSealed,
   ...noDraft,
   ...noMissions,
+  ...noAdmin,
   friendList: async () => [],
   requestFriend: async () => "joueur introuvable",
   acceptFriend: async () => undefined,

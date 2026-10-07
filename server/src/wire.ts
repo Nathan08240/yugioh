@@ -1,4 +1,5 @@
 import type { WebSocket } from "ws";
+import { validAdminMessage } from "./admin.ts";
 import { validDeckMessage } from "./collection.ts";
 import { validRoomOptions } from "./custom.ts";
 import { validDraftMessage } from "./draft.ts";
@@ -92,6 +93,7 @@ export function parse(data: string): ClientMessage | undefined {
     validSealedMessage(msg) ||
     validDraftMessage(msg) ||
     validFriendMessage(msg) ||
-    validTradeMessage(msg);
+    validTradeMessage(msg) ||
+    validAdminMessage(msg);
   return valid ? (msg as ClientMessage) : undefined;
 }
