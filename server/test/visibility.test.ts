@@ -39,6 +39,20 @@ describe("filtrage des informations cachées", () => {
     expect(visibleTo(move(toGrave), 0)).toMatchObject({ card: 123 });
   });
 
+  it("ne donne les nouvelles places d'un mélange de cartes posées qu'à leur contrôleur", () => {
+    const place = (controller: 0 | 1, sequence: number) => ({ controller, location: OcgLocation.MZONE, sequence, position: OcgPosition.FACEDOWN_DEFENSE });
+    const shuffle: OcgMessage = {
+      type: OcgMessageType.SHUFFLE_SET_CARD,
+      location: OcgLocation.MZONE,
+      cards: [
+        { from: place(0, 0), to: place(0, 2) },
+        { from: place(1, 1), to: place(1, 0) },
+      ],
+    };
+    expect(visibleTo(shuffle, 0)).toEqual({ ...shuffle, cards: [shuffle.cards[0], { from: place(1, 1), to: place(1, 1) }] });
+    expect(visibleTo(shuffle, 1)).toEqual({ ...shuffle, cards: [{ from: place(0, 0), to: place(0, 0) }, shuffle.cards[1]] });
+  });
+
   it("aiguille les HINT comme EDOPro : RACE au camp adverse, EFFECT au camp qui agit, CARD aux deux", () => {
     const hint = (hint_type: number): OcgMessage => ({ type: OcgMessageType.HINT, hint_type, player: 0, hint: 1n }) as OcgMessage;
     expect(visibleTo(hint(OcgHintType.RACE), 0)).toBeNull();

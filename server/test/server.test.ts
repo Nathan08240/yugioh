@@ -208,10 +208,10 @@ describe("serveur de partie", () => {
     for (const msg of b.messages()) if (msg.type === OcgMessageType.DRAW && msg.player === 0) expect(msg.drawn.every((card) => card.code === 0)).toBe(true);
     expect(JSON.stringify(b.received)).not.toContain(String(setCode));
     for (const msg of b.received) if (msg.type === "question") expect(msg.question).toMatchObject({ player: 1 });
-    // The current stats of the set monster reach its owner only.
+    // The current stats of the set monster, and its code, reach its owner only.
     const zone = a.messages().flatMap((msg) => (msg.type === OcgMessageType.MOVE && msg.card === setCode ? [msg.to.sequence] : []))[0];
     const stats = (client: typeof a) => client.messages().flatMap((msg) => (msg.type === "stats" ? [msg.monsters[0][zone]] : [])).at(-1);
-    expect(stats(a)).toEqual({ atk: expect.any(Number), def: expect.any(Number) });
+    expect(stats(a)).toEqual({ atk: expect.any(Number), def: expect.any(Number), code: setCode });
     expect(stats(b)).toBeNull();
 
     // B reconnects with the same identity: same visible history, same pending question.

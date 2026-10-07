@@ -80,6 +80,25 @@ describe("plateau reconstruit à partir des messages du moteur", () => {
     expect(flipped.players[1].monsters[2]).toEqual({ code: DARK_MAGICIAN, position: FACEUP_ATTACK });
   });
 
+  it("écrit au journal le mélange des cartes posées et reprend leurs nouvelles places des stats du serveur, sans rien changer d'autre", () => {
+    const KURIBOH = 40640057;
+    const place = (sequence: number) => ({ controller: 0 as const, location: MZONE, sequence, position: FACEDOWN_DEFENSE });
+    const setDown = (code: number, handSequence: number, sequence: number): Message[] => [
+      { type: OcgMessageType.MOVE, card: code, from: { controller: 0, location: HAND, sequence: handSequence, position: FACEDOWN }, to: place(sequence) },
+      { type: OcgMessageType.SET, code, controller: 0, location: MZONE, sequence, position: FACEDOWN_DEFENSE },
+    ];
+    const set = playAll(start, [...setDown(DARK_MAGICIAN, 2, 0), ...setDown(KURIBOH, 0, 1)]);
+    const shuffle: Message = { type: OcgMessageType.SHUFFLE_SET_CARD, location: MZONE, cards: [{ from: place(0), to: place(0) }, { from: place(1), to: place(1) }] };
+    const empty = [null, null, null, null, null];
+    // The engine sends no new place: the stats tell where each face-down card of the player landed.
+    const stats: Message = { type: "stats", monsters: [[{ atk: 300, def: 200, code: KURIBOH }, { atk: 2500, def: 2100, code: DARK_MAGICIAN }, ...empty.slice(2)], empty] };
+    const shuffled = playAll(set, [shuffle, stats]);
+    expect(shuffled.log.at(-1)).toEqual({ player: 0, parts: ["Mélange les monstres posés face cachée"] });
+    expect(shuffled.players[0].monsters.slice(0, 2).map((card) => card?.code)).toEqual([KURIBOH, DARK_MAGICIAN]);
+    expect(shuffled.players[0].hand).toEqual(set.players[0].hand);
+    expect(playAll(set, [shuffle]).players[0].monsters).toEqual(set.players[0].monsters);
+  });
+
   it("attaque directement et inflige des dégâts", () => {
     const board = playAll(summoned, [
       { type: OcgMessageType.ATTACK, card: { controller: 0, location: MZONE, sequence: 0, position: FACEUP_ATTACK }, target: null },

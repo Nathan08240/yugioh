@@ -4,6 +4,8 @@ ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 RUN corepack enable
 WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+# Correctif du moteur (mélange des cartes posées), appliqué par pnpm install.
+COPY patches patches
 COPY server/package.json server/
 COPY client/package.json client/
 

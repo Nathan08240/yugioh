@@ -4,6 +4,9 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+patchedDependencies:
+  '@jsr/n1xx1__ocgcore-wasm@0.1.4': b31f157feb32f79760af335e44bc66bd0e5ee48917cdcdee800d7444cfcbd168
+
 importers:
 
   .: {}
@@ -12,7 +15,7 @@ importers:
     dependencies:
       '@n1xx1/ocgcore-wasm':
         specifier: jsr:^0.1.4
-        version: '@jsr/n1xx1__ocgcore-wasm@0.1.4'
+        version: '@jsr/n1xx1__ocgcore-wasm@0.1.4(patch_hash=b31f157feb32f79760af335e44bc66bd0e5ee48917cdcdee800d7444cfcbd168)'
       '@supabase/auth-js':
         specifier: ^2.117.2
         version: 2.117.2
@@ -55,7 +58,7 @@ importers:
     dependencies:
       '@n1xx1/ocgcore-wasm':
         specifier: jsr:^0.1.4
-        version: '@jsr/n1xx1__ocgcore-wasm@0.1.4'
+        version: '@jsr/n1xx1__ocgcore-wasm@0.1.4(patch_hash=b31f157feb32f79760af335e44bc66bd0e5ee48917cdcdee800d7444cfcbd168)'
       postgres:
         specifier: ^3.4.9
         version: 3.4.9
@@ -710,7 +713,7 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.6.0
 
-  '@jsr/n1xx1__ocgcore-wasm@0.1.4': {}
+  '@jsr/n1xx1__ocgcore-wasm@0.1.4(patch_hash=b31f157feb32f79760af335e44bc66bd0e5ee48917cdcdee800d7444cfcbd168)': {}
 
   '@oxc-project/types@0.151.0': {}
 

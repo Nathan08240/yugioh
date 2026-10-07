@@ -164,9 +164,11 @@ export type DeckResult = { deck: number | null; mode: DuelMode; level?: string; 
 export type Deck = { id: number; name: string; main: number[]; extra: number[] };
 
 // Current ATK and DEF of Monster Zones 0-4 of each player, null for an empty zone or a monster the player may not see.
+// `code`: only for a face-down monster of the player, which a shuffle of Set cards (MSG_SHUFFLE_SET_CARD, whose new places the
+// engine leaves empty) moves without a trace in the messages.
 // Not an engine message: the server adds it after the engine messages, like MSG_UPDATE_DATA in EDOPro.
 export type StatsEvent = { type: "stats"; monsters: [MonsterStats[], MonsterStats[]] };
-export type MonsterStats = { atk: number; def: number } | null;
+export type MonsterStats = { atk: number; def: number; code?: number } | null;
 export type DuelEvent = OcgMessage | StatsEvent;
 
 // `joined` replays every message the player was allowed to see, which rebuilds the board after a reconnection,
