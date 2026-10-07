@@ -1,6 +1,7 @@
 [
   {
     "id": "coup-de-grace",
+    "difficulty": "easy",
     "title": "Le coup de grâce",
     "goal": "Un seul monstre protège les 2500 LP adverses. Dégagez-le, puis frappez directement.",
     "player": { "lp": 4000, "hand": [66788016], "monsters": [[46986414, "attack"]] },
@@ -9,6 +10,7 @@
   },
   {
     "id": "hache",
+    "difficulty": "easy",
     "title": "Tranchant",
     "goal": "Il reste 1900 LP à l'adversaire. Votre chevalier seul n'y suffira pas.",
     "player": { "lp": 4000, "hand": [40619825], "monsters": [[6368038, "attack"]] },
@@ -17,6 +19,7 @@
   },
   {
     "id": "defense-brisee",
+    "difficulty": "easy",
     "title": "Défense brisée",
     "goal": "Un monstre face cachée bloque la route. Faites-le sortir et achevez l'adversaire à 2200 LP.",
     "player": { "lp": 4000, "hand": [63102017, 19523799], "monsters": [[5053103, "attack"]] },
@@ -24,7 +27,71 @@
     "solution": [["activate", 63102017], ["activate", 19523799], ["battle"], ["attack", 5053103], ["select", 32274490]]
   },
   {
+    "id": "tribut",
+    "difficulty": "easy",
+    "title": "Le tribut",
+    "goal": "Le terrain adverse est vide, mais il lui reste 2000 LP et votre elfe est trop faible. Un monstre plus puissant attend dans votre main : il exige un sacrifice.",
+    "player": { "lp": 4000, "hand": [28279543], "monsters": [[15025844, "attack"]] },
+    "opponent": { "lp": 2000 },
+    "solution": [["summon", 28279543], ["select", 15025844], ["battle"], ["attack", 28279543]]
+  },
+  {
+    "id": "lance",
+    "difficulty": "easy",
+    "title": "La lance",
+    "goal": "Un défenseur garde 2600 LP. Votre dragon à lance transperce la défense, votre elfe frappe fort : l'ordre de vos attaques décidera de tout.",
+    "player": { "lp": 4000, "monsters": [[31553716, "attack"], [69140098, "attack"]] },
+    "opponent": { "lp": 2600, "monsters": [[91152256, "defense"]] },
+    "solution": [["battle"], ["attack", 31553716], ["attack", 69140098]]
+  },
+  {
+    "id": "mains-propres",
+    "difficulty": "easy",
+    "title": "Mains propres",
+    "goal": "Deux cartes posées gardent le terrain adverse et ses 3600 LP. Faites-les disparaître avant de lancer vos deux monstres à l'attaque.",
+    "player": { "lp": 4000, "hand": [42703248], "monsters": [[69140098, "attack"], [5053103, "attack"]] },
+    "opponent": { "lp": 3600, "spells": [44095762, 62279055] },
+    "solution": [["activate", 42703248], ["battle"], ["attack", 69140098], ["attack", 5053103]]
+  },
+  {
+    "id": "mandibule",
+    "difficulty": "easy",
+    "title": "Coup de mandibule",
+    "goal": "Un colosse de pierre garde 2350 LP. Votre insecte posé face cachée sait s'en débarrasser, à condition de le retourner et de bien viser.",
+    "player": { "lp": 4000, "monsters": [[54652250, "set"], [69140098, "attack"]] },
+    "opponent": { "lp": 2350, "monsters": [[13039848, "defense"]] },
+    "solution": [["pos", 54652250], ["select", 13039848], ["battle"], ["attack", 54652250], ["attack", 69140098]]
+  },
+  {
+    "id": "tous-unis",
+    "difficulty": "easy",
+    "title": "Tous unis",
+    "goal": "Trois petits monstres et une carte d'équipement qui les compte tous. Le chevalier adverse garde 2600 LP : calculez avant d'attaquer.",
+    "player": { "lp": 4000, "hand": [56747793], "monsters": [[40640057, "attack"], [26202165, "attack"], [32274490, "attack"]] },
+    "opponent": { "lp": 2600, "monsters": [[91152256, "attack"]] },
+    "solution": [["activate", 56747793], ["select", 40640057], ["battle"], ["attack", 40640057], ["attack", 26202165], ["attack", 32274490]]
+  },
+  {
+    "id": "compte-exact",
+    "difficulty": "easy",
+    "title": "Le compte est bon",
+    "goal": "Vous n'avez que 500 LP, l'adversaire 2300 et aucun monstre. Chaque point de dégâts compte, et une de vos cartes vous coûterait trop cher.",
+    "player": { "lp": 500, "hand": [19523799, 46130346, 76103675, 46918794], "monsters": [[15025844, "attack"]] },
+    "opponent": { "lp": 2300 },
+    "solution": [["activate", 19523799], ["activate", 46130346], ["activate", 76103675], ["battle"], ["attack", 15025844]]
+  },
+  {
+    "id": "reveil",
+    "difficulty": "easy",
+    "title": "Le réveil des dragons",
+    "goal": "Vos deux monstres dorment en défense. Réveillez-les : la créature adverse ne protège pas tout, et il reste 2400 LP à prendre.",
+    "player": { "lp": 4000, "monsters": [[11091375, "defense"], [5053103, "defense"]] },
+    "opponent": { "lp": 2400, "monsters": [[40374923, "attack"]] },
+    "solution": [["pos", 11091375], ["pos", 5053103], ["battle"], ["attack", 11091375], ["attack", 5053103]]
+  },
+  {
     "id": "pioche",
+    "difficulty": "medium",
     "title": "La bonne pioche",
     "goal": "Vous connaissez les deux cartes du dessus de votre deck : Monster Reborn, puis Ookazi. L'adversaire a 4700 LP.",
     "player": { "lp": 4000, "hand": [55144522], "monsters": [[91152256, "attack"]], "grave": [70781052], "deck": [83764718, 19523799] },
@@ -33,6 +100,7 @@
   },
   {
     "id": "surcharge",
+    "difficulty": "medium",
     "title": "Surcharge",
     "goal": "Vos deux machines peuvent doubler leur puissance. Choisissez bien qui attaque le mur et qui frappe l'adversaire à 3200 LP.",
     "player": { "lp": 4000, "hand": [23171610], "monsters": [[44203504, "attack"], [30655537, "attack"]] },
@@ -41,6 +109,7 @@
   },
   {
     "id": "miroir",
+    "difficulty": "medium",
     "title": "Le piège du miroir",
     "goal": "Le terrain adverse est vide, à une carte posée près. Méfiez-vous avant d'attaquer ses 3800 LP.",
     "player": { "lp": 4000, "hand": [5318639], "monsters": [[11091375, "attack"], [69140098, "attack"]] },
@@ -48,7 +117,71 @@
     "solution": [["activate", 5318639], ["select", 0], ["battle"], ["attack", 11091375], ["attack", 69140098]]
   },
   {
+    "id": "silence",
+    "difficulty": "medium",
+    "title": "Silence des pièges",
+    "goal": "Deux cartes posées vous détruiraient au moindre faux pas, et il reste 3400 LP à l'adversaire. Un grand monstre sait les réduire au silence : lequel de vos deux petits monstres sacrifier ?",
+    "player": { "lp": 4000, "hand": [77585513], "monsters": [[40640057, "attack"], [26202165, "attack"]] },
+    "opponent": { "lp": 3400, "spells": [44095762, 4206964] },
+    "solution": [["summon", 77585513], ["select", 40640057], ["battle"], ["attack", 77585513], ["attack", 26202165]]
+  },
+  {
+    "id": "mauvaise-surprise",
+    "difficulty": "medium",
+    "title": "Mauvaise surprise",
+    "goal": "Le monstre posé en face est un Man-Eater Bug : l'attaquer le retournerait et détruirait votre attaquant. L'adversaire a 1900 LP.",
+    "player": { "lp": 4000, "hand": [71044499], "monsters": [[69140098, "attack"]] },
+    "opponent": { "lp": 1900, "monsters": [[54652250, "set"]] },
+    "solution": [["activate", 71044499], ["battle"], ["attack", 69140098]]
+  },
+  {
+    "id": "fusion",
+    "difficulty": "medium",
+    "title": "La fusion",
+    "goal": "Votre terrain est vide, mais votre main cache une fusion. Un seul guerrier vous sépare des 1200 LP adverses.",
+    "player": { "lp": 4000, "hand": [24094653, 6368038, 28279543], "extra": [66889139] },
+    "opponent": { "lp": 1200, "monsters": [[91152256, "attack"]] },
+    "solution": [["activate", 24094653], ["select", 66889139], ["select", 6368038], ["battle"], ["attack", 66889139]]
+  },
+  {
+    "id": "sept-outils",
+    "difficulty": "medium",
+    "title": "Les sept outils",
+    "goal": "Une carte posée adverse annulera votre attaque et détruira votre monstre. Votre piège posé saura lui répondre, au bon moment. L'adversaire a 1900 LP.",
+    "player": { "lp": 4000, "monsters": [[69140098, "attack"]], "spells": [3819470] },
+    "opponent": { "lp": 1900, "spells": [44095762] },
+    "solution": [["battle"], ["attack", 69140098], ["chain", 3819470]]
+  },
+  {
+    "id": "coup-de-foudre",
+    "difficulty": "medium",
+    "title": "Coup de foudre",
+    "goal": "Quatre monstres, dont un face caché, protègent 1900 LP. Une magie en balaie trois ; pour le dernier, l'ordre de vos attaques fera la différence.",
+    "player": { "lp": 4000, "hand": [69162969, 26202165], "monsters": [[69140098, "attack"], [40640057, "attack"]] },
+    "opponent": { "lp": 1900, "monsters": [[13039848, "defense"], [91152256, "attack"], [15025844, "defense"], [32274490, "set"]] },
+    "solution": [["activate", 69162969], ["battle"], ["attack", 40640057], ["attack", 69140098]]
+  },
+  {
+    "id": "retraite",
+    "difficulty": "medium",
+    "title": "La retraite",
+    "goal": "Trois monstres protègent 1900 LP. Votre manchot posé face cachée peut en renvoyer deux dans la main adverse : choisissez ceux que vos monstres ne pourraient jamais détruire.",
+    "player": { "lp": 4000, "monsters": [[93920745, "set"], [69140098, "attack"]] },
+    "opponent": { "lp": 1900, "monsters": [[13039848, "defense"], [15025844, "defense"], [40640057, "defense"]] },
+    "solution": [["pos", 93920745], ["select", 13039848, 15025844], ["battle"], ["attack", 93920745], ["attack", 69140098]]
+  },
+  {
+    "id": "pillage",
+    "difficulty": "medium",
+    "title": "Le pillage",
+    "goal": "Un dragon légendaire défend les 3000 LP adverses, et une carte posée veille sur lui. Votre terrain est vide, mais le cimetière de l'adversaire pourrait bien vous servir.",
+    "player": { "lp": 4000, "hand": [53129443, 83764718, 5318639] },
+    "opponent": { "lp": 3000, "monsters": [[89631139, "attack"]], "spells": [44095762] },
+    "solution": [["activate", 53129443], ["activate", 83764718], ["activate", 5318639], ["battle"], ["attack", 89631139]]
+  },
+  {
     "id": "troupeau",
+    "difficulty": "hard",
     "title": "Le troupeau",
     "goal": "Aucune attaque ne passera ce mur. Il reste 3300 LP à l'adversaire : trouvez d'autres munitions.",
     "player": { "lp": 4000, "hand": [73915051, 19523799], "monsters": [[11384280, "attack"]] },
@@ -65,6 +198,7 @@
   },
   {
     "id": "grand-final",
+    "difficulty": "hard",
     "title": "Le grand final",
     "goal": "5400 LP, un dragon légendaire et une carte posée en face. Tout ce que vous avez comptera, jusqu'au dragon lui-même.",
     "player": { "lp": 1000, "hand": [5318639, 4031928], "monsters": [[11384280, "attack"]] },
@@ -77,5 +211,59 @@
       ["activate", 11384280], ["select", 89631139],
       ["activate", 11384280], ["select", 11384280]
     ]
+  },
+  {
+    "id": "sacrifice-vole",
+    "difficulty": "hard",
+    "title": "Le sacrifice volé",
+    "goal": "Aucun monstre de votre côté, 1100 LP à prendre, deux défenseurs et un piège qui punit toute invocation puissante. Ce qui est à l'adversaire peut toujours vous servir.",
+    "player": { "lp": 4000, "hand": [4031928, 70781052, 5318639] },
+    "opponent": { "lp": 1100, "monsters": [[15025844, "defense"], [91152256, "attack"]], "spells": [4206964] },
+    "solution": [["activate", 4031928], ["select", 15025844], ["activate", 5318639], ["summon", 70781052], ["select", 15025844], ["battle"], ["attack", 70781052]]
+  },
+  {
+    "id": "ordre",
+    "difficulty": "hard",
+    "title": "L'ordre des cartes",
+    "goal": "5500 LP, deux pièges posés en face et deux grands monstres dans votre cimetière. Une de vos cartes ne survivrait pas à l'ouragan : réfléchissez à l'ordre.",
+    "player": { "lp": 4000, "hand": [19613556, 70828912, 83764718], "grave": [89631139, 70781052] },
+    "opponent": { "lp": 5500, "spells": [44095762, 62279055] },
+    "solution": [["activate", 19613556], ["activate", 83764718], ["select", 70781052], ["activate", 70828912], ["battle"], ["attack", 89631139], ["attack", 70781052]]
+  },
+  {
+    "id": "monarque",
+    "difficulty": "hard",
+    "title": "Le monarque",
+    "goal": "L'adversaire a 2700 LP et une carte en main. Le monarque des flammes la lui fera payer à son invocation, mais il faut choisir qui sacrifier.",
+    "player": { "lp": 4000, "hand": [26205777], "monsters": [[15025844, "attack"], [26202165, "attack"]] },
+    "opponent": { "lp": 2700, "hand": [46986414], "monsters": [[91152256, "attack"]] },
+    "solution": [["summon", 26205777], ["select", 15025844], ["battle"], ["attack", 26205777], ["attack", 26202165]]
+  },
+  {
+    "id": "flute",
+    "difficulty": "hard",
+    "title": "La flûte",
+    "goal": "4200 LP, un mur de pierre et un piège posé. Votre seigneur des dragons et sa flûte appellent deux dragons légendaires directement de votre main.",
+    "player": { "lp": 4000, "hand": [43973174, 89631139, 89631139, 5318639], "monsters": [[17985575, "attack"]] },
+    "opponent": { "lp": 4200, "monsters": [[13039848, "defense"]], "spells": [44095762] },
+    "solution": [["activate", 5318639], ["activate", 43973174], ["select", 89631139, 89631139], ["battle"], ["attack", 89631139], ["attack", 89631139], ["attack", 17985575]]
+  },
+  {
+    "id": "foi",
+    "difficulty": "hard",
+    "title": "La foi ranimée",
+    "goal": "Votre magicienne dort face cachée. Votre cimetière garde des magies précieuses, mais l'une d'elles vous détruirait. L'adversaire a 2200 LP, un mur et un piège.",
+    "player": { "lp": 4000, "hand": [5318639], "monsters": [[31560081, "set"], [11091375, "attack"]], "grave": [53129443, 12580477] },
+    "opponent": { "lp": 2200, "monsters": [[13039848, "defense"]], "spells": [44095762] },
+    "solution": [["activate", 5318639], ["pos", 31560081], ["select", 12580477], ["activate", 12580477], ["battle"], ["attack", 31560081], ["attack", 11091375]]
+  },
+  {
+    "id": "charite",
+    "difficulty": "hard",
+    "title": "La charité bien ordonnée",
+    "goal": "Vous connaissez le dessus de votre deck : un dragon légendaire, une magie d'enterrement, puis une magie de soin. Il reste 1600 LP à l'adversaire. Que faut-il jeter ?",
+    "player": { "lp": 4000, "hand": [79571449], "deck": [89631139, 70828912, 84257639] },
+    "opponent": { "lp": 1600, "monsters": [[91152256, "attack"]] },
+    "solution": [["activate", 79571449], ["select", 89631139, 84257639], ["activate", 70828912], ["battle"], ["attack", 89631139]]
   }
 ]

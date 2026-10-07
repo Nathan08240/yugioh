@@ -343,7 +343,10 @@ export type WonderView =
   | { status: "drawn"; cards: Printing[] }
   | { status: "picked"; cards: Printing[]; shuffle: number[]; picked: number };
 
-export type PuzzleView = { id: string; title: string; goal: string; done: boolean };
+// Puzzle levels, from the easiest.
+export const PUZZLE_DIFFICULTIES = ["easy", "medium", "hard"] as const;
+export type PuzzleDifficulty = (typeof PUZZLE_DIFFICULTIES)[number];
+export type PuzzleView = { id: string; title: string; goal: string; difficulty: PuzzleDifficulty; done: boolean };
 // WIN reason of a failed puzzle: the player's turn ended with the opponent still standing.
 export const PUZZLE_FAILED = 0x60;
 

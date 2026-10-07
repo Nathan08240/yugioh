@@ -32,11 +32,18 @@ it("un puzzle réussi montre son booster la première fois, puis la récompense 
 
 it("liste les puzzles avec leur statut et garde la dernière réussite jusqu'au duel suivant", () => {
   const puzzles: PuzzleView[] = [
-    { id: "a", title: "Premier", goal: "Consigne A", done: true },
-    { id: "b", title: "Second", goal: "Consigne B", done: false },
+    { id: "a", title: "Premier", goal: "Consigne A", difficulty: "easy", done: true },
+    { id: "b", title: "Second", goal: "Consigne B", difficulty: "easy", done: false },
+    { id: "c", title: "Troisième", goal: "Consigne C", difficulty: "hard", done: false },
   ];
   const html = renderToStaticMarkup(<Puzzles puzzles={puzzles} send={() => {}} />);
   for (const text of ["Premier", "Consigne A", "Réussi", "Rejouer", "Second", "Jouer", "1 booster"]) expect(html).toContain(text);
+
+  // Grouped by level, a level without puzzle left out, a counter for each level and for the whole list.
+  const text = html.replaceAll(/<[^>]*>/g, "");
+  expect(text.indexOf("Facile")).toBeLessThan(text.indexOf("Difficile"));
+  expect(text).not.toContain("Moyen");
+  for (const counter of ["Facile1 réussi sur 2", "Difficile0 réussi sur 1", "1 réussi sur 3"]) expect(text).toContain(counter);
 
   const state = reduce(reduce(initialLobby, { type: "puzzles", puzzles }), { type: "puzzle_won", id: "b", booster: true });
   expect(state.solved).toEqual({ type: "puzzle_won", id: "b", booster: true });

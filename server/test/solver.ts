@@ -21,7 +21,10 @@ function command(question: OcgMessage, action: string, codes: readonly number[])
   if (question.type === OcgMessageType.SELECT_IDLECMD) {
     if (action === "activate") return { type: OcgResponseType.SELECT_IDLECMD, action: SelectIdleCMDAction.SELECT_ACTIVATE, index: pick(question.activates, codes)[0] };
     if (action === "battle") return { type: OcgResponseType.SELECT_IDLECMD, action: SelectIdleCMDAction.TO_BP, index: null };
+    if (action === "summon") return { type: OcgResponseType.SELECT_IDLECMD, action: SelectIdleCMDAction.SELECT_SUMMON, index: pick(question.summons, codes)[0] };
+    if (action === "pos") return { type: OcgResponseType.SELECT_IDLECMD, action: SelectIdleCMDAction.SELECT_POS_CHANGE, index: pick(question.pos_changes, codes)[0] };
   }
+  if (question.type === OcgMessageType.SELECT_CHAIN && action === "chain" && question.selects.some((card) => card.code === codes[0])) return { type: OcgResponseType.SELECT_CHAIN, index: pick(question.selects, codes)[0] };
   if (question.type === OcgMessageType.SELECT_BATTLECMD) {
     if (action === "attack") return { type: OcgResponseType.SELECT_BATTLECMD, action: SelectBattleCMDAction.SELECT_BATTLE, index: pick(question.attacks, codes)[0] };
     if (action === "main2") return { type: OcgResponseType.SELECT_BATTLECMD, action: SelectBattleCMDAction.TO_M2, index: null };
@@ -39,7 +42,7 @@ function selection(question: OcgMessage, codes: readonly number[]): OcgResponse 
 // The response of a step to this question, undefined when the step is for a later question.
 const play = (question: OcgMessage, [action, ...codes]: Step) => (action === "select" ? selection(question, codes) : command(question, action, codes));
 
-export const ACTIONS = new Set(["activate", "battle", "attack", "main2", "select"]);
+export const ACTIONS = new Set(["activate", "summon", "pos", "chain", "battle", "attack", "main2", "select"]);
 
 // Plays the steps in order, each on the first question it fits; passes on chains, first option for anything else.
 export function solver(steps: readonly Step[]): Player {
@@ -58,6 +61,14 @@ export function solver(steps: readonly Step[]): Player {
 // The player ends their turn at once.
 export const pass: Player = (question) => {
   if (question.type === OcgMessageType.SELECT_IDLECMD) return { type: OcgResponseType.SELECT_IDLECMD, action: SelectIdleCMDAction.TO_EP, index: null };
+  return respond(question, announceCard);
+};
+
+// The player goes straight to the Battle Phase and attacks with the first monster each time, playing no card.
+export const rush: Player = (question) => {
+  if (question.type === OcgMessageType.SELECT_IDLECMD) return { type: OcgResponseType.SELECT_IDLECMD, action: question.to_bp ? SelectIdleCMDAction.TO_BP : SelectIdleCMDAction.TO_EP, index: null };
+  if (question.type === OcgMessageType.SELECT_BATTLECMD && question.attacks.length > 0) return { type: OcgResponseType.SELECT_BATTLECMD, action: SelectBattleCMDAction.SELECT_BATTLE, index: 0 };
+  if (question.type === OcgMessageType.SELECT_CHAIN && !question.forced) return { type: OcgResponseType.SELECT_CHAIN, index: null };
   return respond(question, announceCard);
 };
 

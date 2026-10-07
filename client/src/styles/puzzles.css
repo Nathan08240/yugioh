@@ -19,6 +19,16 @@
   justify-content: space-between;
 }
 
+.puzzles__niveau {
+  display: flex;
+  flex-direction: column;
+  gap: var(--e-3);
+}
+
+.puzzles__niveau-titre {
+  font: 700 var(--taille-xl) / 1.1 var(--police-etroite);
+}
+
 .puzzles__liste {
   display: grid;
   gap: var(--e-3);
@@ -33,7 +43,7 @@
   align-items: center;
 }
 
-.puzzle h2 {
+.puzzle h3 {
   font: 700 var(--taille-l) / 1.15 var(--police-etroite);
 }
 
