@@ -3,8 +3,7 @@ import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { setTimeout } from "node:timers/promises";
 import { readCard } from "../src/cards.ts";
-import { POOL } from "../src/pool.ts";
-import { STORY } from "../src/story.ts";
+import { ARTWORKS } from "../src/http.ts";
 import { ensureThumb, THUMB_WIDTHS } from "../src/thumbs.ts";
 
 const dir = join(import.meta.dirname, "..", "vendor", "art");
@@ -16,7 +15,7 @@ async function artwork(code: number): Promise<Buffer | undefined> {
   return res.ok ? Buffer.from(await res.arrayBuffer()) : undefined;
 }
 
-const served = new Set([...POOL, ...STORY.anime]);
+const served = ARTWORKS;
 let failed = 0;
 for (const code of served) {
   const file = join(dir, `${code}.jpg`);

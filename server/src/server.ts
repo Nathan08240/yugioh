@@ -7,7 +7,7 @@ import { dbAccounts, type Accounts } from "./accounts.ts";
 import { connect } from "./connection.ts";
 import { openDb } from "./db.ts";
 import { friendHub } from "./friends.ts";
-import { artFile, SERVED, serveHttp } from "./http.ts";
+import { artFile, ARTWORKS, serveHttp } from "./http.ts";
 import { shutdown, type FriendEntry, type Lobby } from "./lobby.ts";
 import { challengeDuel, matchQueue } from "./modes.ts";
 import { creditWinner, missionProgress, towerFloor } from "./rewards.ts";
@@ -52,7 +52,7 @@ if (import.meta.main) {
   const server = startServer(port, dbAccounts(openDb()));
   console.log(`Serveur de partie sur http://localhost:${port} (WebSocket et /api)`);
   // Missing artworks download in the background: the server answers without them meanwhile.
-  if ([...SERVED].some((code) => !existsSync(artFile(code)))) {
+  if ([...ARTWORKS].some((code) => !existsSync(artFile(code)))) {
     spawn(process.execPath, [join(import.meta.dirname, "..", "scripts", "images.ts")], { stdio: "inherit" }).on("error", console.error);
   }
   // As PID 1 in a container, Node ignores SIGTERM without a handler.

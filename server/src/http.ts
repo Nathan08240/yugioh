@@ -18,6 +18,8 @@ const ART_URL = /^\/api\/art\/(\d{1,10})(?:-(\d{3})\.webp|\.jpg)$/;
 const IMMUTABLE = "public, max-age=31536000, immutable";
 // The pool, the anime cards of the story opponents and the rule cards.
 export const SERVED: ReadonlySet<number> = new Set([...POOL, ...STORY.anime, ...RULE_CARDS.keys()]);
+// The served cards with an artwork to download: not the rule cards, nor the Deck Master System of the Noah arc (153000000).
+export const ARTWORKS: ReadonlySet<number> = new Set([...POOL, ...STORY.anime].filter((code) => code !== 153000000));
 let cardList: [number, Omit<CardInfo, "image">][] | undefined;
 
 function cardInfos() {
