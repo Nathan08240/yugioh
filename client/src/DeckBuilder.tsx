@@ -1,5 +1,5 @@
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type Dispatch, type SetStateAction } from "react";
-import { COPIES_MAX, countBy, deckError, EXTRA_MAX, isFusion, MAIN_MAX, MAIN_MIN, NAME_MAX, type DeckCard, type DeckDraft } from "../../server/src/deckcheck.ts";
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type Dispatch, type ReactNode, type SetStateAction } from "react";
+import { COPIES_MAX, countBy, deckError, EXTRA_MAX, isExtraDeck, MAIN_MAX, MAIN_MIN, NAME_MAX, type DeckCard, type DeckDraft } from "../../server/src/deckcheck.ts";
 import suggested from "../../server/data/suggested-decks.json";
 import type { ClientMessage, Deck, DeckResult } from "../../server/src/protocol.ts";
 import { thumbSmall } from "./art.ts";
@@ -10,6 +10,8 @@ import { GoatStatus, goatCompliant } from "./goat.tsx";
 import { attributeKey, cardName, DuelView, frame, useCards, useDuelView } from "./cards.ts";
 import { drawHand, fitSuggestion, formatYdk, importDeck, parseYdk, type Skipped, type Suggestion } from "./deckTools.ts";
 import { bestRarity, copiesByRarity, filterCollection, kindCounts, noFilters, type Copies, type Filters, type Kind } from "./collection.ts";
+import { Materiaux, type Item } from "./ExtraDeck.tsx";
+import { byOriginal, markOf, materialsOf, POLYMERIZATION, summonableFrom, type Counts, type Mark } from "./extraDeck.ts";
 import type { DeckList } from "./lobby.ts";
 import { D2, D3, duree, ELAN, FONDU, prefersReduced, RESSORT, SORTIE, type AnimOptions } from "./motion.ts";
 import "./styles/collection.css";
@@ -25,7 +27,7 @@ const KINDS: [Kind, string][] = [
   ["monster", "Monstres"],
   ["spell", "Magies"],
   ["trap", "Pièges"],
-  ["fusion", "Fusions"],
+  ["extra", "Extra Deck"],
 ];
 const SUGGESTIONS = suggested as Suggestion[];
 const newDeck = (): DeckDraft => ({ name: "Nouveau deck", main: [], extra: [] });
@@ -84,7 +86,7 @@ export function DeckBuilder({ collection, rarities, decks, results, send }: Read
 }
 
 export function add(draft: DeckDraft, code: number, card: DeckCard | undefined): DeckDraft {
-  if (card && isFusion(card)) return { ...draft, extra: [...draft.extra, code] };
+  if (card && isExtraDeck(card)) return { ...draft, extra: [...draft.extra, code] };
   return { ...draft, main: [...draft.main, code] };
 }
 
@@ -125,6 +127,7 @@ export const CollectionPanel = memo(function CollectionPanel({ collection, copie
   const shownCards = useMemo(() => filterCollection(collection, cards, filters), [collection, cards, filters]);
   const { limite, suite } = useSuite(shownCards.length);
   const used = countBy(draft ? [...draft.main, ...draft.extra] : []);
+  const inMain = useMemo(() => byOriginal(countBy(draft?.main ?? []), cards), [draft?.main, cards]);
   const total = collection.reduce((sum, [, quantity]) => sum + quantity, 0);
 
   return (
@@ -147,11 +150,14 @@ export const CollectionPanel = memo(function CollectionPanel({ collection, copie
         {shownCards.slice(0, limite).map(([code, quantity]) => {
           const inDeck = used.get(code) ?? 0;
           const spent = !draft || inDeck >= quantity;
+          const info = cards.get(code);
+          // An Extra Deck monster the main deck can really summon.
+          const summonable = info !== undefined && isExtraDeck(info) && summonableFrom(info, inMain);
           return (
             <li key={code} className={spent ? "est-epuisee" : undefined}>
               <button
                 type="button"
-                aria-label={`${cardName(cards, code)} : ${inDeck} dans le deck sur ${quantity} possédées`}
+                aria-label={`${cardName(cards, code)} : ${inDeck} dans le deck sur ${quantity} possédées${summonable ? ", invocable avec le deck principal" : ""}`}
                 // Not `disabled`: a disabled button gets no hover, and the detail must still show.
                 aria-disabled={spent}
                 onMouseEnter={() => show(code)}
@@ -168,6 +174,11 @@ export const CollectionPanel = memo(function CollectionPanel({ collection, copie
                 </button>
               )}
               <BestRarity copies={copies.get(code)} />
+              {summonable && (
+                <span className="invocable" aria-hidden="true" title="Le deck principal permet de l'invoquer">
+                  Invocable
+                </span>
+              )}
               <span className="qte" aria-hidden="true">
                 ×{quantity}
               </span>
@@ -398,7 +409,6 @@ function DeckEditor({ decks, results, draft, error, owned, setDraft, send }: Rea
       </label>
       <div className="deck-compteurs">
         <Count label="Principal" rule={`${MAIN_MIN} à ${MAIN_MAX}`} count={draft.main.length} ok={draft.main.length >= MAIN_MIN && draft.main.length <= MAIN_MAX} />
-        <Count label="Extra" rule={`${EXTRA_MAX} max.`} count={draft.extra.length} ok={draft.extra.length <= EXTRA_MAX} />
       </div>
       {draft.main.length > 0 && (
         <>
@@ -414,7 +424,8 @@ function DeckEditor({ decks, results, draft, error, owned, setDraft, send }: Rea
           </p>
         </>
       )}
-      <DeckLines draft={draft} setDraft={setDraft} />
+      <ExtraBand draft={draft} owned={owned} setDraft={setDraft} />
+      <DeckLines draft={draft} setDraft={setDraft} section="main" />
       <p className={error ? "message message--erreur" : "message message--succes"} role="status">
         {error ?? "Deck valide : il peut servir en duel."}
       </p>
@@ -528,6 +539,53 @@ function DeckTools({ draft, owned, setDraft }: Readonly<ToolsProps>) {
   );
 }
 
+const MARKS: Record<Mark, Pick<Item, "etat" | "texte">> = {
+  deck: { etat: "ok", texte: "Dans le deck" },
+  owned: { etat: "partiel", texte: "Possédé" },
+  missing: { etat: "manque", texte: "Manquant" },
+};
+
+type BandProps = { draft: DeckDraft; owned: Counts; setDraft: SetDraft };
+
+// The Extra Deck of the deck being built: its count out of EXTRA_MAX, and under each monster where its materials stand
+// (in the main deck, owned, missing) and whether the main deck can summon it.
+function ExtraBand({ draft, owned, setDraft }: Readonly<BandProps>) {
+  const { cards } = useDuelView();
+  const inMain = useMemo(() => byOriginal(countBy(draft.main), cards), [draft.main, cards]);
+  const have = useMemo(() => byOriginal(owned, cards), [owned, cards]);
+  const count = draft.extra.length;
+  const sous = (code: number) => {
+    const info = cards.get(code);
+    const needed = info && materialsOf(info);
+    if (!info || !needed) return <p className="texte-3 materiaux__inconnus">Matériaux : voir la carte.</p>;
+    return (
+      <>
+        {summonableFrom(info, inMain) && <p className="extra-bande__pret">Invocable avec ce deck</p>}
+        <Materiaux items={needed.map((material) => ({ ...material, ...MARKS[markOf(material, inMain, have)] }))} />
+      </>
+    );
+  };
+  return (
+    <section className="extra-bande" aria-label="Extra Deck">
+      <header className="extra-bande__tete">
+        <h3 className="titre-bloc">
+          <Icon id="ui-extra" />
+          Extra Deck
+        </h3>
+        <p className={count > EXTRA_MAX ? "extra-bande__compte est-hors-regle" : "extra-bande__compte"}>
+          <b className="chiffres">{count}</b> / {EXTRA_MAX}
+        </p>
+      </header>
+      <div className="extra-bande__jauge" role="img" aria-label={`${count} cartes sur ${EXTRA_MAX}`}>
+        <span style={{ inlineSize: `${Math.min(100, (count / EXTRA_MAX) * 100)}%` }} />
+      </div>
+      {count === 0 && <p className="texte-3">Aucune Fusion. Filtrez la collection sur « Extra Deck » pour en ajouter.</p>}
+      {count > 0 && !inMain.has(POLYMERIZATION) && <p className="texte-3">Aucune Polymérisation dans le deck principal : ces monstres ne pourront pas être invoqués.</p>}
+      {count > 0 && <DeckLines draft={draft} setDraft={setDraft} section="extra" sous={sous} />}
+    </section>
+  );
+}
+
 export function Count({ label, rule, count, ok }: Readonly<{ label: string; rule: string; count: number; ok: boolean }>) {
   return (
     <p className={ok ? undefined : "est-hors-regle"}>
@@ -543,14 +601,17 @@ export function Count({ label, rule, count, ok }: Readonly<{ label: string; rule
 
 type Line = [code: number, copies: number, extra: boolean];
 
-// Main deck then Extra deck, one line per card with its copies. A new line slides in, a changed count pops, a last copy slides out.
-export function DeckLines({ draft, setDraft }: Readonly<{ draft: DeckDraft; setDraft: SetDraft }>) {
+// Main deck then Extra deck (or one of them with `section`), one line per card with its copies; `sous` draws what goes under a line.
+// A new line slides in, a changed count pops, a last copy slides out.
+type LinesProps = { draft: DeckDraft; setDraft: SetDraft; section?: "main" | "extra"; sous?: (code: number) => ReactNode };
+
+export function DeckLines({ draft, setDraft, section, sous }: Readonly<LinesProps>) {
   const { cards, show, ouvrir } = useDuelView();
   const list = useRef<HTMLUListElement>(null);
   const previous = useRef<Map<number, number>>(undefined);
   const sorted = (codes: number[], extra: boolean): Line[] =>
     [...countBy(codes)].map(([code, copies]): Line => [code, copies, extra]).sort(([a], [b]) => cardName(cards, a).localeCompare(cardName(cards, b)));
-  const lines = [...sorted(draft.main, false), ...sorted(draft.extra, true)];
+  const lines = [...(section === "extra" ? [] : sorted(draft.main, false)), ...(section === "main" ? [] : sorted(draft.extra, true))];
   const lineOf = (code: number) => list.current?.querySelector(`[data-code="${code}"]`);
 
   useLayoutEffect(() => {
@@ -595,6 +656,7 @@ export function DeckLines({ draft, setDraft }: Readonly<{ draft: DeckDraft; setD
             <button type="button" className="btn-icone btn-icone--petit" aria-label={`Retirer un exemplaire de ${name}`} onClick={() => removeCopy(code, copies, extra)}>
               <Icon id="ui-moins" />
             </button>
+            {sous?.(code)}
           </li>
         );
       })}

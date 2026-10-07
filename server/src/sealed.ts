@@ -4,7 +4,7 @@ import { BOOSTERS, creditBoosters, drawPack } from "./boosters.ts";
 import { cardInfo } from "./cards.ts";
 import { poolCard } from "./collection.ts";
 import type { Db } from "./db.ts";
-import { COPIES_MAX, countBy, deckError, EXTRA_MAX, isFusion, MAIN_MIN, sameCard } from "./deckcheck.ts";
+import { COPIES_MAX, countBy, deckError, EXTRA_MAX, isExtraDeck, MAIN_MIN, sameCard } from "./deckcheck.ts";
 import type { Printing } from "./pool.ts";
 import { type CardInfo, type ClientMessage, SEALED_LOSSES, SEALED_REWARDS, SEALED_WINS, type SealedRun, type SealedStatus, type ServerMessage } from "./protocol.ts";
 
@@ -74,10 +74,10 @@ export function reserveDeck(pool: Printing[]): { main: number[]; extra: number[]
     const info = cardInfo(code);
     return info ? [{ code, info }] : [];
   });
-  const extra = cards.filter(({ info }) => isFusion(info)).map(({ code }) => code).slice(0, EXTRA_MAX);
+  const extra = cards.filter(({ info }) => isExtraDeck(info)).map(({ code }) => code).slice(0, EXTRA_MAX);
   const copies = new Map<number, number>();
   const main: number[] = [];
-  for (const card of cards.filter(({ info }) => !isFusion(info)).sort((a, b) => cardScore(b.info) - cardScore(a.info))) {
+  for (const card of cards.filter(({ info }) => !isExtraDeck(info)).sort((a, b) => cardScore(b.info) - cardScore(a.info))) {
     const key = sameCard(card.code, card.info);
     if (main.length >= MAIN_MIN || (copies.get(key) ?? 0) >= COPIES_MAX) continue;
     copies.set(key, (copies.get(key) ?? 0) + 1);

@@ -1,0 +1,179 @@
+/* Extra Deck : bandeau du constructeur de deck, panneau du duel, matériaux (ExtraDeck.tsx, DeckBuilder.tsx) */
+
+/* Matériaux d'un monstre de l'Extra Deck : chaque état se lit aussi dans le mot et le symbole, jamais dans la seule couleur */
+.materiaux {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.materiaux li {
+  display: flex;
+  gap: var(--e-2);
+  align-items: center;
+  justify-content: space-between;
+  padding: 2px 6px;
+  border-radius: var(--r-1);
+  background: rgb(255 255 255 / 0.04);
+  font: 600 var(--taille-xs) / 1.3 var(--police-etroite);
+}
+
+.materiaux__nom {
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  text-align: start;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--texte);
+  cursor: pointer;
+}
+
+.materiaux__nom:hover {
+  color: var(--holo-2);
+}
+
+.materiaux__marque {
+  flex: none;
+  padding: 0 6px;
+  border-radius: var(--r-1);
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
+.materiaux__ok .materiaux__marque {
+  box-shadow: inset 0 0 0 1px var(--succes);
+  color: var(--succes);
+}
+
+.materiaux__partiel .materiaux__marque {
+  box-shadow: inset 0 0 0 1px var(--or);
+  color: var(--or-2);
+}
+
+.materiaux__manque .materiaux__marque {
+  box-shadow: inset 0 0 0 1px var(--danger);
+  color: #ffb3c1;
+}
+
+.materiaux__ok .materiaux__marque::before { content: "✓ "; }
+.materiaux__partiel .materiaux__marque::before { content: "◐ "; }
+.materiaux__manque .materiaux__marque::before { content: "✕ "; }
+
+.materiaux__inconnus {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+/* Bandeau de l'Extra Deck dans le constructeur */
+.extra-bande {
+  display: grid;
+  gap: var(--e-2);
+  padding: var(--e-3);
+  border-radius: var(--r-2) var(--r-1);
+  background: linear-gradient(135deg, color-mix(in oklab, var(--type-fusion) 24%, transparent), transparent 75%), rgb(6 8 23 / 0.5);
+  box-shadow: inset 3px 0 0 var(--type-fusion);
+}
+
+.extra-bande__tete {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.extra-bande__tete .titre-bloc {
+  display: flex;
+  gap: var(--e-2);
+  align-items: center;
+  margin: 0;
+}
+
+.extra-bande__compte {
+  margin: 0;
+  font: 600 var(--taille-s) / 1 var(--police-etroite);
+  color: var(--texte-2);
+}
+
+.extra-bande__compte .chiffres {
+  font-size: var(--taille-xl);
+  font-weight: 800;
+  color: var(--texte);
+}
+
+.extra-bande__compte.est-hors-regle .chiffres {
+  color: #ffb3c1;
+}
+
+.extra-bande__jauge {
+  block-size: 6px;
+  border-radius: 3px;
+  background: rgb(255 255 255 / 0.1);
+}
+
+.extra-bande__jauge span {
+  display: block;
+  block-size: 100%;
+  border-radius: 3px;
+  background: var(--type-fusion);
+}
+
+.extra-bande__pret,
+.extra-liste__pret,
+.extra-liste__reuni {
+  grid-column: 1 / -1;
+  margin: 0;
+  font: 700 var(--taille-xs) / 1.3 var(--police-etroite);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.extra-bande__pret,
+.extra-liste__pret {
+  color: var(--succes);
+}
+
+.extra-liste__reuni {
+  color: var(--or-2);
+}
+
+.extra-bande .liste-deck {
+  min-block-size: 0;
+}
+
+/* Repère sur une carte de la collection : le deck principal permet d'invoquer ce monstre */
+.invocable {
+  position: absolute;
+  inset: 4px auto auto 4px;
+  z-index: 1;
+  padding: 1px 6px;
+  border-radius: var(--r-1);
+  background: rgb(6 8 23 / 0.88);
+  box-shadow: inset 0 0 0 1px var(--succes);
+  font: 700 var(--taille-xs) / 1.3 var(--police-etroite);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--succes);
+  pointer-events: none;
+}
+
+/* Panneau de l'Extra Deck pendant un duel (réutilise .pile-liste de duel.css) */
+.extra-liste {
+  inline-size: min(30rem, 92vw);
+}
+
+.extra-liste__ligne {
+  display: grid;
+  gap: 4px;
+  padding: 4px;
+  border-radius: var(--r-2) var(--r-1);
+}
+
+.extra-liste__ligne.est-invocable {
+  background: color-mix(in oklab, var(--succes) 12%, transparent);
+  box-shadow: inset 3px 0 0 var(--succes), 0 0 14px color-mix(in oklab, var(--succes) 30%, transparent);
+}

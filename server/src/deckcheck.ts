@@ -6,7 +6,8 @@ export const EXTRA_MAX = 15;
 export const COPIES_MAX = 3;
 export const NAME_MAX = 40;
 
-const FUSION = 0x40; // OcgType.FUSION
+// Types of the Extra Deck: OcgType.FUSION only, the pool has no other. Synchro, Xyz and Link join here, and the rules below with them.
+const EXTRA_TYPES = 0x40;
 // An alternate artwork's alias is its original passcode, a few numbers away (EDOPro's artwork offset).
 // Other aliases are distinct cards "treated as" another one: Harpie Lady 1, A Legendary Ocean, the anime gods.
 const ARTWORK_OFFSET = 20;
@@ -16,7 +17,7 @@ export type DeckCard = { name: string; type: number; alias: number };
 export type CardLookup = (code: number) => DeckCard | undefined;
 export type DeckDraft = { id?: number; name: string; main: number[]; extra: number[] };
 
-export const isFusion = (card: DeckCard) => (card.type & FUSION) !== 0;
+export const isExtraDeck = (card: Pick<DeckCard, "type">) => (card.type & EXTRA_TYPES) !== 0;
 
 // The passcode the copy limit counts: an alternate artwork counts as its original.
 export function sameCard(code: number, card: DeckCard): number {
@@ -45,9 +46,9 @@ export function deckError(deck: DeckDraft, card: CardLookup, owned: ReadonlyMap<
   const unknown = codes.find((code) => !card(code));
   if (unknown !== undefined) return `carte non autorisée : ${unknown}`;
   const data = (code: number) => card(code) as DeckCard;
-  const misplaced = deck.main.find((code) => isFusion(data(code)));
+  const misplaced = deck.main.find((code) => isExtraDeck(data(code)));
   if (misplaced !== undefined) return `${data(misplaced).name} : les monstres de fusion vont dans l'extra deck`;
-  const notFusion = deck.extra.find((code) => !isFusion(data(code)));
+  const notFusion = deck.extra.find((code) => !isExtraDeck(data(code)));
   if (notFusion !== undefined) return `${data(notFusion).name} : l'extra deck n'accepte que des monstres de fusion`;
   const key = (code: number) => sameCard(code, data(code));
   const copies = countBy(codes, key);

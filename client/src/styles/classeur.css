@@ -86,6 +86,12 @@
   min-block-size: 0;
 }
 
+.classeur__filtres {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--e-2);
+}
+
 /* Carte du set pas encore possédée. */
 .classeur .carte.est-manquante {
   filter: grayscale(1) brightness(0.45);

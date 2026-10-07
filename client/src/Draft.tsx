@@ -1,6 +1,6 @@
 import { OcgType } from "@n1xx1/ocgcore-wasm";
 import { useEffect, useMemo, useState } from "react";
-import { isFusion } from "../../server/src/deckcheck.ts";
+import { isExtraDeck } from "../../server/src/deckcheck.ts";
 import type { CardInfo, ClientMessage, DraftRun } from "../../server/src/protocol.ts";
 import { CardDetail, CardView } from "./Card.tsx";
 import { DuelView, has, useCards } from "./cards.ts";
@@ -33,7 +33,7 @@ export function Draft({ run, send, go }: Readonly<Props>) {
 }
 
 function kind(info: CardInfo | undefined): string {
-  if (info && isFusion(info)) return "fusion";
+  if (info && isExtraDeck(info)) return "fusion";
   if (has(info?.type ?? 0, OcgType.SPELL)) return "magie";
   if (has(info?.type ?? 0, OcgType.TRAP)) return "piège";
   return "monstre";

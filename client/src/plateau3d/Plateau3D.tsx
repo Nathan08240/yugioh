@@ -6,7 +6,7 @@ import type { Board } from "../board.ts";
 import type { Cards } from "../cards.ts";
 import { pointDe, type Appui, type Point } from "../question.ts";
 import { useReglages } from "../reglages.ts";
-import { etatScene, pileId, zones, ZONE, type EtatScene, type Zone } from "./disposition.ts";
+import { etatScene, pileId, zones, ZONE, type EtatScene, type PileScene, type Zone } from "./disposition.ts";
 import { Monde, type Qualite } from "./monde.ts";
 import type { Regie } from "./spectacle.ts";
 import { charger } from "./textures.ts";
@@ -270,13 +270,7 @@ function Etiquettes({ etat, seat, cibles, onZone, onSurvol, onAppui, placer }: R
           <Fragment key={zone.id}>
             {pile && (
               <Repere x={zone.x} z={zone.z + dz} couche={4} className={versLeBord === (zone.camp === 0) ? "etiquette" : "etiquette etiquette--haut"}>
-                {zone.type === "cimetiere" ? (
-                  <Cimetiere zone={zone} etat={etat} cibles={cibles} onZone={onZone} />
-                ) : (
-                  <span>
-                    {NOMS[zone.type]} <b className="chiffres">{pile.nombre}</b>
-                  </span>
-                )}
+                <Compteur zone={zone} pile={pile} etat={etat} cibles={cibles} onZone={onZone} />
               </Repere>
             )}
             {cibles.has(zone.id) && zone.type !== "cimetiere" && (
@@ -296,6 +290,25 @@ function Etiquettes({ etat, seat, cibles, onZone, onSurvol, onAppui, placer }: R
         );
       })}
     </>
+  );
+}
+
+type CompteurProps = { zone: Zone; pile: PileScene; etat: EtatScene; cibles: Set<string>; onZone: (id: string, point: Point) => void };
+
+// The counter of a pile: the Graveyard and banished buttons, the viewer's own Extra Deck as a button to its list, a plain count otherwise.
+function Compteur({ zone, pile, etat, cibles, onZone }: Readonly<CompteurProps>) {
+  if (zone.type === "cimetiere") return <Cimetiere zone={zone} etat={etat} cibles={cibles} onZone={onZone} />;
+  if (zone.type === "extra" && pile.liste) {
+    return (
+      <button type="button" className="etiquette__bouton" aria-label={`Extra Deck : ${pile.nombre} cartes, voir la liste`} onClick={(event) => onZone(zone.id, pointDe(event))}>
+        {NOMS[zone.type]} <b className="chiffres">{pile.nombre}</b>
+      </button>
+    );
+  }
+  return (
+    <span>
+      {NOMS[zone.type]} <b className="chiffres">{pile.nombre}</b>
+    </span>
   );
 }
 

@@ -33,8 +33,8 @@ const cards = new Map<number, CardInfo>([
   [MIRROR, card("Force de Miroir", TRAP)],
   [SANGAN, card("Sangan", MONSTER | EFFECT, { race: 8, typeLine: "Démon / Effet", attribute: OcgAttribute.DARK, attributeName: "TÉNÈBRES", level: 3, atk: 1000, def: 600 })],
   [POLY, card("Polymérisation", SPELL)],
-  [6001, card("Guerrier Dragon", MONSTER | FUSION, { level: 7, atk: 2800, desc: '"Guerrier 1" + "Dragon 1"\nUn monstre de fusion.' })],
-  [6002, card("Dragon Absent", MONSTER | FUSION, { level: 7, atk: 3000, desc: '"Guerrier 1" + "Dragon Inconnu"' })],
+  [6001, card("Guerrier Dragon", MONSTER | FUSION, { level: 7, atk: 2800, materials: [1001, 2001] })],
+  [6002, card("Dragon Absent", MONSTER | FUSION, { level: 7, atk: 3000, materials: [1001, 9999] })],
 ]);
 const lookup = (code: number) => cards.get(code);
 const everything = new Map([...cards.keys()].filter((code) => code !== 7001).map((code) => [code, 3]));

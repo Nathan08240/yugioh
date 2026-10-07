@@ -3,11 +3,12 @@ import { KEEP_COPIES, type ClientMessage } from "../../server/src/protocol.ts";
 import { CardDetail, CardView } from "./Card.tsx";
 import { cardName, DuelView, useCards } from "./cards.ts";
 import { bestRarity, copiesByRarity, ownedCodes, setProgress } from "./collection.ts";
+import { isExtraDeck } from "./extraDeck.ts";
 import { WishButton } from "./Souhait.tsx";
 import { WISH_MAX } from "./wishlist.ts";
 import "./styles/classeur.css";
 import "./styles/collection.css";
-import { BestRarity, FermerFiche } from "./ui.tsx";
+import { BestRarity, FermerFiche, Icon } from "./ui.tsx";
 
 type SetCards = { code: string; name: string; date: string; cards: number[] };
 
@@ -22,6 +23,7 @@ export function Classeur({ collection, rarities, wishlist, points, send }: Reado
   // On a phone the detail opens full screen on a tap (classeur.css).
   const [fiche, setFiche] = useState(false);
   const [onlyWished, setOnlyWished] = useState(false);
+  const [onlyExtra, setOnlyExtra] = useState(false);
   // Points to obtain each booster card.
   const [costs, setCosts] = useState<ReadonlyMap<number, number>>(new Map());
   const view = useMemo(() => ({ cards, show: setShown, seat: 0 }), [cards]);
@@ -31,8 +33,11 @@ export function Classeur({ collection, rarities, wishlist, points, send }: Reado
   const wished = useMemo(() => new Set(wishlist), [wishlist]);
   const set = sets?.[selected];
   const setCards = useMemo(
-    () => set?.cards.filter((code) => !onlyWished || wished.has(code)).toSorted((a, b) => (cards.get(a)?.name ?? "").localeCompare(cards.get(b)?.name ?? "")) ?? [],
-    [set, cards, onlyWished, wished],
+    () =>
+      set?.cards
+        .filter((code) => (!onlyWished || wished.has(code)) && (!onlyExtra || isExtraDeck(cards.get(code) ?? { type: 0 })))
+        .toSorted((a, b) => (cards.get(a)?.name ?? "").localeCompare(cards.get(b)?.name ?? "")) ?? [],
+    [set, cards, onlyWished, onlyExtra, wished],
   );
 
   // Once per visit of the screen: `send` changes on every render of the lobby.
@@ -78,10 +83,15 @@ export function Classeur({ collection, rarities, wishlist, points, send }: Reado
           <p className="texte-3">
             {current.owned} cartes possédées sur {current.total} ({current.percent} %) · {current.total - current.owned} manquantes
           </p>
-          <button type="button" className="btn btn--fantome classeur__filtre" aria-pressed={onlyWished} onClick={() => setOnlyWished(!onlyWished)}>
-            ♥ Souhaits ({wished.size} / {WISH_MAX})
-          </button>
-          {onlyWished && setCards.length === 0 && <p className="texte-2">Aucun souhait dans ce set.</p>}
+          <div className="classeur__filtres">
+            <button type="button" className="btn btn--fantome classeur__filtre" aria-pressed={onlyWished} onClick={() => setOnlyWished(!onlyWished)}>
+              ♥ Souhaits ({wished.size} / {WISH_MAX})
+            </button>
+            <button type="button" className="btn btn--fantome classeur__filtre" aria-pressed={onlyExtra} onClick={() => setOnlyExtra(!onlyExtra)}>
+              <Icon id="ui-extra" /> Extra Deck
+            </button>
+          </div>
+          {setCards.length === 0 && (onlyWished || onlyExtra) && <p className="texte-2">{onlyExtra ? "Aucune carte d'Extra Deck dans ce set." : "Aucun souhait dans ce set."}</p>}
           <ul className="grille-collection">
             {setCards.map((code) => {
               const quantity = quantities.get(code) ?? 0;

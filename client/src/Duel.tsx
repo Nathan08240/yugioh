@@ -8,6 +8,8 @@ import { Table, type Targets } from "./Board.tsx";
 import { CardDetail, CardView } from "./Card.tsx";
 import { cardName, DuelView, phaseName, useCards, useDuelView, useSystemStrings, type Cards } from "./cards.ts";
 import { Emote, MenuEmotes } from "./Emotes.tsx";
+import { ExtraPanel } from "./ExtraDeck.tsx";
+import { atHand, listExtra, summonSpell } from "./extraDeck.ts";
 import { lancer2D } from "./lancers2d.ts";
 import { minutes, type Asked, type Deadline, type ShownEmote } from "./lobby.ts";
 import { D1, D2, D3, D4, ELAN, RESSORT } from "./motion.ts";
@@ -69,7 +71,7 @@ type Props = {
   rejeu?: ReactNode;
 };
 
-const { HAND, GRAVE, REMOVED } = OcgLocation;
+const { HAND, GRAVE, REMOVED, EXTRA } = OcgLocation;
 const SANS_3D = "Votre navigateur n'affiche pas la 3D (WebGL 2 indisponible) : le duel se joue sur le plateau 2D.";
 const PERDU = "Le processeur graphique s'est réinitialisé : le duel continue sur le plateau 2D.";
 
@@ -134,6 +136,8 @@ export function Duel({ board, seat, asked, respond, leave, surrender, answerBy, 
   const { shown, idle } = useSpectacle(board, feed, cards, regie, asked !== undefined);
   const [mode, setMode] = useState<"3d" | "2d" | "perdu">(() => (webgl2() ? "3d" : "2d"));
   const [pile, setPile] = useState<string>();
+  // The list of the viewer's own Extra Deck, open or not.
+  const [extra, setExtra] = useState(false);
   // On a phone the card detail and the log fold over the board, one at a time (duel.css).
   const [volet, setVolet] = useState<"carte" | "journal">();
   const basculer = (next: "carte" | "journal") => setVolet(volet === next ? undefined : next);
@@ -190,8 +194,9 @@ export function Duel({ board, seat, asked, respond, leave, surrender, answerBy, 
   const conseil = etapes[etape]?.carte;
 
   const onZone = (id: string, point: Point) => {
-    const location = Number(id.split(":")[1]);
+    const [controller, location] = id.split(":").map(Number);
     if (location === GRAVE || location === REMOVED) setPile(id);
+    else if (location === EXTRA && controller === seat && shown.players[seat].extraCards) setExtra(true);
     else if (ui.targets.has(id)) ui.onPick?.(id, point);
     else if (codeAt(shown, id)) setDetail({ code: codeAt(shown, id), place: id });
   };
@@ -237,7 +242,7 @@ export function Duel({ board, seat, asked, respond, leave, surrender, answerBy, 
             {mode !== "3d" && (
               <div className="repli ancien">
                 <p className="repli__message">{mode === "perdu" ? PERDU : SANS_3D}</p>
-                <Table board={shown} seat={seat} ui={targets} />
+                <Table board={shown} seat={seat} ui={targets} onExtra={() => setExtra(true)} />
               </div>
             )}
           </div>
@@ -287,6 +292,7 @@ export function Duel({ board, seat, asked, respond, leave, surrender, answerBy, 
           </aside>
         </div>
         {pile && <PileList id={pile} board={shown} seat={seat} ui={ui} close={() => setPile(undefined)} />}
+        {extra && shown.players[seat].extraCards && <OwnExtra board={shown} seat={seat} spell={summonSpell(question)} respond={repondreDuel} close={() => setExtra(false)} />}
         {courant.point && ui.bulle && ui.bulle.length > 0 && (
           <Bulle
             key={`${picked[0]}|${courant.point.x}|${courant.point.y}`}
@@ -853,6 +859,16 @@ function CardName({ code }: Readonly<{ code: number }>) {
       {cardName(cards, code)}
     </button>
   );
+}
+
+type OwnExtraProps = { board: Board; seat: number; spell?: { code: number; response: OcgResponse }; respond: (response: OcgResponse) => void; close: () => void };
+
+// The viewer's own Extra Deck, with what their hand and field allow, and the Fusion Spell the engine offers to summon from it.
+function OwnExtra({ board, seat, spell, respond, close }: Readonly<OwnExtraProps>) {
+  const { cards } = useDuelView();
+  const side = board.players[seat];
+  const listed = useMemo(() => listExtra(side.extraCards ?? [], atHand(side, cards), cards), [side, cards]);
+  return <ExtraPanel listed={listed} spell={spell && { code: spell.code, activate: () => respond(spell.response) }} close={close} />;
 }
 
 // Cards of a Graveyard or of the banished ones, opened from the board: the ones the question asks for can be picked.

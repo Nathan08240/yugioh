@@ -11,6 +11,8 @@ export type Side = {
   lp: number;
   deck: number;
   extra: number;
+  // Passcodes of the Extra Deck, only on the viewer's own side and when the server sent them (never the opponent's).
+  extraCards?: number[];
   hand: Card[];
   // Engine sequences: monsters 0-4 (5-6 are Extra Monster Zones, unused here), spells 0-4 and 5 for the field zone.
   monsters: (Card | null)[];
@@ -57,17 +59,12 @@ const side = (lp: number, deck: number, extra: number): Side => ({
   banished: [],
 });
 
-// `lp`: the starting LP of both players, or of each one by seat.
-export const newBoard = (lp: number | readonly [number, number], decks: readonly number[], extras: readonly number[] = [0, 0]): Board => ({
-  players: [side(typeof lp === "number" ? lp : lp[0], decks[0], extras[0]), side(typeof lp === "number" ? lp : lp[1], decks[1], extras[1])],
-  turn: 0,
-  turnPlayer: 0,
-  phase: 0,
-  summoned: false,
-  chain: [],
-  log: [],
-  gone: [],
-});
+// `lp`: the starting LP of both players, or of each one by seat. `own`: the Extra Deck of the viewer's seat, when known.
+export function newBoard(lp: number | readonly [number, number], decks: readonly number[], extras: readonly number[] = [0, 0], own?: { seat: number; extra: readonly number[] }): Board {
+  const players: [Side, Side] = [side(typeof lp === "number" ? lp : lp[0], decks[0], extras[0]), side(typeof lp === "number" ? lp : lp[1], decks[1], extras[1])];
+  if (own) players[own.seat].extraCards = [...own.extra];
+  return { players, turn: 0, turnPlayer: 0, phase: 0, summoned: false, chain: [], log: [], gone: [] };
+}
 
 function pile(owner: Side, location: number): Card[] | undefined {
   if (location === OcgLocation.HAND) return owner.hand;
@@ -145,6 +142,16 @@ function ruleDamage(board: Board, msg: Damage): number[] | undefined {
   return Math.floor(total / 2) === msg.amount ? gone.map((card) => card.code) : undefined;
 }
 
+// The viewer's Extra Deck list loses the card that leaves it and gets back the one that returns.
+function followExtra(board: Board, msg: Extract<Message, { type: OcgMessageType.MOVE }>) {
+  const { from, to } = msg;
+  if (from.location === to.location) return;
+  const leaving = from.location === OcgLocation.EXTRA ? board.players[from.controller].extraCards : undefined;
+  const index = leaving?.indexOf(msg.card) ?? -1;
+  if (index >= 0) leaving?.splice(index, 1);
+  if (to.location === OcgLocation.EXTRA && msg.card) board.players[to.controller].extraCards?.push(msg.card);
+}
+
 // LP are sent as unsigned 32-bit values: below 0 they wrap around.
 const int32 = (value: number) => value | 0;
 
@@ -162,6 +169,7 @@ function apply(board: Board, msg: Message) {
         board.gone.push({ player: msg.from.controller, code: msg.card, atk: left?.atk });
       }
       put(board, msg.to, { code: msg.card, position: msg.to.position });
+      followExtra(board, msg);
       break;
     }
     case OcgMessageType.SWAP: {

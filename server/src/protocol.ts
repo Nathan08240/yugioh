@@ -203,9 +203,10 @@ export type DuelEvent = OcgMessage | StatsEvent;
 // `spectating`: the recipient watches from outside, with `seat` 0 as the point of view: it holds the name and avatar of seat 0 and
 // `opponent` those of seat 1; no hand and no face-down card of either seat is in the log.
 // `daily`: this connection is the first of the day (Europe/Paris), which earned a booster.
+// `extra`: the passcodes of the recipient's own Extra Deck at the start of the duel (never the opponent's, never sent to a spectator).
 export type ServerMessage =
   | { type: "profile"; pseudo: string | null; needsStarter: boolean; admin?: true; daily?: true }
-  | { type: "joined"; room: string; seat: Seat; lp: number; opponentLp?: number; decks: [number, number]; extras: [number, number]; opponent?: string; opponentAvatar?: number; spectating?: { name?: string; avatar?: number }; special?: string[]; options?: RoomOptions; log: DuelEvent[]; floor?: number }
+  | { type: "joined"; room: string; seat: Seat; lp: number; opponentLp?: number; decks: [number, number]; extras: [number, number]; extra?: number[]; opponent?: string; opponentAvatar?: number; spectating?: { name?: string; avatar?: number }; special?: string[]; options?: RoomOptions; log: DuelEvent[]; floor?: number }
   // The custom rules of a room, absent for a standard one.
   | { type: "room_rules"; room: string; options?: RoomOptions }
   // Spectators of the room, sent to everyone in it when it changes (and to a player who comes back while there are some).
@@ -438,6 +439,9 @@ export type CardInfo = {
   // French labels from the EDOPro system strings: "TÉNÈBRES", "Magicien / Effet", "Magie Continue".
   attributeName: string;
   typeLine: string;
+  // Passcodes of the named materials of an Extra Deck monster, one per card needed, read from its script. Absent when a
+  // material is described by a condition rather than named (and for every other card).
+  materials?: number[];
   // GET /api/art/<code>.jpg exists: the artwork alone, square, without the card frame.
   image: boolean;
 };

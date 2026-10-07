@@ -4,7 +4,7 @@ import { Bot } from "./bot.ts";
 import { poolCard } from "./collection.ts";
 import { ROOM_LIMITS } from "./custom.ts";
 import type { ActiveDeck } from "./db.ts";
-import { EXTRA_MAX, isFusion, limitError, MAIN_MAX, MAIN_MIN } from "./deckcheck.ts";
+import { EXTRA_MAX, isExtraDeck, limitError, MAIN_MAX, MAIN_MIN } from "./deckcheck.ts";
 import { lpOf, type Seed } from "./duel.ts";
 import type { friendHub } from "./friends.ts";
 import { historyEntry } from "./history.ts";
@@ -79,7 +79,7 @@ export function shutdown(lobby: Lobby, wss: WebSocketServer, maxMs: number): Pro
 
 const isPoolFusion = (code: number) => {
   const card = poolCard(code);
-  return card !== undefined && isFusion(card);
+  return card !== undefined && isExtraDeck(card);
 };
 
 // A deck as validated for a duel: 40 to 60 cards from the allowed pool, and at most 15 Fusion monsters in the extra deck.

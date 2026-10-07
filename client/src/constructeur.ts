@@ -5,6 +5,7 @@ import type { CardInfo } from "../../server/src/protocol.ts";
 import { has, type Cards } from "./cards.ts";
 import { kindOf } from "./collection.ts";
 import { fitSuggestion, type Suggestion } from "./deckTools.ts";
+import { byOriginal, isExtraDeck, summonableFrom } from "./extraDeck.ts";
 
 // Key cards of the Goat era in the pool (server/data/key-cards.json): [passcode, tier 1 to 3, copies to play, French name].
 type Key = [code: number, tier: number, copies: number, name: string];
@@ -17,7 +18,6 @@ const HIGH_MAX = 2; // Level 7 or more: two tributes.
 const SUPPORT_COPIES = 2;
 const SUPPORT_MIN = 6; // Monsters of the deck a Field or Equip spell must boost.
 const THEME_MIN = 10; // Monsters of the pool a theme needs.
-const POLYMERIZATION = 24094653;
 // Never picked by the builder: fusions go to the Extra Deck, rituals need their spell, the others a special summon.
 const UNPLAYABLE = OcgType.FUSION | OcgType.RITUAL | OcgType.SPSUMMON | OcgType.TOKEN;
 
@@ -78,20 +78,7 @@ function boosted(card: CardInfo, labels: readonly string[]): Set<string> {
   return found;
 }
 
-// Fusion Materials named on the first line of a fusion, or undefined when a Material is not a named card.
-function materials(card: CardInfo): string[] | undefined {
-  const parts = card.desc.split("\n")[0].split("+").map((part) => part.trim());
-  if (!parts.every((part) => part.length > 2 && part.startsWith('"') && part.endsWith('"'))) return undefined;
-  return parts.map((part) => part.slice(1, -1));
-}
-
 const monsters = (cards: Cards, codes: number[]) => codes.map((code) => cards.get(code)).filter((card): card is CardInfo => card !== undefined && isMonster(card));
-
-function tally(names: string[]): Map<string, number> {
-  const counts = new Map<string, number>();
-  for (const name of names) counts.set(name, (counts.get(name) ?? 0) + 1);
-  return counts;
-}
 
 // Owned cards only, deterministic: kept cards, the base deck, tier 1 keys, key monsters, monsters by power (theme first),
 // Field and Equip spells boosting them, other keys, other spells and traps, then anything owned. Short when too few cards.
@@ -174,23 +161,14 @@ export function buildDeck(cards: Cards, owned: ReadonlyMap<number, number>, styl
   return { main, extra: extraDeck(cards, main, keep.extra, owned, used), ...report(cards, main, owned, theme) };
 }
 
-// The kept fusions, then each owned fusion whose Materials and Polymerization are in the main deck, highest ATK first.
+// The kept Extra Deck monsters, then each owned one whose materials and Polymerization are in the main deck, highest ATK first.
 function extraDeck(cards: Cards, main: number[], kept: number[], owned: ReadonlyMap<number, number>, used: ReadonlyMap<number, number>): number[] {
   const extra = [...kept];
-  const polymerization = main.some((code) => {
-    const card = cards.get(code);
-    return card !== undefined && sameCard(code, card) === POLYMERIZATION;
-  });
-  if (!polymerization) return extra;
-  const inMain = tally(main.map((code) => cards.get(code)?.name ?? ""));
-  const ready = (card: CardInfo) => {
-    const needed = materials(card);
-    return needed !== undefined && [...tally(needed)].every(([name, copies]) => (inMain.get(name) ?? 0) >= copies);
-  };
+  const inMain = byOriginal(countBy(main), cards);
   const atk = (code: number) => cards.get(code)?.atk ?? 0;
   const fusions = [...owned.keys()].filter((code) => {
     const card = cards.get(code);
-    return card !== undefined && has(card.type, OcgType.FUSION) && (owned.get(code) ?? 0) > (used.get(code) ?? 0) && !extra.includes(code) && ready(card);
+    return card !== undefined && isExtraDeck(card) && (owned.get(code) ?? 0) > (used.get(code) ?? 0) && !extra.includes(code) && summonableFrom(card, inMain);
   });
   for (const code of fusions.sort((a, b) => atk(b) - atk(a) || a - b)) if (extra.length < EXTRA_MAX) extra.push(code);
   return extra;

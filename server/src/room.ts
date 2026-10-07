@@ -291,7 +291,8 @@ export function declineRematch(room: Room) {
 function joinedMessage(room: Room, seat: Seat, log: DuelEvent[]): Extract<ServerMessage, { type: "joined" }> {
   const [lp, opponentLp] = [lpOf(rulesOf(room), seat), lpOf(rulesOf(room), 1 - seat)];
   const rule = room.event?.rule ?? room.options?.rule;
-  return { type: "joined", room: room.code, seat, lp, opponentLp: opponentLp === lp ? undefined : opponentLp, decks: deckSizes(room), extras: extraSizes(room), opponent: room.players[1 - seat]?.name, opponentAvatar: room.players[1 - seat]?.avatar, special: rule ? [rule] : undefined, options: room.options, log, floor: room.tower?.floor };
+  const extra = room.players[seat]?.extra;
+  return { type: "joined", room: room.code, seat, lp, opponentLp: opponentLp === lp ? undefined : opponentLp, decks: deckSizes(room), extras: extraSizes(room), extra: extra?.length ? [...extra] : undefined, opponent: room.players[1 - seat]?.name, opponentAvatar: room.players[1 - seat]?.avatar, special: rule ? [rule] : undefined, options: room.options, log, floor: room.tower?.floor };
 }
 
 export function sendJoined(room: Room, seat: Seat) {
@@ -314,7 +315,7 @@ function limitTurns(room: Room, events: OcgMessage[]): OcgMessage[] {
 // A spectator sees the duel from seat 0, through the public log.
 export function sendWatching(room: Room, socket: WebSocket) {
   const [first] = room.players;
-  send(socket, { ...joinedMessage(room, 0, room.watch?.log ?? []), spectating: { name: first?.name, avatar: first?.avatar } });
+  send(socket, { ...joinedMessage(room, 0, room.watch?.log ?? []), extra: undefined, spectating: { name: first?.name, avatar: first?.avatar } });
 }
 
 export const sendSpectators = (room: Room) => sendAll(room, { type: "spectators", count: room.watch?.sockets.length ?? 0 });

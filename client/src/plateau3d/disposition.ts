@@ -50,7 +50,8 @@ export function zones(seat: number): Zone[] {
 // Code 0: the back. A set card stays readable by its owner under a hatched veil; the opponent sees its back.
 // `atk` and `def`: current stats of a monster, when known.
 export type CarteScene = { code: number; defense: boolean; cachee: boolean; voile: boolean; atk?: number; def?: number };
-export type PileScene = { nombre: number; code: number };
+// `liste`: the viewer can open the list of the pile (their own Extra Deck, when its cards are known).
+export type PileScene = { nombre: number; code: number; liste?: boolean };
 export type EtatScene = { cartes: Map<string, CarteScene>; piles: Map<string, PileScene> };
 
 function carteScene(card: Card, location: number, mine: boolean): CarteScene {
@@ -71,7 +72,7 @@ export function etatScene(board: Board, seat: number): EtatScene {
     piles.set(pileId(joueur, GRAVE), { nombre: side.grave.length, code: side.grave.at(-1)?.code ?? 0 });
     piles.set(pileId(joueur, REMOVED), { nombre: side.banished.length, code: side.banished.at(-1)?.code ?? 0 });
     piles.set(pileId(joueur, DECK), { nombre: side.deck, code: 0 });
-    piles.set(pileId(joueur, EXTRA), { nombre: side.extra, code: 0 });
+    piles.set(pileId(joueur, EXTRA), { nombre: side.extra, code: 0, liste: joueur === seat && side.extraCards !== undefined });
   });
   return { cartes, piles };
 }

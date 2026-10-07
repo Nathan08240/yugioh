@@ -9,18 +9,19 @@ export type Targets = { targets: ReadonlySet<string>; picked: readonly string[];
 
 const FIVE = [0, 1, 2, 3, 4];
 
-export function Table({ board, seat, ui }: Readonly<{ board: Board; seat: number; ui: Targets }>) {
+// `onExtra`: opens the list of the viewer's own Extra Deck, when its cards are known.
+export function Table({ board, seat, ui, onExtra }: Readonly<{ board: Board; seat: number; ui: Targets; onExtra?: () => void }>) {
   const opponent = 1 - seat;
   return (
     <div className="table">
       <Field side={board.players[opponent]} player={opponent} ui={ui} opponent />
       <Middle board={board} seat={seat} />
-      <Field side={board.players[seat]} player={seat} ui={ui} />
+      <Field side={board.players[seat]} player={seat} ui={ui} onExtra={board.players[seat].extraCards ? onExtra : undefined} />
     </div>
   );
 }
 
-function Field({ side, player, ui, opponent = false }: Readonly<{ side: Side; player: number; ui: Targets; opponent?: boolean }>) {
+function Field({ side, player, ui, opponent = false, onExtra }: Readonly<{ side: Side; player: number; ui: Targets; opponent?: boolean; onExtra?: () => void }>) {
   const at = (location: OcgLocation, sequence: number): Place => ({ controller: player, location, sequence });
   return (
     <div className={opponent ? "field opponent" : "field"}>
@@ -33,7 +34,7 @@ function Field({ side, player, ui, opponent = false }: Readonly<{ side: Side; pl
         <Pile label="Bannies" cards={side.banished} />
       </div>
       <div className="lane">
-        <Pile label="Extra" count={side.extra} />
+        {onExtra ? <ExtraPile count={side.extra} open={onExtra} /> : <Pile label="Extra" count={side.extra} />}
         {FIVE.map((sequence) => (
           <Slot key={sequence} place={at(OcgLocation.SZONE, sequence)} card={side.spells[sequence]} ui={ui} label="Magie/Piège" />
         ))}
@@ -68,6 +69,16 @@ function Slot({ place, card, ui, label }: Readonly<{ place: Place; card: Card | 
       onClick={(event) => (target ? ui.onPick?.(key, pointDe(event)) : reveal())}
     >
       {card ? <CardView code={card.code} position={card.position} location={place.location} atk={card.atk} def={card.def} /> : <span className="zone-label">{label}</span>}
+    </button>
+  );
+}
+
+// The viewer's own Extra Deck: the count, and a click opens the list of its monsters.
+function ExtraPile({ count, open }: Readonly<{ count: number; open: () => void }>) {
+  return (
+    <button type="button" className="slot pile" aria-label={`Extra Deck : ${count} cartes, voir la liste`} onClick={open}>
+      {count > 0 && <CardView code={0} />}
+      <span className="pile-count">Extra {count}</span>
     </button>
   );
 }

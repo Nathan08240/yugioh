@@ -370,7 +370,7 @@
 
 .deck-compteurs {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
   gap: var(--e-2);
 }
 
