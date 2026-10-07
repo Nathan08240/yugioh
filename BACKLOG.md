@@ -126,7 +126,7 @@ Migrations appliquées en production le 2026-10-05 avant la fusion (missions, é
 - [x] Tests automatiques sur GitHub, mise en ligne seulement si tout est vert (chore/F-ci-github) ; à régler : secrets GitHub et Auto Deploy coupé dans Coolify (DEPLOY.md)
 - [x] Économie : 5 boosters par jour au plus pour les victoires en ligne, paliers de la Tour chaque semaine, événement à 2 boosters (feat/F-economie-reglages)
 - [x] M1 : cartes qui coupaient un duel, Momie Errante corrigée et Dernier Tour retirée du pool (fix/F-cartes-plantage) ; Tour interrompue, decks pendant un échange, émotes des rejeux (fix/F-petits-correctifs) ; page admin des signalements et des erreurs, migration appliquée le 2026-10-08 (feat/F-admin-signalements) ; vignettes des illustrations (perf/F-vignettes) ; jeu installable et notifications onglet ouvert (feat/F-pwa)
-- [ ] M2 : 20 puzzles, tutoriel avancé, partie rapide en ligne, decks publics, Extra Deck mis en avant
+- [x] M2 : 20 puzzles en trois niveaux (feat/F-puzzles-20), leçons avancées (feat/F-tutoriel-avance), partie rapide en ligne (feat/F-partie-rapide), decks publics et partage par code, migration appliquée le 2026-10-09 (feat/F-decks-publics), Extra Deck mis en avant (feat/F-extra-deck)
 - [ ] L : bot Expert avec anticipation, parcours de Joey, tournoi entre amis
 - [ ] GX : formats (Classique Goat, GX, puis 5D's, plus un format « Toutes les cartes »), sets de l'ère GX, arcs d'histoire GX
 - [ ] 5D's : Synchros, sets et arcs d'histoire 5D's
