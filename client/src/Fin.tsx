@@ -8,7 +8,7 @@ import type { Page } from "./Shell.tsx";
 import { Signaler, type Report } from "./Signaler.tsx";
 import { jouer as jouerSon } from "./son.ts";
 import "./styles/fin.css";
-import { PUZZLE_FAILED, REPLAY_BOOSTERS_MAX, REPLAY_WINS, SEALED_LOSSES, SEALED_WINS, TOWER_FLOORS, type DraftRun, type SealedRun } from "../../server/src/protocol.ts";
+import { EVENT_BOOSTERS, ONLINE_BOOSTERS_MAX, PUZZLE_FAILED, REPLAY_BOOSTERS_MAX, REPLAY_WINS, SEALED_LOSSES, SEALED_WINS, TOWER_FLOORS, type DraftRun, type SealedRun } from "../../server/src/protocol.ts";
 import { nextStar, Rewards, Stars } from "./ui.tsx";
 
 type Props = {
@@ -23,8 +23,10 @@ type Props = {
   // A story duel ("Battle City · Duel 4 sur 5"), its special rules, its starting LP as written, and its conclusion once the
   // server has recorded the win.
   story?: { title?: string; won?: StoryWon; special?: readonly string[]; easy?: boolean; lp?: number };
-  // The first event win of the week was recorded: 1 more booster.
+  // The first event win of the week was recorded: EVENT_BOOSTERS more boosters.
   eventBooster?: boolean;
+  // Once recorded, whether the online win earned its booster (false: the day's cap is reached).
+  onlineEarned?: boolean;
   // A puzzle, and once the server has recorded its success, whether it earned a booster (the first time only).
   puzzle?: { title: string; booster?: boolean };
   // The tutorial, and once the server has recorded its win, whether it earned a booster (the first time only).
@@ -93,7 +95,7 @@ const defeat =
   };
 
 // Victory or defeat screen over the board, once the engine has named the winner.
-export function Fin({ board, seat, room, vsBot, ranked, opponent, story, eventBooster, puzzle, tutoriel, tower, rematch, onRematch, report, leave, go, sealed, draft }: Readonly<Props>) {
+export function Fin({ board, seat, room, vsBot, ranked, opponent, story, eventBooster, onlineEarned, puzzle, tutoriel, tower, rematch, onRematch, report, leave, go, sealed, draft }: Readonly<Props>) {
   const limited = sealed ?? draft;
   const mode = draft ? "Draft" : "Scellé";
   const root = useRef<HTMLDivElement>(null);
@@ -120,8 +122,9 @@ export function Fin({ board, seat, room, vsBot, ranked, opponent, story, eventBo
   if (ranked) back = "Retour au mode classé";
   if (limited) back = limited.status === "playing" ? `Retour au ${mode}` : "Voir le bilan";
   const onBack = limited ? () => go(draft ? "draft" : "scelle") : leave;
-  const eventGain = won && eventBooster ? 1 : 0;
-  let boosters = (won && !vsBot && !story ? 1 : storyBoosters(story?.won)) + eventGain + (tower?.won?.boosters ?? 0);
+  const online = won && !vsBot && !story;
+  const eventGain = won && eventBooster ? EVENT_BOOSTERS : 0;
+  let boosters = (online ? Number(onlineEarned === true) : storyBoosters(story?.won)) + eventGain + (tower?.won?.boosters ?? 0);
   if (puzzle) boosters = won && puzzle.booster ? 1 : 0;
   if (tutoriel) boosters = won && tutoriel.booster ? 1 : 0;
 
@@ -136,12 +139,13 @@ export function Fin({ board, seat, room, vsBot, ranked, opponent, story, eventBo
         <Score board={board} seat={seat} won={won} lost={lost} opponent={opponent} />
         {ranked && <p className="fin__score">{ranked.result ? ratingChange(ranked.result) : "Calcul du classement…"}</p>}
         {won && (tower ? <TowerGains won={tower.won} /> : <Gains story={story} boosters={boosters} />)}
-        {won && eventBooster && <p className="texte-2">Première victoire de l'événement de la semaine : 1 booster gagné.</p>}
+        {won && eventBooster && <p className="texte-2">Première victoire de l'événement de la semaine : {EVENT_BOOSTERS} boosters gagnés.</p>}
+        {online && onlineEarned === false && <p className="texte-2">Plafond du jour atteint : {ONLINE_BOOSTERS_MAX} boosters gagnés en ligne.</p>}
         {won && puzzle?.booster === false && <p className="texte-2 fin__recit">Puzzle déjà réussi : la récompense a été obtenue.</p>}
         {won && tutoriel?.booster === false && <p className="texte-2 fin__recit">Tutoriel déjà terminé : la récompense a été obtenue.</p>}
         {(won || lost) && <Cause board={board} seat={seat} won={won} kingdom={story?.special?.includes("duelist-kingdom") ?? false} opponent={opponent} />}
         {lost && tower && <p className="texte-2 fin__note">Une défaite renvoie à l'étage 1 ; votre record est gardé.</p>}
-        {lost && !story && !vsBot && <p className="texte-2 fin__note">Le vainqueur d'un duel en ligne reçoit un booster. Retentez votre chance avec un deck ajusté.</p>}
+        {lost && !story && !vsBot && <p className="texte-2 fin__note">Le vainqueur d'un duel en ligne reçoit un booster ({ONLINE_BOOSTERS_MAX} par jour au maximum). Retentez votre chance avec un deck ajusté.</p>}
         <div className="fin__actions">
           {boosters > 0 ? (
             <button type="button" className="btn btn--grand" onClick={() => go("boosters")}>

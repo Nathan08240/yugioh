@@ -1,6 +1,7 @@
 import { creditBoosters } from "./boosters.ts";
 import type { Db } from "./db.ts";
 import type { Rules } from "./duel.ts";
+import { EVENT_BOOSTERS } from "./protocol.ts";
 import { EXTRA_RULES, unlock } from "./story.ts";
 
 // Story rules that play outside their arc, with the starting LP and hand of that arc, in rotation one per week.
@@ -36,10 +37,10 @@ export async function eventWon(db: Db, userId: string, id: string): Promise<bool
   return row !== undefined;
 }
 
-// 1 booster for the first event win of the week: resolves to false when this week's one was already taken.
+// EVENT_BOOSTERS boosters for the first event win of the week: resolves to false when this week's one was already taken.
 export const claimEvent = (db: Db, userId: string, id: string): Promise<boolean> =>
   db.begin(async (sql) => {
     if (!(await unlock(sql, userId, unlockId(id)))) return false;
-    await creditBoosters(sql, userId, 1);
+    await creditBoosters(sql, userId, EVENT_BOOSTERS);
     return true;
   });

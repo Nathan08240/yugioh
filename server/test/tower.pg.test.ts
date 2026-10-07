@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { createProfile, type Db } from "../src/db.ts";
 import { startTower, towerView, winTower } from "../src/tower.ts";
 import { type Pg, startPostgres } from "./pg.ts";
@@ -68,5 +68,27 @@ describe("mode Tour sur Postgres jetable", () => {
     const wins = await Promise.all(Array.from({ length: 5 }, () => winTower(server, id, 3)));
     expect(wins.map((win) => win.boosters).sort((a, b) => a - b)).toEqual([0, 0, 0, 0, 1]);
     expect(await pending(id)).toBe(1);
+  });
+
+  it("rend les paliers gagnables à chaque semaine, record gardé", async () => {
+    const id = await newPlayer("Tour5");
+    vi.useFakeTimers({ toFake: ["Date"], now: new Date("2026-10-07T12:00:00Z") });
+    try {
+      expect(await climb(id, 3)).toEqual([0, 0, 1]);
+      // Sunday evening: still the same week.
+      vi.setSystemTime(new Date("2026-10-11T20:00:00Z"));
+      expect((await towerView(server, id)).claimed).toEqual([3]);
+      // A started and lost duel sends back to floor 1.
+      await startTower(server, id);
+      expect(await climb(id, 3)).toEqual([0, 0, 0]);
+      // Monday: the week turns over.
+      vi.setSystemTime(new Date("2026-10-12T08:00:00Z"));
+      expect(await progress(id)).toMatchObject({ best: 3, claimed: [] });
+      await startTower(server, id);
+      expect(await climb(id, 3)).toEqual([0, 0, 1]);
+      expect(await pending(id)).toBe(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

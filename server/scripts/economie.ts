@@ -13,7 +13,7 @@ import { BOOSTERS, drawPack, FREE_BOOSTER_HOURS, hasUltra, ULTRA_PITY, ultraPack
 import { conversionPlan, CRAFT_COSTS, DAILY_BOOSTERS } from "../src/economy.ts";
 import { eventOf } from "../src/event.ts";
 import type { CardSet, Printing } from "../src/pool.ts";
-import { type BotLevel, KEEP_COPIES, REPLAY_BOOSTERS_MAX, REPLAY_WINS, TOWER_FLOORS } from "../src/protocol.ts";
+import { type BotLevel, EVENT_BOOSTERS, KEEP_COPIES, ONLINE_BOOSTERS_MAX, REPLAY_BOOSTERS_MAX, REPLAY_WINS, TOWER_FLOORS } from "../src/protocol.ts";
 import { currentSeason, elo, recenter, seasonReward, START_RATING } from "../src/ranked.ts";
 import { STORY } from "../src/story.ts";
 import { TOWER_REWARDS, towerLevel } from "../src/tower.ts";
@@ -66,6 +66,7 @@ type Player = {
   threeStars: Set<string>;
   replayWins: number;
   replayBoosters: number;
+  online: number;
   floor: number;
   towerClaimed: Set<number>;
   eventClaimed: string;
@@ -116,7 +117,7 @@ function stars(p: Player, id: string) {
 function playEvent(p: Player) {
   if (!chance(WIN.event)) return;
   p.eventClaimed = p.week;
-  credit(p, "event", 1);
+  credit(p, "event", EVENT_BOOSTERS);
 }
 
 function playStory(p: Player) {
@@ -150,11 +151,14 @@ function playReplay(p: Player) {
   credit(p, "replay", 1);
 }
 
-// Online players of the same rating meet: the winner gets WIN_BOOSTER_REWARD.
+// Online players of the same rating meet: the winner gets WIN_BOOSTER_REWARD, ONLINE_BOOSTERS_MAX a day.
 function playRanked(p: Player) {
   p.repeat -= COST.ranked;
   const win = chance(WIN.ranked);
-  if (win) credit(p, "online", WIN_BOOSTER_REWARD);
+  if (win && p.online < ONLINE_BOOSTERS_MAX) {
+    p.online++;
+    credit(p, "online", WIN_BOOSTER_REWARD);
+  }
   p.rating = elo([p.rating, p.rating], win ? 0 : 1)[0];
   p.games++;
 }
@@ -177,8 +181,10 @@ function playRepeatable(p: Player) {
 
 function playDay(p: Player) {
   const { week, season } = dayOf(p.day);
+  if (week !== p.week) p.towerClaimed.clear();
   p.week = week;
   p.replayBoosters = 0;
+  p.online = 0;
   newSeason(p, season);
   connect(p);
   p.progress += p.profile.minutes * PROGRESS_SHARE;
@@ -197,7 +203,7 @@ function playDay(p: Player) {
 export function income(profile: Profile, days: number): Trace {
   const p: Player = {
     profile, trace: { boosters: [], events: [], cards: [] }, day: 0, week: "", nextFreeAt: 0, progress: 0, repeat: 0, nextDuel: 0,
-    threeStars: new Set(), replayWins: 0, replayBoosters: 0, floor: 0, towerClaimed: new Set(), eventClaimed: "",
+    threeStars: new Set(), replayWins: 0, replayBoosters: 0, online: 0, floor: 0, towerClaimed: new Set(), eventClaimed: "",
     rating: START_RATING, games: 0, season: currentSeason(new Date(START)),
   };
   for (; p.day < days; p.day++) {

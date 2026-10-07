@@ -95,6 +95,13 @@ const accounts: Accounts = {
     return [{ code: 1, rarity: "common" }];
   },
   creditBoosters: async () => {},
+  // "plein" a déjà gagné son plafond de boosters en ligne du jour.
+  winOnline: async (userId) => {
+    if (userId === "plein") return false;
+    await accounts.creditBoosters(userId, 1);
+    return true;
+  },
+  onlineToday: async () => 0,
   storyProgress: async () => new Map(),
   completeStory: async (_userId, _duel, stars) => ({ rewards: null, stars, best: stars, starBooster: false, replays: 1 }),
   revengesWon: async () => new Set(),
@@ -440,7 +447,7 @@ describe("serveur de partie", () => {
     p.send({ type: "booster_state" });
     p.send({ type: "open_booster", set: "LOB" });
     await vi.waitFor(() => expect(p.received.length).toBeGreaterThanOrEqual(3));
-    expect(p.received).toContainEqual({ type: "booster_state", nextFreeAt: new Date(0).toISOString(), pending: 0, ultraIn: 21 });
+    expect(p.received).toContainEqual({ type: "booster_state", nextFreeAt: new Date(0).toISOString(), pending: 0, ultraIn: 21, online: 0 });
     expect(p.received).toContainEqual({ type: "booster_opened", set: "LOB", cards: [{ code: 1, rarity: "common" }] });
   });
 
@@ -534,25 +541,34 @@ describe("serveur de partie", () => {
 });
 
 describe("récompense de boosters à la fin d'un duel", () => {
-  it("crédite le vainqueur d'un duel en ligne, pas celui d'un duel contre le bot", () => {
-    const credited: [string, number][] = [];
-    const fakeAccounts: Pick<Accounts, "creditBoosters"> = {
-      creditBoosters: async (userId, count) => {
-        credited.push([userId, count]);
+  it("crédite le vainqueur d'un duel en ligne, pas celui d'un duel contre le bot, et lui dit si le plafond du jour est atteint", async () => {
+    const credited: string[] = [];
+    const fakeAccounts: Pick<Accounts, "winOnline"> = {
+      winOnline: async (userId) => {
+        credited.push(userId);
+        return userId !== "plein";
       },
     };
-    const room = (bot?: boolean): Room => ({
+    const sent = vi.fn();
+    const socket = { send: sent } as unknown as WebSocket;
+    const room = (second: string, bot?: boolean): Room => ({
       code: "X",
       players: [
-        { id: "p0", log: [], deck: [] },
-        { id: "p1", log: [], deck: [], bot: bot ? ({} as Bot) : undefined },
+        { id: "p0", socket, log: [], deck: [] },
+        { id: second, socket, log: [], deck: [], bot: bot ? ({} as Bot) : undefined },
       ],
     });
 
-    creditWinner(room(), 1, fakeAccounts);
-    creditWinner(room(true), 0, fakeAccounts);
+    creditWinner(room("p1"), 1, fakeAccounts);
+    creditWinner(room("p1", true), 0, fakeAccounts);
+    creditWinner(room("plein"), 1, fakeAccounts);
 
-    expect(credited).toEqual([["p1", 1]]);
+    await vi.waitFor(() => expect(sent).toHaveBeenCalledTimes(2));
+    expect(credited).toEqual(["p1", "plein"]);
+    expect(sent.mock.calls.map(([data]) => JSON.parse(data))).toEqual([
+      { type: "online_won", earned: true },
+      { type: "online_won", earned: false },
+    ]);
   });
 
   it("advance() signale le vainqueur à room.onWin quand le moteur envoie WIN", () => {

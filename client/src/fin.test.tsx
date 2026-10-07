@@ -125,11 +125,21 @@ it("propose la revanche selon son état : à demander, en attente, à accepter o
 
 it("annonce le booster de la première victoire de l'événement de la semaine, contre le bot ou en ligne", () => {
   const won = finished(1, 0);
-  const end = (vsBot: boolean, eventBooster?: boolean) => render(<Fin board={won} seat={0} room="r" vsBot={vsBot} eventBooster={eventBooster} leave={() => {}} go={() => {}} onRematch={() => {}} />);
+  const end = (vsBot: boolean, eventBooster?: boolean, onlineEarned?: boolean) =>
+    render(<Fin board={won} seat={0} room="r" vsBot={vsBot} eventBooster={eventBooster} onlineEarned={onlineEarned} leave={() => {}} go={() => {}} onRematch={() => {}} />);
   const bot = end(true, true);
-  for (const text of ["Première victoire de l&#x27;événement de la semaine", "<b>1 booster</b>", "Ouvrir mes boosters"]) expect(bot).toContain(text);
+  for (const text of ["Première victoire de l&#x27;événement de la semaine : 2 boosters gagnés", "<b>2 boosters</b>", "Ouvrir mes boosters"]) expect(bot).toContain(text);
   expect(end(true)).not.toContain("booster");
-  expect(end(false, true)).toContain("<b>2 boosters</b>");
+  expect(end(false, true, true)).toContain("<b>3 boosters</b>");
+});
+
+it("annonce le plafond du jour quand une victoire en ligne ne rapporte plus de booster", () => {
+  const won = finished(1, 0);
+  const end = (onlineEarned?: boolean) => render(<Fin board={won} seat={0} room="r" vsBot={false} onlineEarned={onlineEarned} leave={() => {}} go={() => {}} onRematch={() => {}} />);
+  expect(end(true)).toContain("<b>1 booster</b>");
+  const full = end(false);
+  expect(full).toContain("Plafond du jour atteint : 5 boosters gagnés en ligne.");
+  expect(full).not.toContain("Ouvrir mes boosters");
 });
 
 it("en mode Tour, propose l'étage suivant après une victoire et l'étage 1 après une défaite", () => {

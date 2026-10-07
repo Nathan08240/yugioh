@@ -3,13 +3,14 @@ import { join } from "node:path";
 import { creditBoosters } from "./boosters.ts";
 import type { Db } from "./db.ts";
 import { STARTING_LP, type Rules } from "./duel.ts";
+import { eventOf } from "./event.ts";
 import { TOWER_FLOORS, type BotLevel, type TowerFloorView, type TowerView } from "./protocol.ts";
 import { STORY_DUELS, storyDeck, storyExtra, unlock, type StoryDuel } from "./story.ts";
 
 // Past floor TOWER_LP_FROM, the opponent starts with TOWER_LP_STEP more LP per floor.
 export const TOWER_LP_STEP = 500;
 const TOWER_LP_FROM = 5;
-// Boosters of the first win of a floor.
+// Boosters of the first win of a floor each week.
 export const TOWER_REWARDS: ReadonlyMap<number, number> = new Map([
   [3, 1],
   [6, 2],
@@ -58,14 +59,17 @@ const FLOORS: TowerFloorView[] = TOWER.map(({ name }, index) => ({
   boosters: TOWER_REWARDS.get(index + 1) ?? 0,
 }));
 
+// Unlock ids of the reward floors taken this week: "tower:2026-W40:3".
+const weekPrefix = () => `tower:${eventOf().id}:`;
+
 export type TowerWin = { floor: number; best: number; boosters: number };
 
 export async function towerView(db: Db, userId: string): Promise<TowerView> {
   const [row] = await db<{ floor: number; best: number }[]>`
     select tower_floor as floor, tower_best as best from yugioh.profiles where user_id = ${userId}`;
   const unlocks = await db<{ id: string }[]>`
-    select unlock_id as id from yugioh.story_unlocks where user_id = ${userId} and unlock_id like 'tower:%'`;
-  const claimed = unlocks.map(({ id }) => Number(id.slice("tower:".length))).sort((a, b) => a - b);
+    select unlock_id as id from yugioh.story_unlocks where user_id = ${userId} and starts_with(unlock_id, ${weekPrefix()})`;
+  const claimed = unlocks.map(({ id }) => Number(id.slice(weekPrefix().length))).sort((a, b) => a - b);
   return { floors: FLOORS, floor: row?.floor ?? 0, best: row?.best ?? 0, claimed };
 }
 
@@ -88,7 +92,7 @@ export async function winTower(db: Db, userId: string, floor: number): Promise<T
       update yugioh.profiles set tower_floor = ${floor % TOWER_FLOORS}, tower_best = greatest(tower_best, ${floor})
       where user_id = ${userId} returning tower_best as best`;
     const reward = TOWER_REWARDS.get(floor) ?? 0;
-    const boosters = reward > 0 && (await unlock(sql, userId, `tower:${floor}`)) ? reward : 0;
+    const boosters = reward > 0 && (await unlock(sql, userId, `${weekPrefix()}${floor}`)) ? reward : 0;
     if (boosters) await creditBoosters(sql, userId, boosters);
     return { floor, best, boosters };
   });

@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { SEASON_MIN_GAMES, SEASON_REWARDS, type ClientMessage, type RankedPlayer, type RankedView } from "../../server/src/protocol.ts";
+import { ONLINE_BOOSTERS_MAX, SEASON_MIN_GAMES, SEASON_REWARDS, type ClientMessage, type RankedPlayer, type RankedView } from "../../server/src/protocol.ts";
 import { activeDeck, useNow } from "./Accueil.tsx";
 import { useDuelView } from "./cards.ts";
 import { GoatReminder } from "./goat.tsx";
@@ -97,7 +97,7 @@ export function ClasseView({ state, send, now, go }: Readonly<{ state: LobbyStat
       <div className="classe__tete" data-entree>
         <p className="surtitre">Mode classé</p>
         <h1 className="titre">Classement {ranked ? <span className="chiffres">{ranked.rating}</span> : "…"}</h1>
-        <p className="texte-2">{ranked ? games(ranked.games) : "Chargement…"} · un adversaire de votre niveau, avec votre deck actif. Le gagnant reçoit un booster.</p>
+        <p className="texte-2">{ranked ? games(ranked.games) : "Chargement…"} · un adversaire de votre niveau, avec votre deck actif. Le gagnant reçoit un booster, {ONLINE_BOOSTERS_MAX} par jour au plus.</p>
         <GoatReminder deck={activeDeck(state.decks)} cards={cards} where="en classé" go={() => go("collection")} />
         {rankedSince === undefined ? (
           <button type="button" className="btn btn--grand" onClick={() => send({ type: "ranked_queue" })}>
