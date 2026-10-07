@@ -3,7 +3,7 @@ import { isAdminMessage } from "./admin.ts";
 import { isFriendMessage } from "./friends.ts";
 import { leave, MAINTENANCE, type Connection, type Lobby, type User } from "./lobby.ts";
 import { adminReply, choosePseudo, grantBoosters, identify, manageProfile, openBoosterFor, pickStarter, reportClientError, sendBoosterState, sendReplays, sendReply, sendResults, showEvent, showLessons, showMissions, showPuzzles, showRanked, showReplay, showStory, showTower, storeReply } from "./menus.ts";
-import { challengeFriend, enterRoom, leaveQueue, playDraft, playLesson, playPuzzle, playSealed, playStory, playTower, playTutorial, queueRanked, showRoomRules, spectate, stopWatching } from "./modes.ts";
+import { challengeFriend, enterRoom, leaveQueue, playDraft, playLesson, playPuzzle, playSealed, playStory, playTower, playTutorial, queueQuick, queueRanked, showRoomRules, spectate, stopWatching } from "./modes.ts";
 import { isProfileMessage } from "./profile.ts";
 import type { ClientMessage } from "./protocol.ts";
 import { answer, emote, surrender } from "./room.ts";
@@ -67,8 +67,12 @@ function handleMenu(conn: Connection, user: User, msg: ClientMessage): Reply {
     case "replay":
       return showReplay(conn, user.id, msg.id);
     case "ranked_cancel":
-      leaveQueue(conn, user.id);
+      leaveQueue(conn, user.id, [conn.lobby.waiting]);
       send(conn.socket, { type: "ranked_queue", waiting: false });
+      return undefined;
+    case "quick_cancel":
+      leaveQueue(conn, user.id, [conn.lobby.quick]);
+      send(conn.socket, { type: "quick_queue", waiting: false });
       return undefined;
     default:
       return handleSeat(conn, user, msg);
@@ -99,6 +103,7 @@ function enterDuel(conn: Connection, user: User, msg: ClientMessage): Reply {
   const { lobby } = conn;
   if (conn.seat || conn.watching) return "déjà dans une salle";
   if (lobby.waiting.has(user.id)) return "recherche d'un adversaire classé en cours";
+  if (lobby.quick.has(user.id)) return "recherche d'une partie rapide en cours";
   // Before any side effect: the ranked queue would wait for nothing.
   if (lobby.draining && !RESUMING.has(msg.type)) return MAINTENANCE;
   switch (msg.type) {
@@ -108,6 +113,8 @@ function enterDuel(conn: Connection, user: User, msg: ClientMessage): Reply {
       return showRoomRules(conn, msg.room);
     case "ranked_queue":
       return queueRanked(conn, user.id);
+    case "quick_queue":
+      return queueQuick(conn, user.id);
     case "story_duel":
       return playStory(conn, user.id, msg.duel, msg.level, msg.revenge);
     case "puzzle":

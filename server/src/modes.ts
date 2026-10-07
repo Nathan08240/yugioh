@@ -8,7 +8,7 @@ import { lpLeft, lpOf } from "./duel.ts";
 import type { EmoteId } from "./emotes.ts";
 import { eventOf, eventRules } from "./event.ts";
 import { LESSON_IDS } from "./lessons.ts";
-import { duelDeck, enter, limitsOf, type Connection, type FriendEntry, type Lobby } from "./lobby.ts";
+import { duelDeck, enter, limitsOf, MAINTENANCE, type Connection, type FriendEntry, type Lobby, type Queued } from "./lobby.ts";
 import { LESSON_POINTS, SPECTATORS_MAX, type BotLevel, type ClientMessage, type RevengeResult, type RoomOptions, type Seat, type ServerMessage, type StoryLevel, type StoryResult } from "./protocol.ts";
 import { PUZZLE_IDS, PUZZLE_TURNS, puzzleField, puzzleRules } from "./puzzles.ts";
 import { pairUp } from "./ranked.ts";
@@ -27,18 +27,29 @@ const NO_ROOM = "salle introuvable";
 // The custom rules of a room: its options and the duel rules built from them, nothing for a standard room.
 const customRoom = (options?: RoomOptions): Pick<Room, "options" | "rules"> => (options ? { options, rules: roomRules(options) } : {});
 
-// Each pair found sits in a new online room; the window of each player widens as they wait.
+// A new online room for a pair found: a ranked one rates its duel, a quick one is a normal online duel.
+function openRoom(lobby: Lobby, pair: Queued[], ranked?: true) {
+  const room: Room = { code: newCode(lobby.rooms), players: [], mode: { mode: "online" }, ...(ranked && { ranked }) };
+  room.onWin = (winner) => creditWinner(room, winner as Seat, lobby.accounts);
+  for (const player of pair) player.join(room);
+}
+
+// The ranked window of each player widens as they wait; the quick queue pairs the two who have waited the longest.
 export function matchQueue(lobby: Lobby) {
-  const { waiting, lastOpponent } = lobby;
+  const { waiting, quick, lastOpponent } = lobby;
   const now = Date.now();
   for (const pair of pairUp([...waiting.values()], now, lastOpponent)) {
-    const room: Room = { code: newCode(lobby.rooms), players: [], mode: { mode: "online" }, ranked: true };
-    room.onWin = (winner) => creditWinner(room, winner as Seat, lobby.accounts);
     pair.forEach((player, index) => {
       waiting.delete(player.id);
       lastOpponent.set(player.id, { opponent: pair[1 - index].id, at: now });
     });
-    for (const player of pair) player.join(room);
+    openRoom(lobby, pair, true);
+  }
+  const queued = [...quick.values()].sort((a, b) => a.since - b.since);
+  for (let i = 1; i < queued.length; i += 2) {
+    const pair = [queued[i - 1], queued[i]];
+    for (const player of pair) quick.delete(player.id);
+    openRoom(lobby, pair);
   }
 }
 
@@ -55,8 +66,24 @@ export async function queueRanked(conn: Connection, userId: string): Promise<str
   return undefined;
 }
 
-export function leaveQueue(conn: Connection, userId: string) {
-  if (conn.lobby.waiting.get(userId)?.socket === conn.socket) conn.lobby.waiting.delete(userId);
+// Waits in the quick queue with the active deck, no Goat list: an invalid deck never waits.
+export async function queueQuick(conn: Connection, userId: string): Promise<string | undefined> {
+  const { lobby, socket } = conn;
+  const deck = await duelDeck(lobby.accounts, userId);
+  if (typeof deck === "string") return deck;
+  if (lobby.draining) return MAINTENANCE;
+  if (socket.readyState !== socket.OPEN) return undefined;
+  lobby.quick.set(userId, { id: userId, since: Date.now(), socket, join: (room) => enter(conn, userId, room, deck) });
+  send(socket, { type: "quick_queue", waiting: true });
+  matchQueue(lobby);
+  return undefined;
+}
+
+// Leaves the given queues (both by default) this connection waits in.
+export function leaveQueue(conn: Connection, userId: string, queues: Map<string, { socket: WebSocket }>[] = [conn.lobby.waiting, conn.lobby.quick]) {
+  for (const queue of queues) {
+    if (queue.get(userId)?.socket === conn.socket) queue.delete(userId);
+  }
 }
 
 // A challenge between friends: the challenger hosts a new online room, the one who accepted joins it.

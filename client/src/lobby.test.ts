@@ -159,3 +159,13 @@ it("suit la recherche classée jusqu'au duel, puis garde la variation du classem
   expect(reduce(state, { type: "left" }).rankedResult).toBeUndefined();
   vi.useRealTimers();
 });
+
+it("suit l'attente d'une partie rapide jusqu'au duel, à l'annulation ou à la perte de connexion", () => {
+  vi.useFakeTimers({ now: 7000 });
+  const state = reduce(initialLobby, { type: "quick_queue", waiting: true });
+  expect(state.quickSince).toBe(7000);
+  expect(reduce(state, { type: "quick_queue", waiting: false }).quickSince).toBeUndefined();
+  expect(reduce(state, { type: "connecting" }).quickSince).toBeUndefined();
+  expect(reduce(state, { type: "joined", room: "ABCDE", seat: 0, lp: 8000, decks: [40, 40], extras: [0, 0], log: [] }).quickSince).toBeUndefined();
+  vi.useRealTimers();
+});

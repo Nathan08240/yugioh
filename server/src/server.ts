@@ -35,6 +35,7 @@ export function startServer(port: number, accounts: Accounts, newSeed = randomSe
     newSeed,
     botDelay,
     waiting: new Map(),
+    quick: new Map(),
     lastOpponent: new Map(),
     replaysAsked: new Map(),
     errorsSent: new Map(),

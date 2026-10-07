@@ -61,6 +61,8 @@ const CHECKS: ReadonlyMap<unknown, Check> = new Map<ClientMessage["type"], Check
   ["ranked", always],
   ["ranked_queue", always],
   ["ranked_cancel", always],
+  ["quick_queue", always],
+  ["quick_cancel", always],
   ["story_duel", (msg) => typeof msg.duel === "string" && (msg.level === undefined || STORY_LEVELS.has(msg.level)) && (msg.revenge === undefined || msg.revenge === true)],
   ["emote", (msg) => EMOTE_IDS.has(msg.id)],
   ["join", hasString("room")],

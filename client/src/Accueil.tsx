@@ -3,7 +3,7 @@ import { EVENT_BOOSTERS, ONLINE_BOOSTERS_MAX, SEALED_LOSSES, SEALED_REWARDS, SEA
 import { CardView } from "./Card.tsx";
 import { cardName, stat, strongest, useDuelView } from "./cards.ts";
 import { beyondGoat, GoatReminder } from "./goat.tsx";
-import { countdown, inviteLink, type DeckList, type LobbyState } from "./lobby.ts";
+import { countdown, inviteLink, minutes, type DeckList, type LobbyState } from "./lobby.ts";
 import { MissionsDuJour } from "./Missions.tsx";
 import { RuleBlock, specialRules } from "./regles.tsx";
 import { RoomForm } from "./SalleOptions.tsx";
@@ -96,17 +96,24 @@ export function Accueil({ state, send, go }: Readonly<{ state: LobbyState; send:
           <article className="jouer__mode">
             <Icon id="ui-en-ligne" className="jouer__ic" />
             <h3>En ligne</h3>
-            <p>Un duel contre un ami, avec votre deck actif. Le gagnant reçoit un booster, {ONLINE_BOOSTERS_MAX} par jour au plus.</p>
+            <p>Un duel contre un ami ou un joueur en attente, avec votre deck actif. Le gagnant reçoit un booster, {ONLINE_BOOSTERS_MAX} par jour au plus.</p>
             {state.boosters && (
               <p className="texte-2">
                 <b className="chiffres">{state.boosters.online} / {ONLINE_BOOSTERS_MAX}</b> boosters en ligne aujourd'hui
               </p>
             )}
-            <div className="jouer__actions">
-              <button type="button" className="btn" onClick={() => setCreating(true)}>
-                Créer une salle
-              </button>
-            </div>
+            {state.quickSince === undefined ? (
+              <div className="jouer__actions">
+                <button type="button" className="btn btn--holo" onClick={() => send({ type: "quick_queue" })}>
+                  Partie rapide
+                </button>
+                <button type="button" className="btn" onClick={() => setCreating(true)}>
+                  Créer une salle
+                </button>
+              </div>
+            ) : (
+              <QuickWait since={state.quickSince} send={send} />
+            )}
           </article>
           <article className="jouer__mode">
             <Icon id="ui-trophee" className="jouer__ic" />
@@ -170,6 +177,52 @@ export function Accueil({ state, send, go }: Readonly<{ state: LobbyState; send:
           </Tuile>
         </div>
       </section>
+    </div>
+  );
+}
+
+// After this wait, the player may rather face the bot.
+const QUICK_PATIENCE = 30_000;
+
+// The wait in the quick match queue, with the choice of the bot once nobody came.
+function QuickWait({ since, send }: Readonly<{ since: number; send: Send }>) {
+  const now = useNow();
+  const [patient, setPatient] = useState<number>();
+  const slow = now - since >= QUICK_PATIENCE && patient !== since;
+  const cancel = () => send({ type: "quick_cancel" });
+  return (
+    <div className="jouer__attente">
+      <p role="status">
+        Recherche d'un adversaire… <b className="chiffres">{minutes(now, since)}</b>
+      </p>
+      {slow && (
+        <>
+          <p>Personne pour l'instant. Continuer à attendre, ou jouer contre le bot ?</p>
+          <div className="jouer__actions">
+            <button type="button" className="btn" onClick={() => setPatient(since)}>
+              Continuer à attendre
+            </button>
+            {BOT_LEVELS.map(([level, label]) => (
+              <button
+                key={level}
+                type="button"
+                className="btn btn--holo"
+                onClick={() => {
+                  cancel();
+                  send({ type: "bot", level });
+                }}
+              >
+                Bot {label.toLowerCase()}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+      <div className="jouer__actions">
+        <button type="button" className="btn btn--fantome" onClick={cancel}>
+          Annuler
+        </button>
+      </div>
     </div>
   );
 }

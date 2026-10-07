@@ -27,6 +27,9 @@ const INTERRUPTED = "mise à jour du serveur : duel interrompu, sans victoire ni
 // What the friend hub needs to seat a connection in the room of an accepted challenge.
 export type FriendEntry = { deck: (where?: string) => Promise<ActiveDeck | string>; enter: (room: Room, deck: ActiveDeck) => string | undefined };
 
+// The socket of a waiting player and how to seat them in the room found.
+export type Queued = { id: string; since: number; socket: WebSocket; join: (room: Room) => void };
+
 // What the connections share. `draining` is set by shutdown: no new duel starts.
 export type Lobby = {
   rooms: Map<string, Room>;
@@ -36,7 +39,9 @@ export type Lobby = {
   newSeed: () => Seed;
   botDelay: number;
   // Players waiting for a ranked duel, by user id, and the last ranked opponent of each player.
-  waiting: Map<string, Waiting & { socket: WebSocket; join: (room: Room) => void }>;
+  waiting: Map<string, Waiting & Queued>;
+  // Players waiting for a quick match, by user id: no rating, any two are paired.
+  quick: Map<string, Queued>;
   lastOpponent: Map<string, { opponent: string; at: number }>;
   // When each player asked their last replays (history.ts).
   replaysAsked: Map<string, number[]>;
@@ -57,6 +62,8 @@ export function shutdown(lobby: Lobby, wss: WebSocketServer, maxMs: number): Pro
   lobby.draining = true;
   for (const { socket } of lobby.waiting.values()) send(socket, { type: "ranked_queue", waiting: false });
   lobby.waiting.clear();
+  for (const { socket } of lobby.quick.values()) send(socket, { type: "quick_queue", waiting: false });
+  lobby.quick.clear();
   wss.clients.forEach((socket) => send(socket, { type: "maintenance" }));
   const deadline = Date.now() + maxMs;
   return new Promise((resolve) => {
