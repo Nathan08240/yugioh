@@ -9,38 +9,39 @@ import { dbAccounts, type Accounts } from "./accounts.ts";
 import { announceCard, declarable, declarableFromDeck } from "./announce.ts";
 import { WIN_BOOSTER_REWARD } from "./boosters.ts";
 import { Bot } from "./bot.ts";
-import { deckReply, isDeckMessage, poolCard, validDeckMessage, type DeckMessage } from "./collection.ts";
-import { ROOM_LIMITS, roomRules, validRoomOptions } from "./custom.ts";
+import { deckReply, isDeckMessage, poolCard, type DeckMessage } from "./collection.ts";
+import { ROOM_LIMITS, roomRules } from "./custom.ts";
 import { openDb, type ActiveDeck } from "./db.ts";
 import { EXTRA_MAX, isFusion, limitError, MAIN_MAX, MAIN_MIN } from "./deckcheck.ts";
 import { KAIBA } from "./decks.ts";
 import { agreeToRules, fieldMonsters, fieldMoves, fieldStats, lpLeft, lpOf, openDuel, STANDARD_RULES, type FieldMonsters, type Placed, type Rules, type Seed } from "./duel.ts";
-import { economyReply, isEconomyMessage, validEconomyMessage, type EconomyMessage } from "./economy.ts";
-import { EMOTE_DELAY, EMOTE_IDS, type EmoteId } from "./emotes.ts";
+import { economyReply, isEconomyMessage, type EconomyMessage } from "./economy.ts";
+import { EMOTE_DELAY, type EmoteId } from "./emotes.ts";
 import { eventOf, eventRules, type WeeklyEvent } from "./event.ts";
-import { friendHub, isFriendMessage, validFriendMessage } from "./friends.ts";
+import { friendHub, isFriendMessage } from "./friends.ts";
 import { historyEntry, replayAllowed, replayMessage, REPLAYS_LIMITED } from "./history.ts";
+import { artFile, SERVED, serveHttp } from "./http.ts";
 import { GOAT } from "./limits.ts";
 import { countEvents, duelGains, fusionOnField, newTally, type MissionProgress, type Tally } from "./missions.ts";
-import { serveHttp, SERVED, artFile } from "./http.ts";
 import { isAllowed } from "./pool.ts";
-import { isProfileMessage, profileReply, validProfileMessage, type ProfileMessage } from "./profile.ts";
+import { isProfileMessage, profileReply, type ProfileMessage } from "./profile.ts";
 import { PUZZLE_FAILED, REPORT_MAX, SPECTATORS_MAX, type BotLevel, type ClientMessage, type DuelEvent, type RevengeResult, type RoomOptions, type Seat, type ServerMessage, type StoryLevel, type StoryResult } from "./protocol.ts";
 import { PUZZLE_IDS, PUZZLE_TURNS, puzzleField, puzzleRules, puzzleView } from "./puzzles.ts";
 import { pairUp, type Waiting } from "./ranked.ts";
 import { REPORT_BYTES, RESPONSE_BYTES, type Report } from "./report.ts";
 import { engineForm, respond } from "./respond.ts";
 import type { DuelResult } from "./results.ts";
-import { draftReply, isDraftMessage, validDraftMessage, type DraftMessage } from "./draft.ts";
-import { botDeck, isSealedMessage, sealedReply, validSealedMessage, type SealedMessage } from "./sealed.ts";
+import { draftReply, isDraftMessage, type DraftMessage } from "./draft.ts";
+import { botDeck, isSealedMessage, sealedReply, type SealedMessage } from "./sealed.ts";
 import type { Starter } from "./starter.ts";
 import { isUnlocked, playerDeck, STORY, STORY_DUELS, STORY_REVENGES, storyDeck, storyExtra, storyRules, storyStars, storyView, type StoryDuel } from "./story.ts";
 import { TOWER, towerLevel, towerRules } from "./tower.ts";
 import { TUTORIAL_FIELD, TUTORIAL_RULES } from "./tutorial.ts";
 import { hideCards, visibleTo } from "./visibility.ts";
-import { isTradeMessage, tradeReply, validTradeMessage } from "./trade.ts";
-import { isWishMessage, validWishMessage, wishReply, type WishMessage } from "./wishlist.ts";
-import { isWonderMessage, validWonderMessage, wonderReply, type WonderMessage } from "./wonder.ts";
+import { isTradeMessage, tradeReply } from "./trade.ts";
+import { isWishMessage, wishReply, type WishMessage } from "./wishlist.ts";
+import { isWonderMessage, wonderReply, type WonderMessage } from "./wonder.ts";
+import { parse, send, sendEach } from "./wire.ts";
 
 export { dbAccounts, type Accounts };
 
@@ -146,79 +147,9 @@ export const ANSWERS = new Map<OcgMessageType, OcgResponseType>([
 
 export const randomSeed = (): Seed => [...crypto.getRandomValues(new BigUint64Array(4))] as Seed;
 
-const serialize = (data: ServerMessage) => JSON.stringify(data, (_key, value) => (typeof value === "bigint" ? value.toString() : value));
-
-function send(socket: WebSocket | undefined, data: ServerMessage) {
-  socket?.send(serialize(data));
-}
-
-// The same message to several sockets, serialized once.
-function sendEach(sockets: readonly (WebSocket | undefined)[], data: ServerMessage) {
-  const open = sockets.filter((socket) => socket !== undefined);
-  if (open.length === 0) return;
-  const text = serialize(data);
-  for (const socket of open) socket.send(text);
-}
-
-export const ADMIN_BOOSTERS_MAX = 50;
 // Comma-separated Supabase user ids allowed to use the admin commands.
 const adminIds = (value = "") => new Set(value.split(",").map((id) => id.trim()).filter(Boolean));
 const dailyFlag = (daily: boolean) => (daily ? { daily: true as const } : {});
-
-const BOT_LEVELS = new Set<unknown>(["debutant", "normal", "expert"] satisfies BotLevel[]);
-const STORY_LEVELS = new Set<unknown>(["normal", "facile"] satisfies StoryLevel[]);
-const RANKED_TYPES = new Set<unknown>(["ranked", "ranked_queue", "ranked_cancel"] satisfies ClientMessage["type"][]);
-
-const isOptionalFlag = (value: unknown) => value === undefined || typeof value === "boolean";
-
-function parse(data: string): ClientMessage | undefined {
-  let msg: Record<string, unknown>;
-  try {
-    msg = JSON.parse(data);
-  } catch {
-    return undefined;
-  }
-  if (typeof msg !== "object" || msg === null) return undefined;
-  const valid =
-    (msg.type === "auth" && typeof msg.token === "string" && msg.token.length <= 4096) ||
-    (msg.type === "pseudo" && typeof msg.pseudo === "string") ||
-    (msg.type === "starter" && (msg.starter === "yugi" || msg.starter === "kaiba")) ||
-    (msg.type === "create" && isOptionalFlag(msg.event) && (msg.options === undefined || (msg.event !== true && validRoomOptions(msg.options)))) ||
-    (msg.type === "room_rules" && typeof msg.room === "string") ||
-    (msg.type === "bot" && (msg.level === undefined || BOT_LEVELS.has(msg.level)) && isOptionalFlag(msg.event)) ||
-    msg.type === "story" ||
-    msg.type === "duel_results" ||
-    msg.type === "event" ||
-    msg.type === "puzzles" ||
-    (msg.type === "puzzle" && typeof msg.id === "string") ||
-    msg.type === "tutorial" ||
-    msg.type === "tower" ||
-    msg.type === "tower_duel" ||
-    msg.type === "missions" ||
-    RANKED_TYPES.has(msg.type) ||
-    (msg.type === "story_duel" && typeof msg.duel === "string" && (msg.level === undefined || STORY_LEVELS.has(msg.level)) && (msg.revenge === undefined || msg.revenge === true)) ||
-    (msg.type === "emote" && EMOTE_IDS.has(msg.id)) ||
-    ((msg.type === "join" || msg.type === "spectate") && typeof msg.room === "string") ||
-    (msg.type === "respond" && typeof msg.response === "object" && msg.response !== null) ||
-    msg.type === "surrender" ||
-    msg.type === "replays" ||
-    (msg.type === "replay" && Number.isSafeInteger(msg.id)) ||
-    (msg.type === "report" && (msg.message === undefined || typeof msg.message === "string")) ||
-    (msg.type === "rematch" && (msg.accept === undefined || typeof msg.accept === "boolean")) ||
-    msg.type === "booster_state" ||
-    (msg.type === "open_booster" && typeof msg.set === "string") ||
-    (msg.type === "admin_boosters" && typeof msg.count === "number" && Number.isInteger(msg.count) && msg.count >= 1 && msg.count <= ADMIN_BOOSTERS_MAX) ||
-    validDeckMessage(msg) ||
-    validWonderMessage(msg) ||
-    validWishMessage(msg) ||
-    validEconomyMessage(msg) ||
-    validProfileMessage(msg) ||
-    validSealedMessage(msg) ||
-    validDraftMessage(msg) ||
-    validFriendMessage(msg) ||
-    validTradeMessage(msg);
-  return valid ? (msg as ClientMessage) : undefined;
-}
 
 function ask(room: Room, retry: boolean) {
   const question = room.question;
