@@ -70,6 +70,9 @@ export function visibleTo(msg: OcgMessage, viewer: number): OcgMessage | null {
     case OcgMessageType.SHUFFLE_HAND:
     case OcgMessageType.SHUFFLE_EXTRA:
       return msg.player === viewer ? msg : { ...msg, cards: msg.cards.map(() => 0) };
+    // The new places of a shuffled Set card are for its controller; the others only know which places were shuffled.
+    case OcgMessageType.SHUFFLE_SET_CARD:
+      return { ...msg, cards: msg.cards.map((card) => (card.from.controller === viewer ? card : { ...card, to: card.from })) };
     case OcgMessageType.DECK_TOP:
       return faceUp(msg.position) ? msg : { ...msg, code: 0 };
     // Activations and excavations are public, wherever the card sits.

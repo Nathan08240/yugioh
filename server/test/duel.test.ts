@@ -42,7 +42,9 @@ describe("duel ocgcore", () => {
     const empty = [null, null, null, null, null];
     // Yami gives Spellcasters 200 ATK and DEF.
     expect(fieldStats(duel, 0).monsters).toEqual([[{ atk: 2700, def: 2300 }, ...empty.slice(1)], empty]);
-    expect(fieldStats(duel, 1).monsters[1]).toEqual([null, null, { atk: 1700, def: 1000 }, null, null]);
+    // The owner of a face-down monster gets its code too: a shuffle of Set cards moves it without a message to say where.
+    expect(fieldStats(duel, 1).monsters[1]).toEqual([null, null, { atk: 1700, def: 1000, code: BATTLE_OX }, null, null]);
+    expect(fieldStats(duel, 0).monsters[1]).toEqual([null, null, null, null, null]);
     duel.lib.destroyDuel(duel.handle);
   });
 

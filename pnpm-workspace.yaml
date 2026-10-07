@@ -1,3 +1,5 @@
 packages:
   - server
   - client
+patchedDependencies:
+  '@jsr/n1xx1__ocgcore-wasm@0.1.4': patches/@jsr__n1xx1__ocgcore-wasm@0.1.4.patch

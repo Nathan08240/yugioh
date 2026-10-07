@@ -192,6 +192,22 @@ describe("bot : niveaux", () => {
     expect(idle(make("debutant", never), sets)).toBe(SelectIdleCMDAction.TO_BP);
   });
 
+  it("attaque quand un monstre y est obligé (ni Main Phase 2 ni End Phase proposées), même sans cible à battre", () => {
+    const player = make("normal", never, [faceUp(KURIBOH)], [faceUp(GAIA)]);
+    const battle = (to_m2: boolean) => ({ type: OcgMessageType.SELECT_BATTLECMD, player: 0, chains: [], attacks: [{ ...at(KURIBOH, 0), can_direct: false }], to_m2, to_ep: false }) as OcgMessage;
+    expect(player.answer(battle(false), [])).toMatchObject({ action: SelectBattleCMDAction.SELECT_BATTLE, index: 0 });
+    expect(player.answer(battle(true), [])).toMatchObject({ action: SelectBattleCMDAction.TO_M2 });
+  });
+
+  it("n'accepte plus d'activer un effet facultatif au-delà de 8 par tour, jusqu'au tour suivant (deux Manticore des Ténèbres s'enchaînent sans fin)", () => {
+    const player = make("normal");
+    const question = { type: OcgMessageType.SELECT_EFFECTYN, player: 0, code: 77121851, controller: 0, location: OcgLocation.GRAVE, sequence: 0, position: OcgPosition.FACEUP_ATTACK, description: 0n } as OcgMessage;
+    const yes = () => (player.answer(question, []) as { yes: boolean }).yes;
+    expect(Array.from({ length: 10 }, yes)).toEqual([...Array<boolean>(8).fill(true), false, false]);
+    player.see([{ type: OcgMessageType.NEW_TURN, player: 1 }]);
+    expect(yes()).toBe(true);
+  });
+
   it("expert : n'attaque pas un monstre face cachée quand il peut attaquer ailleurs", () => {
     const attack = (level: BotLevel) => attackPick(make(level, never, [faceUp(GAIA)], [faceDown, faceUp(KURIBOH)]), [0], 2)?.target;
     expect(attack("normal")).toBe(0);

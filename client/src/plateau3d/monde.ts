@@ -478,6 +478,8 @@ export class Monde {
         return this.onde(this.zones.get(effet.cle), 0.5, jeu);
       case "position":
         return this.sauter(this.zones.get(effet.cle), jeu);
+      case "melange":
+        return Promise.all(effet.cles.map((cle) => this.sauter(this.zones.get(cle), jeu))).then(() => undefined);
       case "depart":
         return this.depart(this.zones.get(effet.cle), effet.genre, effet.vers ? this.zones.get(effet.vers) : undefined, jeu);
       case "attaque":

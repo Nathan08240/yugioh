@@ -102,6 +102,12 @@ it("signale les monstres dont l'ATK ou la DEF ont changé, contre la valeur affi
   expect(played(boosted, [stats(300, 100)])).toEqual([[{ type: "stats", cartes: [{ cle: key, atk: -500, def: -100 }] }]]);
 });
 
+it("fait sauter les zones des cartes posées que le moteur mélange", () => {
+  const place = (sequence: number) => at(0, MZONE, sequence, FACEDOWN_DEFENSE);
+  const shuffle: Message = { type: OcgMessageType.SHUFFLE_SET_CARD, location: MZONE, cards: [{ from: place(0), to: place(0) }, { from: place(2), to: place(2) }] };
+  expect(played(onField, [shuffle])).toEqual([[{ type: "melange", cles: [`0:${MZONE}:0`, `0:${MZONE}:2`] }]]);
+});
+
 it("montre un lancer de dé ou de pièce avant d'inscrire son résultat, avec tous les résultats", () => {
   const dice: Message = { type: OcgMessageType.TOSS_DICE, player: 1, results: [2, 5] };
   const coin: Message = { type: OcgMessageType.TOSS_COIN, player: 0, results: [true] };

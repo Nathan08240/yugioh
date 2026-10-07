@@ -124,7 +124,7 @@ function setStats(board: Board, msg: StatsEvent) {
   board.players.forEach((side, controller) =>
     side.monsters.forEach((card, sequence) => {
       const stats = msg.monsters[controller][sequence];
-      if (card) Object.assign(card, { atk: stats?.atk, def: stats?.def });
+      if (card) Object.assign(card, { atk: stats?.atk, def: stats?.def, code: stats?.code ?? card.code });
     }),
   );
 }
@@ -310,6 +310,9 @@ function describe(board: Board, msg: Message): LogEntry | undefined {
       return { player: msg.player, parts: [`Gagne ${msg.amount} LP`] };
     case OcgMessageType.MOVE:
       return moveLog(msg);
+    // The new places come with the next stats (see StatsEvent), the board does not move the cards itself.
+    case OcgMessageType.SHUFFLE_SET_CARD:
+      return msg.cards.length > 0 ? { player: msg.cards[0].from.controller, parts: [msg.location === OcgLocation.MZONE ? "Mélange les monstres posés face cachée" : "Mélange les cartes posées face cachée"] } : undefined;
     case OcgMessageType.TOSS_DICE:
       return { player: msg.player, parts: [`Lance ${lancers(msg.results.length, "un dé", "dés")} : ${msg.results.join(", ")}`] };
     case OcgMessageType.TOSS_COIN:

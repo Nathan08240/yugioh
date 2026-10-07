@@ -15,6 +15,8 @@ export type Effet =
   | { type: "invocation"; cle: string; code: number; genre: "normale" | "fusion" | "dieu" }
   | { type: "pose"; cle: string }
   | { type: "position"; cle: string }
+  // `cles`: the places of the face-down cards that were shuffled.
+  | { type: "melange"; cles: string[] }
   | { type: "depart"; cle: string; genre: Depart; vers?: string }
   | { type: "attaque"; de: string; vers?: string; joueur: number }
   | { type: "combat"; de: string; vers?: string; joueur: number; degats: number }
@@ -144,6 +146,8 @@ function effects(msg: Message, ctx: Ctx): Pick<Etape, "avant" | "apres"> {
       return after({ type: "pose", cle: placeKey(msg) });
     case OcgMessageType.POS_CHANGE:
       return after({ type: "position", cle: placeKey(msg) });
+    case OcgMessageType.SHUFFLE_SET_CARD:
+      return after({ type: "melange", cles: msg.cards.map(({ from }) => placeKey(from)) });
     case OcgMessageType.ATTACK:
       return before({ type: "attaque", de: placeKey(msg.card), vers: msg.target ? placeKey(msg.target) : undefined, joueur: msg.card.controller });
     case OcgMessageType.BATTLE:
