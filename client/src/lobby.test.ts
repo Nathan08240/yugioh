@@ -95,7 +95,8 @@ it("garde la récompense du jour du profil, les points et l'aperçu de conversio
   expect(state.conversion?.points).toBe(10);
   state = reduce(state, { type: "collection", cards: [[1, 3]], rarities: [], points: 10 });
   expect(state).toMatchObject({ points: 10, conversion: undefined });
-  expect(reduce(state, { type: "booster_state", nextFreeAt: "", pending: 0, ultraIn: 4 }).boosters?.ultraIn).toBe(4);
+  expect(reduce(state, { type: "booster_state", nextFreeAt: "", pending: 0, ultraIn: 4, online: 3 }).boosters?.ultraIn).toBe(4);
+  expect(reduce(state, { type: "online_won", earned: false }).onlineEarned).toBe(false);
 });
 
 it("suit la revanche en ligne jusqu'au nouveau duel, qui l'efface avec la conclusion de l'histoire", () => {

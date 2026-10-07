@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
-import { SEALED_LOSSES, SEALED_REWARDS, SEALED_WINS, type BotLevel, type ClientMessage, type Deck, type PuzzleView, type StoryArcView } from "../../server/src/protocol.ts";
+import { EVENT_BOOSTERS, ONLINE_BOOSTERS_MAX, SEALED_LOSSES, SEALED_REWARDS, SEALED_WINS, type BotLevel, type ClientMessage, type Deck, type PuzzleView, type StoryArcView } from "../../server/src/protocol.ts";
 import { CardView } from "./Card.tsx";
 import { cardName, stat, strongest, useDuelView } from "./cards.ts";
 import { beyondGoat, GoatReminder } from "./goat.tsx";
@@ -96,7 +96,12 @@ export function Accueil({ state, send, go }: Readonly<{ state: LobbyState; send:
           <article className="jouer__mode">
             <Icon id="ui-en-ligne" className="jouer__ic" />
             <h3>En ligne</h3>
-            <p>Un duel contre un ami, avec votre deck actif. Le gagnant reçoit un booster.</p>
+            <p>Un duel contre un ami, avec votre deck actif. Le gagnant reçoit un booster, {ONLINE_BOOSTERS_MAX} par jour au plus.</p>
+            {state.boosters && (
+              <p className="texte-2">
+                <b className="chiffres">{state.boosters.online} / {ONLINE_BOOSTERS_MAX}</b> boosters en ligne aujourd'hui
+              </p>
+            )}
             <div className="jouer__actions">
               <button type="button" className="btn" onClick={() => setCreating(true)}>
                 Créer une salle
@@ -272,7 +277,7 @@ function EventCard({ event, deck, send, go }: Readonly<{ event: NonNullable<Lobb
   const [choosingLevel, setChoosingLevel] = useState(false);
   const [rule] = specialRules([event.rule]);
   if (!rule) return null;
-  const reward = event.won ? "Booster de la semaine déjà gagné." : "Première victoire de la semaine : 1 booster.";
+  const reward = event.won ? "Booster de la semaine déjà gagné." : `Première victoire de la semaine : ${EVENT_BOOSTERS} boosters.`;
   const beyond = deck && cards.size > 0 ? beyondGoat(deck, cards) : 0;
   return (
     <section className="evenement panneau" aria-labelledby="evenement-titre" data-entree>

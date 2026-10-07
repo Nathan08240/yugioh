@@ -88,7 +88,9 @@ export async function grantBoosters(conn: Connection, player: { id: string }, co
 }
 
 export async function sendBoosterState(conn: Connection, player: { id: string }): Promise<string | undefined> {
-  send(conn.socket, { type: "booster_state", ...(await conn.lobby.accounts.boosterState(player.id)) });
+  const { accounts } = conn.lobby;
+  const [state, online] = await Promise.all([accounts.boosterState(player.id), accounts.onlineToday(player.id)]);
+  send(conn.socket, { type: "booster_state", ...state, online });
   return undefined;
 }
 

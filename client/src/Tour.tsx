@@ -34,7 +34,7 @@ export function Tour({ tower, send }: Readonly<Props>) {
           <h1 className="titre">La Tour</h1>
           <p className="texte-2">
             {tower.floors.length} étages contre le bot avec votre deck actif. Une victoire fait monter d'un étage, une défaite renvoie à l'étage 1 ; le
-            record est gardé.
+            record est gardé. Les boosters des paliers se regagnent chaque semaine, à partir du lundi.
           </p>
         </div>
         <p className="compteurs">
@@ -64,7 +64,7 @@ export function Tour({ tower, send }: Readonly<Props>) {
                 <span className={claimed.has(number) ? "puce puce--succes" : "puce puce--or"}>
                   {claimed.has(number) && <Icon id="ui-coche" />}
                   {plural(floor.boosters, "booster")}
-                  {claimed.has(number) && " obtenus"}
+                  {claimed.has(number) && " obtenus cette semaine"}
                 </span>
               )}
             </li>

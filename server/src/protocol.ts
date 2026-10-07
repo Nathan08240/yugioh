@@ -229,7 +229,10 @@ export type ServerMessage =
   // Wished passcodes, oldest first. Owned cards stay in the list until the player removes them.
   | { type: "wishlist"; cards: number[] }
   // `ultraIn`: the booster that many openings ahead holds an Ultra Rare or better for sure (1: the next one).
-  | { type: "booster_state"; nextFreeAt: string; pending: number; ultraIn: number }
+  // `online`: boosters earned today by online wins, out of ONLINE_BOOSTERS_MAX.
+  | { type: "booster_state"; nextFreeAt: string; pending: number; ultraIn: number; online: number }
+  // An online or ranked win, recorded: `earned` false once the day holds ONLINE_BOOSTERS_MAX online boosters.
+  | { type: "online_won"; earned: boolean }
   | { type: "booster_opened"; set: string; cards: Printing[] }
   | ({ type: "wonder" } & WonderView)
   | { type: "story"; arcs: StoryArcView[] }
@@ -238,13 +241,13 @@ export type ServerMessage =
   | { type: "duel_results"; results: DeckResult[] }
   // The event of the week: a story special rule (story.ts EXTRA_RULES) played with `lp` and `hand`; `won`: this week's booster was taken.
   | { type: "event"; rule: string; lp: number; hand: number; won: boolean }
-  // The first event win of the week was just recorded: 1 booster earned.
+  // The first event win of the week was just recorded: EVENT_BOOSTERS boosters earned.
   | { type: "event_won" }
   | { type: "puzzles"; puzzles: PuzzleView[] }
   // A solved puzzle (or the tutorial won, id "tutorial"), recorded: `booster` the first time only.
   | { type: "puzzle_won"; id: string; booster: boolean }
   | ({ type: "tower" } & TowerView)
-  // A won tower duel, recorded: `boosters` earned by the first win of a reward floor, 0 otherwise.
+  // A won tower duel, recorded: `boosters` earned by the first win of a reward floor this week, 0 otherwise.
   | { type: "tower_won"; floor: number; best: number; boosters: number }
   // null before the first session.
   | { type: "sealed"; run: SealedRun | null }
@@ -317,10 +320,14 @@ export type PuzzleView = { id: string; title: string; goal: string; done: boolea
 export const PUZZLE_FAILED = 0x60;
 
 export const TOWER_FLOORS = 10;
-// `lp`: starting LP of the opponent; `boosters`: reward of the first win of the floor, 0 for none.
+// Boosters one player can earn a day (Europe/Paris) by winning online or ranked duels.
+export const ONLINE_BOOSTERS_MAX = 5;
+// Boosters of the first event win of the week.
+export const EVENT_BOOSTERS = 2;
+// `lp`: starting LP of the opponent; `boosters`: reward of the first win of the floor each week, 0 for none.
 export type TowerFloorView = { opponent: string; level: BotLevel; lp: number; boosters: number };
 // `floor`: floors won in the current attempt, the next duel is floor + 1. `best`: most floors won in one attempt.
-// `claimed`: the floors whose reward was taken.
+// `claimed`: the floors whose reward was taken this week (Monday to Sunday, Europe/Paris).
 export type TowerView = { floors: TowerFloorView[]; floor: number; best: number; claimed: number[] };
 
 export type Rewards = { boosters?: number; cards?: number[] };

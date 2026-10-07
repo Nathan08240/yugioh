@@ -6,6 +6,7 @@ import { activeDeck, createProfile, findProfile, type ActiveDeck, type Db, type 
 import { dbDraftStore, type DraftStore } from "./draft.ts";
 import { dbEconomyStore, type EconomyStore } from "./economy.ts";
 import { claimEvent, eventWon } from "./event.ts";
+import { onlineToday, winOnline } from "./online.ts";
 import { dbFriendStore, type FriendStore } from "./friends.ts";
 import { listReplays, readReplay, saveReplay, type HistoryEntry, type StoredReplay } from "./history.ts";
 import { dbMissionStore, type MissionStore } from "./missions.ts";
@@ -38,6 +39,9 @@ export type Accounts = DeckStore & WishStore & EconomyStore & WonderStore & Prof
   // Rejects with a clear message: no right to open, or an unknown set.
   openBooster: (userId: string, setCode: string) => Promise<Printing[]>;
   creditBoosters: (userId: string, count: number) => Promise<void>;
+  // Online and ranked wins: resolves to false once today holds ONLINE_BOOSTERS_MAX boosters, and counts today's.
+  winOnline: (userId: string) => Promise<boolean>;
+  onlineToday: (userId: string) => Promise<number>;
   // Best stars of each story duel won, by id.
   storyProgress: (userId: string) => Promise<ReadonlyMap<string, number>>;
   // Records a win with its stars, resolves to what it earned.
@@ -82,6 +86,8 @@ export function dbAccounts(db: Db): Accounts {
     boosterState: (userId) => boosterState(db, userId),
     openBooster: (userId, setCode) => openBooster(db, userId, setCode),
     creditBoosters: (userId, count) => creditBoosters(db, userId, count),
+    winOnline: (userId) => winOnline(db, userId),
+    onlineToday: (userId) => onlineToday(db, userId),
     storyProgress: (userId) => completedDuels(db, userId),
     completeStory: (userId, duel, stars) => completeDuel(db, userId, duel, stars),
     revengesWon: (userId) => revengesWon(db, userId),

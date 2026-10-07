@@ -1,16 +1,18 @@
 import type { Accounts } from "./accounts.ts";
-import { WIN_BOOSTER_REWARD } from "./boosters.ts";
 import { duelGains, fusionOnField, newTally, type MissionProgress } from "./missions.ts";
 import type { Seat } from "./protocol.ts";
 import { CONNECTION_LOST, SURRENDER, TIME_LIMIT, type Room } from "./room.ts";
 import { TOWER, towerLevel, towerRules } from "./tower.ts";
 import { send } from "./wire.ts";
 
-// Credits the winner of an online duel between two players with a booster; a duel against the bot earns nothing.
-export function creditWinner(room: Room, seat: Seat, accounts: Pick<Accounts, "creditBoosters">) {
-  const winnerId = room.players[seat]?.id;
-  if (winnerId && !room.players.some((player) => player.bot)) {
-    accounts.creditBoosters(winnerId, WIN_BOOSTER_REWARD).catch((error: unknown) => console.error(error));
+// Credits the winner of an online duel between two players with a booster, ONLINE_BOOSTERS_MAX a day; a duel against the bot earns nothing.
+export function creditWinner(room: Room, seat: Seat, accounts: Pick<Accounts, "winOnline">) {
+  const winner = room.players[seat];
+  if (winner && !room.players.some((player) => player.bot)) {
+    accounts.winOnline(winner.id).then(
+      (earned) => send(winner.socket, { type: "online_won", earned }),
+      (error: unknown) => console.error(error),
+    );
   }
 }
 

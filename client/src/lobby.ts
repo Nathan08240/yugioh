@@ -76,7 +76,7 @@ export type LobbyState = {
   // Wished passcodes, loaded by the collection and boosters screens.
   wishlist?: number[];
   // Booster timer, pending count and openings left before a sure Ultra Rare, loaded by the boosters screen.
-  boosters?: { nextFreeAt: string; pending: number; ultraIn: number };
+  boosters?: { nextFreeAt: string; pending: number; ultraIn: number; online: number };
   // The cards of the last booster opened, and a counter so a new opening resets the reveal animation.
   opened?: { set: string; cards: { code: number; rarity: string }[] };
   openedCount: number;
@@ -104,6 +104,8 @@ export type LobbyState = {
   preview?: { room: string; options: RoomOptions };
   event?: Extract<Wire<ServerMessage>, { type: "event" }>;
   eventWon?: boolean;
+  // Whether the online win of this duel earned its booster, false once the day is full.
+  onlineEarned?: boolean;
   // Latest Sealed session, null before the first one, loaded by the Sealed screen.
   sealed?: SealedRun | null;
   // Latest Draft session, likewise.
@@ -144,7 +146,7 @@ export function reduce(state: LobbyState, action: Action): LobbyState {
     case "closed":
       return { ...state, closed: true };
     case "left":
-      return { ...state, room: undefined, seat: undefined, board: undefined, started: false, question: undefined, error: undefined, won: undefined, rankedResult: undefined, solved: undefined, floor: undefined, towerWon: undefined, rematch: undefined, answerBy: undefined, away: undefined, emotes: {}, spectating: undefined, spectators: 0, special: undefined, options: undefined, preview: undefined, eventWon: undefined };
+      return { ...state, room: undefined, seat: undefined, board: undefined, started: false, question: undefined, error: undefined, won: undefined, rankedResult: undefined, solved: undefined, floor: undefined, towerWon: undefined, rematch: undefined, answerBy: undefined, away: undefined, emotes: {}, spectating: undefined, spectators: 0, special: undefined, options: undefined, preview: undefined, eventWon: undefined, onlineEarned: undefined };
     case "profile":
       return { ...state, pseudo: action.pseudo, needsStarter: action.needsStarter, admin: action.admin, daily: action.daily || state.daily, error: undefined };
     case "joined":
@@ -174,6 +176,7 @@ export function reduce(state: LobbyState, action: Action): LobbyState {
         towerWon: action.log.length === 0 ? undefined : state.towerWon,
         rematch: action.log.length === 0 ? undefined : state.rematch,
         eventWon: action.log.length === 0 ? undefined : state.eventWon,
+        onlineEarned: action.log.length === 0 ? undefined : state.onlineEarned,
         rankedResult: action.log.length === 0 ? undefined : state.rankedResult,
         rankedSince: undefined,
         rejoining: undefined,
@@ -219,7 +222,9 @@ export function reduce(state: LobbyState, action: Action): LobbyState {
     case "duel_error":
       return { ...state, error: action.error, question: undefined, answerBy: undefined, away: undefined };
     case "booster_state":
-      return { ...state, boosters: { nextFreeAt: action.nextFreeAt, pending: action.pending, ultraIn: action.ultraIn } };
+      return { ...state, boosters: { nextFreeAt: action.nextFreeAt, pending: action.pending, ultraIn: action.ultraIn, online: action.online } };
+    case "online_won":
+      return { ...state, onlineEarned: action.earned };
     case "booster_opened":
       return { ...state, opened: { set: action.set, cards: action.cards }, openedCount: state.openedCount + 1 };
     case "wonder":
