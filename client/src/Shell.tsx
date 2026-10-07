@@ -4,11 +4,12 @@ import "./styles/shell.css";
 import { Icon } from "./ui.tsx";
 
 // "scelle" and "draft" open from the home screen only, "tutoriel" (its offer) right after the starter.
-export type Page = "accueil" | "classe" | "collection" | "boosters" | "histoire" | "puzzles" | "tour" | "regles" | "profil" | "amis" | "parametres" | "scelle" | "draft" | "tutoriel" | "admin";
+export type Page = "accueil" | "classe" | "collection" | "boosters" | "histoire" | "puzzles" | "tour" | "regles" | "profil" | "amis" | "parametres" | "scelle" | "draft" | "tutoriel" | "admin" | "decks";
 
 const NAV: [Page, string][] = [
   ["accueil", "Accueil"],
   ["collection", "Collection et decks"],
+  ["decks", "Decks publics"],
   ["boosters", "Boosters"],
   ["histoire", "Mode Histoire"],
   ["regles", "Règles"],

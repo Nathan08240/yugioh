@@ -1,0 +1,96 @@
+/* Decks publics (DecksPublics.tsx) et partage par code (PartageDeck.tsx) */
+
+.decks-pub {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--e-4);
+  inline-size: 100%;
+  max-inline-size: 860px;
+  margin-inline: auto;
+  padding: var(--e-5) var(--marge-ecran) var(--e-6);
+}
+
+.decks-pub__code,
+.decks-pub__filtres,
+.decks-pub__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--e-2);
+  align-items: center;
+}
+
+.decks-pub__carte {
+  display: grid;
+  gap: var(--e-1);
+  min-inline-size: 0;
+}
+
+.decks-pub__suggestions {
+  display: grid;
+  gap: var(--e-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.decks-pub__liste {
+  display: grid;
+  gap: var(--e-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.decks-pub__deck,
+.decks-pub__lu {
+  display: grid;
+  gap: var(--e-2);
+  padding: var(--e-4) var(--e-5);
+}
+
+.decks-pub__deck > *,
+.decks-pub__lu > * {
+  margin: 0;
+}
+
+/* Le texte libre d'un joueur garde ses retours à la ligne et ne déborde jamais */
+.decks-pub__description {
+  color: var(--texte-2);
+  overflow-wrap: anywhere;
+  white-space: pre-line;
+}
+
+.decks-pub__cartes {
+  max-block-size: 18rem;
+  min-block-size: 0;
+}
+
+.decks-pub__nom {
+  overflow: hidden;
+  font: 600 var(--taille-s) / 1.2 var(--police-etroite);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.decks-pub__manque {
+  font-size: var(--taille-xs);
+  color: var(--danger);
+  white-space: nowrap;
+}
+
+.deck-partage {
+  display: grid;
+  gap: var(--e-2);
+}
+
+.deck-partage__form {
+  display: grid;
+  gap: var(--e-2);
+}
+
+.decks-code {
+  margin: 0 0 var(--e-3);
+  font-size: var(--taille-xl);
+  letter-spacing: 0.25em;
+}

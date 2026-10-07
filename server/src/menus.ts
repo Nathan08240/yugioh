@@ -9,6 +9,7 @@ import { replayAllowed, replayMessage, REPLAYS_LIMITED } from "./history.ts";
 import { joinFriends, progressMissions, type Connection, type Lobby, type User } from "./lobby.ts";
 import { profileReply, type ProfileMessage } from "./profile.ts";
 import type { ClientError, ClientMessage, ServerMessage } from "./protocol.ts";
+import { isPublicDeckMessage, publicDeckReply } from "./public-decks.ts";
 import { puzzleView } from "./puzzles.ts";
 import { isSealedMessage, sealedReply } from "./sealed.ts";
 import type { Starter } from "./starter.ts";
@@ -55,9 +56,10 @@ export async function pickStarter(conn: Connection, player: User, starter: Start
   return undefined;
 }
 
-// The reply of the collection, wishlist, economy, wonder, sealed and draft modules to their messages, undefined for another message.
-export function storeReply(accounts: Accounts, userId: string, msg: ClientMessage): Promise<ServerMessage | string> | undefined {
+// The reply of the collection, shared decks, wishlist, economy, wonder, sealed and draft modules to their messages, undefined for another message.
+export function storeReply(accounts: Accounts, userId: string, msg: ClientMessage, admin = false): Promise<ServerMessage | string> | undefined {
   if (isDeckMessage(msg)) return deckReply(accounts, userId, msg);
+  if (isPublicDeckMessage(msg)) return publicDeckReply(accounts, userId, msg, admin);
   if (isWishMessage(msg)) return wishReply(accounts, userId, msg);
   if (isEconomyMessage(msg)) return economyReply(accounts, userId, msg);
   if (isWonderMessage(msg)) return wonderReply(accounts, userId, msg);

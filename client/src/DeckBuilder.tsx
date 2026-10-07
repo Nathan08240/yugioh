@@ -11,6 +11,7 @@ import { attributeKey, cardName, DuelView, frame, useCards, useDuelView } from "
 import { drawHand, fitSuggestion, formatYdk, importDeck, parseYdk, type Skipped, type Suggestion } from "./deckTools.ts";
 import { bestRarity, copiesByRarity, filterCollection, kindCounts, noFilters, type Copies, type Filters, type Kind } from "./collection.ts";
 import type { DeckList } from "./lobby.ts";
+import { PartageDeck } from "./PartageDeck.tsx";
 import { D2, D3, duree, ELAN, FONDU, prefersReduced, RESSORT, SORTIE, type AnimOptions } from "./motion.ts";
 import "./styles/collection.css";
 import { BestRarity, FermerFiche, Icon } from "./ui.tsx";
@@ -427,6 +428,7 @@ function DeckEditor({ decks, results, draft, error, owned, setDraft, send }: Rea
           Nouveau deck
         </button>
       </div>
+      {saved && <PartageDeck deck={saved} dirty={dirty} send={send} />}
       <DeckTools draft={draft} owned={owned} setDraft={setDraft} />
       {saved && (
         <button

@@ -1,5 +1,5 @@
 import type { EmoteId } from "../../server/src/emotes.ts";
-import type { AdminError, AdminReport, ClientMessage, DeckResult, DraftRun, Friend, PuzzleView, RankedView, ReplaySummary, RoomOptions, SealedRun, Seat, ServerMessage, StoryArcView, TowerView, Wire } from "../../server/src/protocol.ts";
+import type { AdminError, AdminReport, ClientMessage, DeckResult, DraftRun, Friend, PublicDeck, PuzzleView, RankedView, ReplaySummary, RoomOptions, SealedRun, Seat, ServerMessage, SharedDeck, StoryArcView, TowerView, Wire } from "../../server/src/protocol.ts";
 import { newBoard, playAll, type Board, type EngineMessage, type Message } from "./board.ts";
 
 export type DeckList = Extract<Wire<ServerMessage>, { type: "decks" }>;
@@ -13,6 +13,8 @@ export type Action =
   | { type: "left" }
   | { type: "story_menu"; open: boolean }
   | { type: "preview_close" }
+  | { type: "deck_view_closed" }
+  | { type: "deck_code_closed" }
   | { type: "replay_closed" };
 export type StoryWon = Extract<ServerMessage, { type: "story_won" }>;
 export type Wonder = Extract<Wire<ServerMessage>, { type: "wonder" }>;
@@ -69,6 +71,11 @@ export type LobbyState = {
   points?: number;
   conversion?: Extract<ServerMessage, { type: "conversion" }>;
   decks?: DeckList;
+  // Public decks page: the list, the deck of a code being read, the copy just made, and the code just given for a deck shared or published.
+  publicDecks?: PublicDeck[];
+  sharedDeck?: SharedDeck;
+  deckCopied?: { id: number; name: string; missing: [number, number][] };
+  deckCode?: { code: string; published: boolean };
   // Wins and losses per deck and mode, loaded with the decks.
   results?: DeckResult[];
   // Avatar and favorite card of the player (passcodes), loaded with the lobby and by the profile screen.
@@ -210,6 +217,20 @@ export function reduce(state: LobbyState, action: Action): LobbyState {
       return { ...state, conversion: action };
     case "decks":
       return { ...state, decks: action, error: undefined };
+    case "deck_shared":
+      return { ...state, deckCode: { code: action.code, published: action.published }, error: undefined };
+    case "shared_deck":
+      return { ...state, sharedDeck: action.deck, deckCopied: undefined, error: undefined };
+    case "deck_copied":
+      return { ...state, deckCopied: { id: action.id, name: action.name, missing: action.missing }, error: undefined };
+    case "public_decks":
+      return { ...state, publicDecks: action.decks, error: undefined };
+    case "public_deck_removed":
+      return { ...state, publicDecks: state.publicDecks?.filter((deck) => deck.code !== action.code), sharedDeck: state.sharedDeck?.code === action.code ? undefined : state.sharedDeck };
+    case "deck_view_closed":
+      return { ...state, sharedDeck: undefined, deckCopied: undefined };
+    case "deck_code_closed":
+      return { ...state, deckCode: undefined };
     case "duel_results":
       return { ...state, results: action.results };
     case "player_profile":
@@ -335,6 +356,17 @@ export function inviteFromUrl(href: string): Extract<ClientMessage, { type: "joi
 }
 
 export const inviteLink = (origin: string, room: string) => `${origin}/?salle=${room}`;
+
+// Share codes of decks: 8 letters and digits, as the server draws them.
+const DECK_CODE = /^[A-HJ-NP-Z2-9]{8}$/;
+
+// The deck code carried by a sharing link (?deck=ABCD2345), if valid.
+export function deckFromUrl(href: string): string | undefined {
+  const code = new URL(href).searchParams.get("deck")?.trim().toUpperCase() ?? "";
+  return DECK_CODE.test(code) ? code : undefined;
+}
+
+export const deckLink = (origin: string, code: string) => `${origin}/?deck=${code}`;
 
 // "Battle City · Duel 4 sur 5", for the briefing and the end of the duel.
 export function duelLabel(arcs: StoryArcView[] | undefined, id: string | undefined): string | undefined {
