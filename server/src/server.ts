@@ -4,46 +4,47 @@ import { createReadStream, existsSync } from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { join } from "node:path";
 import { OcgMessageType, OcgProcessResult, OcgResponseType, type OcgMessage, type OcgResponse } from "@n1xx1/ocgcore-wasm";
-import postgres from "postgres";
 import { WebSocketServer, type WebSocket } from "ws";
+import { dbAccounts, type Accounts } from "./accounts.ts";
 import { announceCard, declarable, declarableFromDeck } from "./announce.ts";
-import { verifySession } from "./auth.ts";
-import { boosterState, BOOSTERS, creditBoosters, openBooster, WIN_BOOSTER_REWARD } from "./boosters.ts";
+import { BOOSTERS, WIN_BOOSTER_REWARD } from "./boosters.ts";
 import { Bot } from "./bot.ts";
 import { clientCard, RULE_CARDS } from "./cards.ts";
-import { dbDeckStore, deckReply, isDeckMessage, poolCard, validDeckMessage, type DeckMessage, type DeckStore } from "./collection.ts";
+import { deckReply, isDeckMessage, poolCard, validDeckMessage, type DeckMessage } from "./collection.ts";
 import { ROOM_LIMITS, roomRules, validRoomOptions } from "./custom.ts";
-import { activeDeck, createProfile, findProfile, openDb, type ActiveDeck, type Db, type Profile } from "./db.ts";
+import { openDb, type ActiveDeck } from "./db.ts";
 import { EXTRA_MAX, isFusion, limitError, MAIN_MAX, MAIN_MIN } from "./deckcheck.ts";
 import { KAIBA } from "./decks.ts";
 import { agreeToRules, fieldMonsters, fieldMoves, fieldStats, lpLeft, lpOf, openDuel, STANDARD_RULES, type FieldMonsters, type Placed, type Rules, type Seed } from "./duel.ts";
-import { CRAFT_COSTS, dbEconomyStore, economyReply, isEconomyMessage, validEconomyMessage, type EconomyMessage, type EconomyStore } from "./economy.ts";
+import { CRAFT_COSTS, economyReply, isEconomyMessage, validEconomyMessage, type EconomyMessage } from "./economy.ts";
 import { EMOTE_DELAY, EMOTE_IDS, type EmoteId } from "./emotes.ts";
-import { claimEvent, eventOf, eventRules, eventWon, type WeeklyEvent } from "./event.ts";
-import { dbFriendStore, friendHub, isFriendMessage, validFriendMessage, type FriendStore } from "./friends.ts";
-import { historyEntry, listReplays, readReplay, replayAllowed, replayMessage, REPLAYS_LIMITED, saveReplay, type HistoryEntry, type StoredReplay } from "./history.ts";
+import { eventOf, eventRules, type WeeklyEvent } from "./event.ts";
+import { friendHub, isFriendMessage, validFriendMessage } from "./friends.ts";
+import { historyEntry, replayAllowed, replayMessage, REPLAYS_LIMITED } from "./history.ts";
 import { GOAT } from "./limits.ts";
-import { countEvents, dbMissionStore, duelGains, fusionOnField, newTally, type MissionProgress, type MissionStore, type Tally } from "./missions.ts";
-import { isAllowed, POOL, SETS, type Printing } from "./pool.ts";
-import { dbProfileStore, isProfileMessage, profileReply, validProfileMessage, type ProfileMessage, type ProfileStore } from "./profile.ts";
-import { PUZZLE_FAILED, REPORT_MAX, SPECTATORS_MAX, type BotLevel, type CardInfo, type ClientMessage, type DeckResult, type DuelEvent, type ReplaySummary, type RevengeResult, type RoomOptions, type Seat, type ServerMessage, type StoryLevel, type StoryResult, type TowerView } from "./protocol.ts";
-import { PUZZLE_IDS, PUZZLE_TURNS, puzzleField, puzzleRules, puzzleView, solvedPuzzles, solvePuzzle } from "./puzzles.ts";
-import { dbRankedStore, pairUp, type RankedStore, type Waiting } from "./ranked.ts";
-import { REPORT_BYTES, RESPONSE_BYTES, saveReport, type Report } from "./report.ts";
+import { countEvents, duelGains, fusionOnField, newTally, type MissionProgress, type Tally } from "./missions.ts";
+import { isAllowed, POOL, SETS } from "./pool.ts";
+import { isProfileMessage, profileReply, validProfileMessage, type ProfileMessage } from "./profile.ts";
+import { PUZZLE_FAILED, REPORT_MAX, SPECTATORS_MAX, type BotLevel, type CardInfo, type ClientMessage, type DuelEvent, type RevengeResult, type RoomOptions, type Seat, type ServerMessage, type StoryLevel, type StoryResult } from "./protocol.ts";
+import { PUZZLE_IDS, PUZZLE_TURNS, puzzleField, puzzleRules, puzzleView } from "./puzzles.ts";
+import { pairUp, type Waiting } from "./ranked.ts";
+import { REPORT_BYTES, RESPONSE_BYTES, type Report } from "./report.ts";
 import { engineForm, respond } from "./respond.ts";
-import { type DuelResult, readResults, recordResult } from "./results.ts";
-import { dbDraftStore, draftReply, isDraftMessage, validDraftMessage, type DraftMessage, type DraftStore } from "./draft.ts";
-import { botDeck, dbSealedStore, isSealedMessage, sealedReply, validSealedMessage, type SealedMessage, type SealedStore } from "./sealed.ts";
+import type { DuelResult } from "./results.ts";
+import { draftReply, isDraftMessage, validDraftMessage, type DraftMessage } from "./draft.ts";
+import { botDeck, isSealedMessage, sealedReply, validSealedMessage, type SealedMessage } from "./sealed.ts";
 import { serveClient } from "./site.ts";
-import { chooseStarter, starterCards, type Starter } from "./starter.ts";
-import { completeDuel, completedDuels, completeRevenge, isUnlocked, playerDeck, revengesWon, STORY, STORY_DUELS, STORY_REVENGES, storyDeck, storyExtra, storyRules, storyStars, storyView, type StoryDuel } from "./story.ts";
+import { starterCards, type Starter } from "./starter.ts";
+import { isUnlocked, playerDeck, STORY, STORY_DUELS, STORY_REVENGES, storyDeck, storyExtra, storyRules, storyStars, storyView, type StoryDuel } from "./story.ts";
 import { systemStrings } from "./strings.ts";
-import { startTower, TOWER, towerLevel, towerRules, towerView, winTower, type TowerWin } from "./tower.ts";
-import { finishTutorial, TUTORIAL_FIELD, TUTORIAL_RULES } from "./tutorial.ts";
+import { TOWER, towerLevel, towerRules } from "./tower.ts";
+import { TUTORIAL_FIELD, TUTORIAL_RULES } from "./tutorial.ts";
 import { hideCards, visibleTo } from "./visibility.ts";
-import { dbTradeStore, isTradeMessage, tradeReply, validTradeMessage, type TradeStore } from "./trade.ts";
-import { dbWishStore, isWishMessage, validWishMessage, wishReply, type WishMessage, type WishStore } from "./wishlist.ts";
-import { dbWonderStore, isWonderMessage, validWonderMessage, wonderReply, type WonderMessage, type WonderStore } from "./wonder.ts";
+import { isTradeMessage, tradeReply, validTradeMessage } from "./trade.ts";
+import { isWishMessage, validWishMessage, wishReply, type WishMessage } from "./wishlist.ts";
+import { isWonderMessage, validWonderMessage, wonderReply, type WonderMessage } from "./wonder.ts";
+
+export { dbAccounts, type Accounts };
 
 type Question = Extract<OcgMessage, { player: number }>;
 // `stats`: the last stats event sent, as JSON.
@@ -103,95 +104,6 @@ const deckSizes = (room: Room): [number, number] => [
   room.players[1]?.deck.length ?? 0,
 ];
 const extraSizes = (room: Room): [number, number] => [room.players[0]?.extra?.length ?? 0, room.players[1]?.extra?.length ?? 0];
-
-// Identity, profile, deck, booster and Story mode storage, faked in tests.
-export type Accounts = DeckStore & WishStore & EconomyStore & WonderStore & ProfileStore & SealedStore & DraftStore & FriendStore & TradeStore & RankedStore & MissionStore & {
-  verify: (token: string) => Promise<string | null>;
-  findProfile: (userId: string) => Promise<Profile | undefined>;
-  // Resolves to undefined when the pseudo is already taken.
-  createProfile: (userId: string, pseudo: string) => Promise<Profile | undefined>;
-  activeDeck: (userId: string) => Promise<ActiveDeck | undefined>;
-  // Resolves to false when the player already has an active deck.
-  chooseStarter: (userId: string, starter: Starter) => Promise<boolean>;
-  boosterState: (userId: string) => Promise<{ nextFreeAt: string; pending: number; ultraIn: number }>;
-  // Rejects with a clear message: no right to open, or an unknown set.
-  openBooster: (userId: string, setCode: string) => Promise<Printing[]>;
-  creditBoosters: (userId: string, count: number) => Promise<void>;
-  // Best stars of each story duel won, by id.
-  storyProgress: (userId: string) => Promise<ReadonlyMap<string, number>>;
-  // Records a win with its stars, resolves to what it earned.
-  completeStory: (userId: string, duel: StoryDuel, stars: number) => Promise<StoryResult>;
-  // Ids of the arcs whose boss revenge was won, and recording the win of one (the Ultra Rare booster is paid the first time only).
-  revengesWon: (userId: string) => Promise<ReadonlySet<string>>;
-  completeRevenge: (userId: string, arcId: string) => Promise<RevengeResult>;
-  // Stores the result of a finished duel for a human player, and reads their wins and losses per deck and mode.
-  recordResult: (result: DuelResult) => Promise<void>;
-  duelResults: (userId: string) => Promise<DeckResult[]>;
-  // Ids of the puzzles solved; recording a solved puzzle resolves to true the first time, which earns a booster.
-  solvedPuzzles: (userId: string) => Promise<ReadonlySet<string>>;
-  solvePuzzle: (userId: string, id: string) => Promise<boolean>;
-  // Records a win of the tutorial: true the first time, which earns a booster.
-  finishTutorial: (userId: string) => Promise<boolean>;
-  // Resolves to false when the player already sent too many reports this hour.
-  saveReport: (userId: string, message: string, report: Report) => Promise<boolean>;
-  // Duels to watch again (history.ts): keeps one (the last HISTORY_MAX per player), lists them, reads one of the player's.
-  saveReplay: (entry: HistoryEntry) => Promise<void>;
-  replays: (userId: string) => Promise<ReplaySummary[]>;
-  readReplay: (userId: string, id: number) => Promise<StoredReplay | undefined>;
-  // Event of the week (event.ts): whether its booster was taken, and taking it (resolves to false when it already was).
-  eventWon: (userId: string, eventId: string) => Promise<boolean>;
-  claimEvent: (userId: string, eventId: string) => Promise<boolean>;
-  // Tower mode (tower.ts): progression, the floor of the next duel, the win of a floor.
-  towerView: (userId: string) => Promise<TowerView>;
-  startTower: (userId: string) => Promise<number>;
-  winTower: (userId: string, floor: number) => Promise<TowerWin>;
-};
-
-export function dbAccounts(db: Db): Accounts {
-  return {
-    verify: (token) => verifySession(token),
-    findProfile: (userId) => findProfile(db, userId),
-    createProfile: (userId, pseudo) =>
-      createProfile(db, userId, pseudo).catch((error: unknown) => {
-        if (error instanceof postgres.PostgresError && error.code === "23505") return undefined;
-        throw error;
-      }),
-    activeDeck: (userId) => activeDeck(db, userId),
-    chooseStarter: (userId, starter) => chooseStarter(db, userId, starter),
-    boosterState: (userId) => boosterState(db, userId),
-    openBooster: (userId, setCode) => openBooster(db, userId, setCode),
-    creditBoosters: (userId, count) => creditBoosters(db, userId, count),
-    storyProgress: (userId) => completedDuels(db, userId),
-    completeStory: (userId, duel, stars) => completeDuel(db, userId, duel, stars),
-    revengesWon: (userId) => revengesWon(db, userId),
-    completeRevenge: (userId, arcId) => completeRevenge(db, userId, arcId),
-    recordResult: (result) => recordResult(db, result),
-    duelResults: (userId) => readResults(db, userId),
-    solvedPuzzles: (userId) => solvedPuzzles(db, userId),
-    solvePuzzle: (userId, id) => solvePuzzle(db, userId, id),
-    finishTutorial: (userId) => finishTutorial(db, userId),
-    saveReport: (userId, message, report) => saveReport(db, userId, message, report),
-    saveReplay: (entry) => saveReplay(db, entry),
-    replays: (userId) => listReplays(db, userId),
-    readReplay: (userId, id) => readReplay(db, userId, id),
-    eventWon: (userId, eventId) => eventWon(db, userId, eventId),
-    claimEvent: (userId, eventId) => claimEvent(db, userId, eventId),
-    towerView: (userId) => towerView(db, userId),
-    startTower: (userId) => startTower(db, userId),
-    winTower: (userId, floor) => winTower(db, userId, floor),
-    ...dbDeckStore(db),
-    ...dbWishStore(db),
-    ...dbEconomyStore(db),
-    ...dbWonderStore(db),
-    ...dbProfileStore(db),
-    ...dbSealedStore(db),
-    ...dbDraftStore(db),
-    ...dbFriendStore(db),
-    ...dbTradeStore(db),
-    ...dbRankedStore(db),
-    ...dbMissionStore(db),
-  };
-}
 
 const PSEUDO = /^[A-Za-z0-9_-]{3,20}$/;
 const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
