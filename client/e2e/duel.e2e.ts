@@ -1,6 +1,6 @@
 import { OcgLocation, OcgMessageType, OcgResponseType, SelectIdleCMDAction } from "@n1xx1/ocgcore-wasm";
 import { expect, test, type Page } from "@playwright/test";
-import { lancer } from "./harnais.ts";
+import { CARTES, lancer } from "./harnais.ts";
 
 // The 3D board renders in software in headless Edge: under load it takes longer than the default 5 s.
 const BOARD_READY = 15_000;
@@ -64,6 +64,27 @@ test("un lancer de dé ou de pièce s'inscrit au journal avec son résultat", as
   const journal = page.getByRole("region", { name: "Journal du duel" });
   await expect(journal).toContainText("Lance un dé : 3");
   await expect(journal).toContainText("Lance une pièce : Pile");
+});
+
+test("déclarer un nom de carte propose les cartes du deck, et la recherche porte sur toutes", async ({ page }) => {
+  const { envoyes, envoyer } = await lancer(page, { duel: true });
+  await aLaMain(page);
+  const [monstre, piege, autreMagie] = [90357090, 50045299, 12580477];
+  // The server sends the cards the engine accepts, and those of the player's deck (the most numerous first).
+  envoyer({ type: "question", question: { type: OcgMessageType.ANNOUNCE_CARD, player: 0, opcodes: [] }, retry: false, announce: Object.keys(CARTES).map(Number), announceDeck: [piege, monstre] });
+  const panneau = page.locator(".question");
+  const noms = panneau.locator(".actions").getByRole("button");
+  await expect(panneau.getByRole("heading", { name: "Déclarez un nom de carte" })).toBeVisible();
+  await expect(panneau.getByText("Cartes de votre deck, les plus nombreuses d'abord.")).toBeVisible();
+  await expect(noms).toHaveText(["Piège à poser", "Monstre invocable"]);
+
+  const recherche = panneau.getByRole("searchbox", { name: "Nom de carte" });
+  await recherche.fill("zzz");
+  await expect(panneau.getByText("Aucune carte de ce nom.")).toBeVisible();
+  await recherche.fill("autre");
+  await expect(noms).toHaveText(["Autre magie", "Autre monstre niveau 7"]);
+  await noms.first().click();
+  await expect.poll(() => envoyes).toContainEqual({ type: "respond", response: { type: OcgResponseType.ANNOUNCE_CARD, card: autreMagie } });
 });
 
 test("l'écran de fin donne la cause : abandon", async ({ page }) => {
