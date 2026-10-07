@@ -2,6 +2,7 @@ import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useStat
 import { COPIES_MAX, countBy, deckError, EXTRA_MAX, isFusion, MAIN_MAX, MAIN_MIN, NAME_MAX, type DeckCard, type DeckDraft } from "../../server/src/deckcheck.ts";
 import suggested from "../../server/data/suggested-decks.json";
 import type { ClientMessage, Deck, DeckResult } from "../../server/src/protocol.ts";
+import { thumbSmall } from "./art.ts";
 import { CardDetail, CardView } from "./Card.tsx";
 import { Constructeur } from "./Constructeur.tsx";
 import { DeckRecord } from "./DeckRecord.tsx";
@@ -586,7 +587,7 @@ export function DeckLines({ draft, setDraft }: Readonly<{ draft: DeckDraft; setD
         const name = cardName(cards, code);
         return (
           <li key={code} data-code={code} className={`t-${frame(info?.type ?? 0)}`}>
-            {info?.image ? <img src={`/api/art/${code}.jpg`} alt="" loading="lazy" decoding="async" /> : <span className="liste-deck__repli" />}
+            {info?.image ? <img src={thumbSmall(code)} alt="" loading="lazy" decoding="async" /> : <span className="liste-deck__repli" />}
             <button type="button" className="liste-deck__nom" title="Voir la carte" onMouseEnter={() => show(code)} onFocus={() => show(code)} onClick={() => (ouvrir ?? show)(code)}>
               {name}
             </button>

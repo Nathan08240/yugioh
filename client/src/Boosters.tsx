@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type Ref, type RefObject } from "react";
 import { flushSync } from "react-dom";
 import type { ClientMessage } from "../../server/src/protocol.ts";
+import { thumbSmall } from "./art.ts";
 import { openPack, place, revealCard, STRONG, type Scene, type Shown } from "./boosterMotion.ts";
 import { isDone, revealAll, revealOrder, settle, startReveal, touch, type RevealState } from "./boosterReveal.ts";
 import { CardView } from "./Card.tsx";
@@ -51,7 +52,7 @@ function Pack({ set, className = "", ref }: Readonly<{ set: BoosterSet; classNam
       <span className="paquet__fenetre">
         {art > 0 && (
           <img
-            src={`/api/art/${art}.jpg`}
+            src={thumbSmall(art)}
             alt=""
             draggable={false}
             onError={(event) => {

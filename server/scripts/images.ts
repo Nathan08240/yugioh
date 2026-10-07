@@ -5,6 +5,7 @@ import { setTimeout } from "node:timers/promises";
 import { readCard } from "../src/cards.ts";
 import { POOL } from "../src/pool.ts";
 import { STORY } from "../src/story.ts";
+import { ensureThumb, THUMB_WIDTHS } from "../src/thumbs.ts";
 
 const dir = join(import.meta.dirname, "..", "vendor", "art");
 mkdirSync(dir, { recursive: true });
@@ -29,5 +30,11 @@ for (const code of served) {
     console.error(`${code} : illustration introuvable`);
     failed++;
   }
+}
+// Thumbnails for the lists, so that no player waits for them on first display.
+for (const code of served) {
+  const file = join(dir, `${code}.jpg`);
+  if (!existsSync(file)) continue;
+  for (const width of THUMB_WIDTHS) await ensureThumb(file, code, width);
 }
 console.log(`${served.size - failed} illustrations dans ${dir}, ${failed} échecs`);

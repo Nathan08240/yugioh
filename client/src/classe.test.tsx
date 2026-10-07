@@ -26,7 +26,7 @@ const render = (state: LobbyState, now = 0) =>
 
 it("affiche le classement du joueur, ses parties et les meilleurs joueurs avec leur avatar", () => {
   const html = render({ ...initialLobby, ranked });
-  for (const text of ["Classement <span class=\"chiffres\">1016</span>", "12 parties ·", "Chercher un adversaire", "Kaiba", "/api/art/100.jpg", "1200", "Meilleurs joueurs de la saison"]) expect(html).toContain(text);
+  for (const text of ["Classement <span class=\"chiffres\">1016</span>", "12 parties ·", "Chercher un adversaire", "Kaiba", "/api/art/100-160.webp", "1200", "Meilleurs joueurs de la saison"]) expect(html).toContain(text);
   expect(html).toContain('<tr aria-current="true"><td class="chiffres">2</td>');
   expect(html).not.toContain("Annuler");
 });

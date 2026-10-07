@@ -10,9 +10,12 @@ import { serveClient } from "./site.ts";
 import { starterCards } from "./starter.ts";
 import { STORY } from "./story.ts";
 import { systemStrings } from "./strings.ts";
+import { ART_DIR, ensureThumb, THUMB_WIDTHS } from "./thumbs.ts";
 
-export const artFile = (code: number) => join(import.meta.dirname, "..", "vendor", "art", `${code}.jpg`);
-const ART_URL = /^\/api\/art\/(\d{1,10})\.jpg$/;
+export const artFile = (code: number) => join(ART_DIR, `${code}.jpg`);
+// The artwork (<code>.jpg) or one of its thumbnails (<code>-<width>.webp).
+const ART_URL = /^\/api\/art\/(\d{1,10})(?:-(\d{3})\.webp|\.jpg)$/;
+const IMMUTABLE = "public, max-age=31536000, immutable";
 // The pool, the anime cards of the story opponents and the rule cards.
 export const SERVED: ReadonlySet<number> = new Set([...POOL, ...STORY.anime, ...RULE_CARDS.keys()]);
 let cardList: [number, Omit<CardInfo, "image">][] | undefined;
@@ -37,6 +40,16 @@ const API = new Map<string | undefined, () => unknown>([
   ["/api/sets", () => SETS.map(({ code, name, date, cards }) => ({ code, name, date, cards: [...new Set(cards.map((card) => card.code))] }))],
 ]);
 
+function sendThumb(res: ServerResponse, code: number, width: number) {
+  ensureThumb(artFile(code), code, width).then(
+    (file) => {
+      res.writeHead(200, { "content-type": "image/webp", "cache-control": IMMUTABLE });
+      createReadStream(file).pipe(res);
+    },
+    () => res.writeHead(404).end(),
+  );
+}
+
 // Card data, system strings and artworks for the client (see CardInfo). Artworks are optional: `pnpm images` downloads them.
 export function serveHttp(req: IncomingMessage, res: ServerResponse) {
   const api = req.method === "GET" ? API.get(req.url) : undefined;
@@ -44,10 +57,18 @@ export function serveHttp(req: IncomingMessage, res: ServerResponse) {
     res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify(api()));
     return;
   }
-  const code = Number(ART_URL.exec(req.url ?? "")?.[1]);
+  const art = ART_URL.exec(req.url ?? "");
+  const code = Number(art?.[1]);
   if (req.method === "GET" && SERVED.has(code) && existsSync(artFile(code))) {
-    res.writeHead(200, { "content-type": "image/jpeg", "cache-control": "max-age=86400" });
-    createReadStream(artFile(code)).pipe(res);
+    const width = Number(art?.[2] ?? 0);
+    if (width === 0) {
+      res.writeHead(200, { "content-type": "image/jpeg", "cache-control": "max-age=86400" });
+      createReadStream(artFile(code)).pipe(res);
+    } else if (THUMB_WIDTHS.has(width)) {
+      sendThumb(res, code, width);
+    } else {
+      res.writeHead(404).end();
+    }
     return;
   }
   if (serveClient(req, res)) return;

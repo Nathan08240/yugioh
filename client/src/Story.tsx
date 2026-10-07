@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type Ref } from "react";
 import { REPLAY_BOOSTERS_MAX, REPLAY_WINS, type ClientMessage, type StoryArcView, type StoryDuelView, type StoryLevel, type StoryPlayer, type StoryStatus } from "../../server/src/protocol.ts";
+import { thumbSmall } from "./art.ts";
 import { cardName, isDivine, useDuelView, type Cards } from "./cards.ts";
 import { duelLabel } from "./lobby.ts";
 import { createQueue, entrance } from "./motion.ts";
@@ -253,7 +254,7 @@ function Gain({ duel }: Readonly<{ duel: StoryDuelView }>) {
   }
   return (
     <p className={className}>
-      {codes.map((code) => cards.get(code)?.image && <img key={code} src={`/api/art/${code}.jpg`} alt="" loading="lazy" decoding="async" />)}
+      {codes.map((code) => cards.get(code)?.image && <img key={code} src={thumbSmall(code)} alt="" loading="lazy" decoding="async" />)}
       <span className="etape__libelle">
         {codes.map((code) => cardName(cards, code)).join(" et ")}
         {more}
