@@ -15,6 +15,20 @@ export const CARTES: Record<number, CardInfo> = {
   12580477: carte("Autre magie", SPELL),
 };
 
+// `n` monsters named "Carte factice 0001"... from passcode `depart`, to fill a collection or a deck.
+export function cartesFactices(n: number, depart = 1_000_000): Record<number, CardInfo> {
+  return Object.fromEntries(Array.from({ length: n }, (_, i) => [depart + i, carte(`Carte factice ${String(i + 1).padStart(4, "0")}`, MONSTER | NORMAL)]));
+}
+
+// The sets of /api/boosters and /api/sets: the first one is the one selected on the boosters screen.
+export const SETS = [
+  { code: "LOB", name: "Legend of Blue Eyes White Dragon", date: "2002-03-08", cards: [90357090, 46986414, 55144522] },
+  { code: "MRD", name: "Metal Raiders", date: "2002-06-26", cards: [50045299, 6368038, 12580477] },
+];
+
+// Opens a screen from the main menu (wide screens: the menu is always shown).
+export const aller = (page: Page, label: string | RegExp) => page.getByRole("navigation", { name: "Menu principal" }).getByRole("button", { name: label }).click();
+
 // Up to the first SELECT_IDLECMD: the player's hand is dealt, Main Phase 1 of turn 1.
 export const DEBUT_DU_DUEL = recorded.received.slice(0, 9);
 
@@ -28,10 +42,11 @@ const SESSION = {
   user: { id: "e2e", aud: "authenticated", role: "authenticated", app_metadata: {}, user_metadata: {}, created_at: "2026-01-01T00:00:00Z" },
 };
 
-type Options = { duel?: boolean };
+// `cartes`: more cards for /api/cards.
+type Options = { duel?: boolean; cartes?: Record<number, CardInfo> };
 
 // Opens the app logged in, against a fake game server that records what the client sends; `duel` replays the recorded duel, animations instant.
-export async function lancer(page: Page, { duel = false }: Options = {}) {
+export async function lancer(page: Page, { duel = false, cartes = {} }: Options = {}) {
   const envoyes: ClientMessage[] = [];
   let serveur: WebSocketRoute | undefined;
   const envoyer = (msg: Wire<ServerMessage> | object) => serveur?.send(JSON.stringify(msg));
@@ -45,8 +60,12 @@ export async function lancer(page: Page, { duel = false }: Options = {}) {
   await page.route(/fonts\.(googleapis|gstatic)\.com/, (route) => route.abort());
   await page.route("**/api/**", (route) => {
     const path = new URL(route.request().url()).pathname;
-    if (path === "/api/cards") return route.fulfill({ json: CARTES });
+    if (path === "/api/cards") return route.fulfill({ json: { ...CARTES, ...cartes } });
     if (path === "/api/strings") return route.fulfill({ json: {} });
+    if (path === "/api/starters") return route.fulfill({ json: { yugi: [], kaiba: [] } });
+    if (path === "/api/boosters") return route.fulfill({ json: SETS.map(({ code, name, date }) => ({ code, name, date })) });
+    if (path === "/api/sets") return route.fulfill({ json: SETS });
+    if (path === "/api/craft") return route.fulfill({ json: [] });
     return route.fulfill({ status: 404 });
   });
   await page.routeWebSocket("**/ws", (ws) => {

@@ -329,6 +329,7 @@
   gap: var(--e-3);
   min-block-size: 0;
   padding: var(--e-4);
+  overflow-y: auto;
 }
 
 .deck-tete {
@@ -427,7 +428,7 @@
   flex: 1;
   gap: 4px;
   align-content: start;
-  min-block-size: 0;
+  min-block-size: 9rem;
   overflow: auto;
 }
 
@@ -494,11 +495,12 @@
 
 .deck-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--e-2);
 }
 
 .deck-actions .btn {
-  flex: 1;
+  flex: 1 1 auto;
   padding-inline: var(--e-3);
 }
 
