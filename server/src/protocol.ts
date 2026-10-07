@@ -258,9 +258,13 @@ export type ServerMessage =
   | { type: "ranked_result"; delta: number; rating: number }
   // Also sent after each duel or booster that moved them. A mission or achievement is paid once its `progress` reaches `goal`.
   | { type: "missions"; missions: MissionView[]; achievements: AchievementView[] }
-  // Newest first. `replay`: what `seat` was sent during duel `id`, one batch per `messages`, from the starting state (as `joined`).
+  // Newest first. `replay`: what `seat` was sent during duel `id`, one batch per `messages`, from the starting state (as `joined`),
+  // and the emotes of the duel.
   | { type: "replays"; replays: ReplaySummary[] }
-  | { type: "replay"; id: number; seat: Seat; lp: number; opponentLp?: number; decks: [number, number]; extras: [number, number]; opponent?: string; batches: DuelEvent[][] };
+  | { type: "replay"; id: number; seat: Seat; lp: number; opponentLp?: number; decks: [number, number]; extras: [number, number]; opponent?: string; batches: DuelEvent[][]; emotes: ReplayEmote[] };
+
+// An emote sent during a replayed duel: `at` batches had been shown when `seat` sent it.
+export type ReplayEmote = { at: number; seat: Seat; id: EmoteId };
 
 // Missions of the day (Europe/Paris), 3 per player: counted duels are against the bot, in Story mode, ranked, in an event, or
 // online against an opponent not yet faced that day. MISSIONS_BONUS boosters once the 3 are done.

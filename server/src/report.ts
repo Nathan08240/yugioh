@@ -2,7 +2,8 @@ import type postgres from "postgres";
 import { OcgMessageType, OcgProcessResult, type OcgMessage, type OcgResponse } from "@n1xx1/ocgcore-wasm";
 import type { Db } from "./db.ts";
 import { openDuel, type Placed, type Rules } from "./duel.ts";
-import type { BotLevel } from "./protocol.ts";
+import type { EmoteId } from "./emotes.ts";
+import type { BotLevel, Seat } from "./protocol.ts";
 import { engineForm } from "./respond.ts";
 
 // Per player and per hour.
@@ -25,6 +26,8 @@ export type Report = {
   // The cards placed before the start, for a puzzle.
   field?: Placed[];
   responses: OcgResponse[];
+  // The emotes relayed, each sent once `step` responses were recorded (absent before emotes were kept).
+  emotes?: { seat: Seat; id: EmoteId; step: number }[];
 };
 
 // Stores the report unless the player already sent REPORT_LIMIT of them in the last hour. Resolves to whether it was stored.

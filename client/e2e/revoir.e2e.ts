@@ -16,8 +16,9 @@ test("« Revoir » depuis le profil rejoue le duel sur le plateau, avec pause, v
   await ligne.getByRole("button", { name: "Revoir" }).click();
   await expect.poll(() => envoyes.find((msg) => msg.type === "replay")).toEqual({ type: "replay", id: 3 });
 
-  envoyer({ type: "replay", id: 3, seat: 0, lp: recorded.lp, decks: recorded.decks, extras: [0, 0], opponent: "Kaiba", batches });
+  envoyer({ type: "replay", id: 3, seat: 0, lp: recorded.lp, decks: recorded.decks, extras: [0, 0], opponent: "Kaiba", batches, emotes: [{ at: 0, seat: 1, id: "bonjour" }] });
   await expect(page.locator(".plaque--adverse")).toContainText("Kaiba");
+  await expect(page.locator(".plaque--adverse .emote")).toContainText("Bonjour !");
   await page.getByRole("button", { name: "Pause" }).click();
   await expect(page.getByRole("button", { name: "Lecture" })).toBeVisible();
   await page.getByRole("button", { name: "×4" }).click();
