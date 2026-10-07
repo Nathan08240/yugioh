@@ -53,7 +53,7 @@ export type Room = {
   // A ranked duel: its end updates both ratings, and it has no rematch.
   ranked?: true;
   // What a bug report needs to replay the current (or last) duel: its seed, decks, turn and every response the engine accepted.
-  record?: { seed: Seed; decks: Report["decks"]; turn: number; responses: OcgResponse[] };
+  record?: { seed: Seed; decks: Report["decks"]; turn: number; responses: OcgResponse[]; emotes: NonNullable<Report["emotes"]> };
   // Tower mode: the floor of the duel, and the recording of its win once seat 0 won.
   tower?: { floor: number; saved?: Promise<void> };
   // Online duel between two players only: what the spectators get (the public log, rebuilt for each duel) and their sockets.
@@ -210,7 +210,7 @@ export function reportOf(room: Room): Report | undefined {
   if (online(room)) mode = "online";
   else if (room.field) mode = "puzzle";
   else if (room.mode?.mode === "story") mode = "histoire";
-  return { mode, room: room.code, turn: record.turn, date: new Date().toISOString(), level: room.level, seed: record.seed.map(String), rules: rulesOf(room), decks: record.decks, field: room.field, responses: record.responses };
+  return { mode, room: room.code, turn: record.turn, date: new Date().toISOString(), level: room.level, seed: record.seed.map(String), rules: rulesOf(room), decks: record.decks, field: room.field, responses: record.responses, emotes: record.emotes };
 }
 
 // When each player last sent an emote, in ms since the epoch.
@@ -223,6 +223,7 @@ export function emote(room: Room, seat: Seat, id: EmoteId): string | undefined {
   const now = Date.now();
   if (now - (lastEmote.get(player) ?? -Infinity) < EMOTE_DELAY) return undefined;
   lastEmote.set(player, now);
+  room.record?.emotes.push({ seat, id, step: room.record.responses.length });
   sendAll(room, { type: "emote", seat, id });
   return undefined;
 }
@@ -403,7 +404,7 @@ export async function start(room: Room, seed: Seed) {
     room.watch.sockets.forEach((socket) => sendWatching(room, socket));
     room.onWatch?.();
   }
-  room.record = { seed, decks: decks.map((main, seat) => ({ main: [...main], extra: [...extras[seat]] })), turn: 0, responses: [] };
+  room.record = { seed, decks: decks.map((main, seat) => ({ main: [...main], extra: [...extras[seat]] })), turn: 0, responses: [], emotes: [] };
   room.duel = await openDuel(seed, decks, engineErrors(room.code), undefined, rulesOf(room), extras, room.field);
   if (room.field) broadcast(room, room.duel, fieldMoves(room.field));
   advance(room);

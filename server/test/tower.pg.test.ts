@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { createProfile, type Db } from "../src/db.ts";
-import { startTower, towerView, winTower } from "../src/tower.ts";
+import { loseTower, startTower, towerView, winTower } from "../src/tower.ts";
 import { type Pg, startPostgres } from "./pg.ts";
 
 describe("mode Tour sur Postgres jetable", () => {
@@ -46,12 +46,24 @@ describe("mode Tour sur Postgres jetable", () => {
   it("renvoie à l'étage 1 après une défaite, garde le record et ne paie un palier qu'une fois", async () => {
     const id = await newPlayer("Tour2");
     await climb(id, 4);
-    // Floor 5 started and lost: nothing records it.
     expect(await startTower(server, id)).toBe(5);
+    await loseTower(server, id, 5);
     expect(await progress(id)).toEqual({ floor: 0, best: 4, claimed: [3] });
     expect(await climb(id, 3)).toEqual([0, 0, 0]);
     expect(await progress(id)).toEqual({ floor: 3, best: 4, claimed: [3] });
     expect(await pending(id)).toBe(1);
+  });
+
+  it("garde l'étage après un duel interrompu, et ignore la défaite d'un étage déjà passé", async () => {
+    const id = await newPlayer("Tour6");
+    await climb(id, 4);
+    // Started and left without result, twice: still floor 5.
+    expect(await startTower(server, id)).toBe(5);
+    expect(await startTower(server, id)).toBe(5);
+    expect(await progress(id)).toEqual({ floor: 4, best: 4, claimed: [3] });
+    // The loss of floor 3 comes from a room opened before floor 4 was cleared.
+    await loseTower(server, id, 3);
+    expect(await progress(id)).toEqual({ floor: 4, best: 4, claimed: [3] });
   });
 
   it("paie 1, 2 et 3 boosters aux étages 3, 6 et 10, puis recommence la Tour", async () => {
@@ -78,13 +90,13 @@ describe("mode Tour sur Postgres jetable", () => {
       // Sunday evening: still the same week.
       vi.setSystemTime(new Date("2026-10-11T20:00:00Z"));
       expect((await towerView(server, id)).claimed).toEqual([3]);
-      // A started and lost duel sends back to floor 1.
-      await startTower(server, id);
+      // A lost duel sends back to floor 1.
+      await loseTower(server, id, await startTower(server, id));
       expect(await climb(id, 3)).toEqual([0, 0, 0]);
       // Monday: the week turns over.
       vi.setSystemTime(new Date("2026-10-12T08:00:00Z"));
       expect(await progress(id)).toMatchObject({ best: 3, claimed: [] });
-      await startTower(server, id);
+      await loseTower(server, id, await startTower(server, id));
       expect(await climb(id, 3)).toEqual([0, 0, 1]);
       expect(await pending(id)).toBe(2);
     } finally {

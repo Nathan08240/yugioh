@@ -1,5 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { saveDeck } from "../src/collection.ts";
 import { createProfile, type Db } from "../src/db.ts";
+import { starterCards } from "../src/starter.ts";
 import { TRADES_PER_DAY } from "../src/protocol.ts";
 import { dbTradeStore, TRADE_PENDING_MAX, type TradeStore } from "../src/trade.ts";
 import { type Pg, startPostgres } from "./pg.ts";
@@ -178,5 +180,56 @@ describe("échanges de cartes sur Postgres jetable", () => {
     expect(await store.removeTrade(a.id, again.id)).toEqual({ other: b.id, refused: false });
     await expect(pg.server`insert into yugioh.trades (from_id, to_id, give_code, take_code) values (${a.id}, ${a.id}, 1, 2)`).rejects.toThrow();
     await expect(pg.server`insert into yugioh.trades (from_id, to_id, give_code, take_code, status) values (${a.id}, ${b.id}, 1, 2, 'accepted')`).rejects.toThrow();
+  });
+
+  // `a` owns exactly the 40 cards of a deck, with two copies of `give`, and offered one to `b` for Y.
+  async function deckRace() {
+    const [give, ...others] = starterCards("yugi").slice(0, 39);
+    const main = [give, give, ...others];
+    const counts = new Map<number, number>();
+    for (const code of main) counts.set(code, (counts.get(code) ?? 0) + 1);
+    const a = await player();
+    const b = await player();
+    await friends(a.id, b.id);
+    for (const [code, count] of counts) await own(a.id, code, count);
+    await own(b.id, Y, 2);
+    expect(await store.offerTrade(a.id, b.pseudo, give, Y)).toEqual({ to: b.id });
+    const [offer] = (await store.trades(b.id)).received;
+    return { a, b, id: offer.id, give, deck: { name: "Course", main, extra: [] } };
+  }
+
+  it("enregistre un deck après un échange qui a pris l'exemplaire, jamais avec lui", async () => {
+    const { a, give, deck } = await deckRace();
+    let release!: () => void;
+    let locked!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    const holding = new Promise<void>((resolve) => (locked = resolve));
+    // What acceptTrade does: the profile lock, then the copy moves away on commit.
+    const trade = admin.begin(async (sql) => {
+      await sql`select 1 from yugioh.profiles where user_id = ${a.id} for update`;
+      locked();
+      await gate;
+      await sql`update yugioh.collection set quantity = quantity - 1 where user_id = ${a.id} and card_code = ${give}`;
+    });
+    await holding;
+    let settled = false;
+    const saving = saveDeck(pg.server, a.id, deck).finally(() => (settled = true));
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    expect(settled).toBe(false);
+    release();
+    await trade;
+    expect(await saving).toEqual({ error: expect.stringContaining("plus d'exemplaires que dans la collection") });
+    expect(await admin`select id from yugioh.decks where user_id = ${a.id}`).toHaveLength(0);
+  });
+
+  it("un deck enregistré et un échange acceptés en même temps ne passent jamais tous les deux", async () => {
+    for (let round = 0; round < 5; round++) {
+      const { a, b, id, give, deck } = await deckRace();
+      const [accepted, saved] = await Promise.all([store.acceptTrade(b.id, id), saveDeck(pg.server, a.id, deck)]);
+      expect(typeof accepted !== "string" && "id" in saved).toBe(false);
+      const [{ quantity }] = await admin<{ quantity: number }[]>`select quantity from yugioh.collection where user_id = ${a.id} and card_code = ${give}`;
+      const used = (await admin<{ main: number[] }[]>`select main_deck as main from yugioh.decks where user_id = ${a.id}`).flatMap((row) => row.main);
+      expect(used.filter((code) => code === give).length).toBeLessThanOrEqual(quantity);
+    }
   });
 });

@@ -2,7 +2,7 @@ import { OcgMessageType, OcgProcessResult, type OcgMessage } from "@n1xx1/ocgcor
 import type postgres from "postgres";
 import type { Db } from "./db.ts";
 import { fieldMoves, fieldStats, lpOf, openDuel, type Seed } from "./duel.ts";
-import type { DuelEvent, HistoryMode, ReplaySummary, Seat, ServerMessage } from "./protocol.ts";
+import type { DuelEvent, HistoryMode, ReplayEmote, ReplaySummary, Seat, ServerMessage } from "./protocol.ts";
 import type { Report } from "./report.ts";
 import { engineForm } from "./respond.ts";
 import { ANSWERS, type Room } from "./room.ts";
@@ -79,8 +79,9 @@ function stopAt(events: readonly OcgMessage[], turns: { seen: number; max: numbe
   });
 }
 
-// Runs the engine on the recorded responses, as advance() did, and hands each batch to `show`. False when the server ended the duel.
-function rerun(duel: Awaited<ReturnType<typeof openDuel>>, replay: Replay, show: (messages: OcgMessage[]) => void): boolean {
+// Runs the engine on the recorded responses, as advance() did, and hands each batch to `show`; `asked` is called at each
+// question, before its response goes in. False when the server ended the duel.
+function rerun(duel: Awaited<ReturnType<typeof openDuel>>, replay: Replay, show: (messages: OcgMessage[]) => void, asked: () => void): boolean {
   const { lib, handle } = duel;
   const turns = { seen: 0, max: replay.turn };
   const end: OcgMessage = { type: OcgMessageType.WIN, player: replay.end.winner, reason: replay.end.reason };
@@ -98,6 +99,7 @@ function rerun(duel: Awaited<ReturnType<typeof openDuel>>, replay: Replay, show:
     if (status === OcgProcessResult.END) return true;
     const question = messages.at(-1);
     if (status !== OcgProcessResult.WAITING || !question || !("player" in question)) continue;
+    asked();
     const response = replay.responses[next++];
     if (!response) return false;
     lib.duelSetResponse(handle, engineForm(response));
@@ -106,12 +108,14 @@ function rerun(duel: Awaited<ReturnType<typeof openDuel>>, replay: Replay, show:
 }
 
 // What `seat` was sent during the duel, batch by batch as broadcast() sent it, stats included: never more than the player saw.
-export async function replayBatches(replay: Replay, seat: Seat): Promise<DuelEvent[][]> {
+// The emotes come with the number of batches shown when each was sent, found by the question the engine awaited then.
+export async function replayBatches(replay: Replay, seat: Seat): Promise<{ batches: DuelEvent[][]; emotes: ReplayEmote[] }> {
   const seed = replay.seed.map(BigInt) as Seed;
   const main = replay.decks.map((deck) => deck.main);
   const extras = replay.decks.map((deck) => deck.extra);
   const duel = await openDuel(seed, main, () => {}, undefined, replay.rules, extras, replay.field);
   const batches: DuelEvent[][] = [];
+  const questions: number[] = [];
   let last: string | undefined;
   const show = (messages: OcgMessage[]) => {
     const events: DuelEvent[] = messages.flatMap((msg) => visibleTo(msg, seat) ?? []);
@@ -123,17 +127,19 @@ export async function replayBatches(replay: Replay, seat: Seat): Promise<DuelEve
   };
   try {
     if (replay.field) show(fieldMoves(replay.field));
-    if (!rerun(duel, replay, show)) show([{ type: OcgMessageType.WIN, player: replay.end.winner, reason: replay.end.reason }]);
+    if (!rerun(duel, replay, show, () => questions.push(batches.length))) show([{ type: OcgMessageType.WIN, player: replay.end.winner, reason: replay.end.reason }]);
   } finally {
     duel.lib.destroyDuel(duel.handle);
   }
-  return batches;
+  const emotes = (replay.emotes ?? []).map(({ seat: from, id, step }) => ({ at: questions[step] ?? batches.length, seat: from, id }));
+  return { batches, emotes };
 }
 
 export async function replayMessage({ seat, opponent, replay }: StoredReplay, id: number): Promise<Extract<ServerMessage, { type: "replay" }>> {
   const lp = lpOf(replay.rules, seat);
   const opponentLp = lpOf(replay.rules, 1 - seat);
   const [first, second] = replay.decks;
+  const { batches, emotes } = await replayBatches(replay, seat);
   return {
     type: "replay",
     id,
@@ -143,6 +149,7 @@ export async function replayMessage({ seat, opponent, replay }: StoredReplay, id
     decks: [first.main.length + replay.rules.cards.length, second.main.length],
     extras: [first.extra.length, second.extra.length],
     opponent: opponent ?? undefined,
-    batches: await replayBatches(replay, seat),
+    batches,
+    emotes,
   };
 }

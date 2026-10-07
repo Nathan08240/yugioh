@@ -54,10 +54,10 @@ export async function deckReply(store: DeckStore, userId: string, msg: DeckMessa
 // Card data of the allowed pool only.
 export const poolCard: CardLookup = (code) => (isAllowed(code) ? clientCard(code) : undefined);
 
-// Owned cards as [passcode, quantity].
-export async function readCollection(db: Sql, userId: string): Promise<[number, number][]> {
+// Owned cards as [passcode, quantity]; `lock` keeps the rows from changing until the caller's transaction ends.
+export async function readCollection(db: Sql, userId: string, lock = false): Promise<[number, number][]> {
   const rows = await db<{ code: number; quantity: number }[]>`
-    select card_code as code, quantity from yugioh.collection where user_id = ${userId} order by card_code`;
+    select card_code as code, quantity from yugioh.collection where user_id = ${userId} order by card_code ${lock ? db`for update` : db``}`;
   return rows.map((row) => [row.code, row.quantity]);
 }
 
@@ -99,21 +99,25 @@ export async function listDecks(db: Db, userId: string): Promise<DeckList> {
   return { decks, active: active ? Number(active.id) : null };
 }
 
-// Creates the deck without `id`, else replaces it. Validated against the rules and the player's collection.
+// Creates the deck without `id`, else replaces it. Validated against the rules and the player's collection, locked
+// (profile, then collection rows, as in trade.ts) so that an accepted trade cannot take a copy between check and save.
 export async function saveDeck(db: Db, userId: string, deck: DeckDraft): Promise<{ id: number } | { error: string }> {
-  const error = deckError(deck, poolCard, new Map(await readCollection(db, userId)));
-  if (error) return { error };
   const name = deck.name.trim();
   try {
-    const [row] =
-      deck.id === undefined
-        ? await db<{ id: string }[]>`
-          insert into yugioh.decks (user_id, name, main_deck, extra_deck) values (${userId}, ${name}, ${deck.main}, ${deck.extra})
-          returning id`
-        : await db<{ id: string }[]>`
-          update yugioh.decks set name = ${name}, main_deck = ${deck.main}, extra_deck = ${deck.extra}, updated_at = now()
-          where id = ${deck.id} and user_id = ${userId} returning id`;
-    return row ? { id: Number(row.id) } : { error: "deck introuvable" };
+    return await db.begin(async (sql) => {
+      await sql`select 1 from yugioh.profiles where user_id = ${userId} for update`;
+      const error = deckError(deck, poolCard, new Map(await readCollection(sql, userId, true)));
+      if (error) return { error };
+      const [row] =
+        deck.id === undefined
+          ? await sql<{ id: string }[]>`
+            insert into yugioh.decks (user_id, name, main_deck, extra_deck) values (${userId}, ${name}, ${deck.main}, ${deck.extra})
+            returning id`
+          : await sql<{ id: string }[]>`
+            update yugioh.decks set name = ${name}, main_deck = ${deck.main}, extra_deck = ${deck.extra}, updated_at = now()
+            where id = ${deck.id} and user_id = ${userId} returning id`;
+      return row ? { id: Number(row.id) } : { error: "deck introuvable" };
+    });
   } catch (failure) {
     if (failure instanceof postgres.PostgresError && failure.code === "23505") return { error: "un deck porte déjà ce nom" };
     throw failure;

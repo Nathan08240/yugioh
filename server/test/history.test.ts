@@ -71,6 +71,26 @@ describe("revoir ses derniers duels", () => {
     expect(replay).toMatchObject({ id: 1, seat: 0, lp: joined?.lp, decks: joined?.decks, extras: joined?.extras, opponent: "Bot" });
     expect(replay?.batches).toEqual(alice.batches());
     expect(replay?.batches.flat().filter(isWin)).toEqual([{ type: OcgMessageType.WIN, player: 1, reason: 0 }]);
+    expect(replay?.emotes).toEqual([]);
+  });
+
+  it("garde les émotes envoyées et les rejoue au moment où le joueur devait répondre", { timeout: 30_000 }, async () => {
+    const dora = await player("dora", 2);
+    dora.send({ type: "bot" });
+    const questions = () => dora.received.filter((msg) => msg.type === "question").length;
+    await vi.waitFor(() => expect(questions()).toBe(3), { timeout: 20_000 });
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    const shown = dora.batches().length;
+    dora.send({ type: "emote", id: "bonjour" });
+    await vi.waitFor(() => expect(dora.received).toContainEqual({ type: "emote", seat: 0, id: "bonjour" }));
+    dora.send({ type: "surrender" });
+    await vi.waitFor(() => expect(saved.some((entry) => entry.userId === "dora")).toBe(true));
+    const entry = saved.find((candidate) => candidate.userId === "dora");
+    // Sent while the engine waited for the response that comes next: the bot's responses count too.
+    expect(entry?.replay.emotes).toEqual([{ seat: 0, id: "bonjour", step: entry?.replay.responses.length }]);
+    dora.send({ type: "replay", id: entry?.id ?? 0 });
+    await vi.waitFor(() => expect(dora.find("replay")).toBeDefined(), { timeout: 20_000 });
+    expect(dora.find("replay")?.emotes).toEqual([{ at: shown, seat: 0, id: "bonjour" }]);
   });
 
   it("un duel mené jusqu'au bout se rejoue jusqu'au même WIN du moteur, sans rien de caché qui n'était visible", { timeout: 60_000 }, async () => {

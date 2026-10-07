@@ -35,9 +35,9 @@ export function missionProgress(room: Room, seat: Seat, winner: Seat, reason: nu
   return casual ? { gains, opponent: room.players[1 - seat]?.id } : { gains };
 }
 
-// Tower mode: sets the room up for `floor`, with its opponent once the bot is seated. Only a win of seat 0 is recorded:
-// startTower already counted anything else as a loss.
-export function towerFloor(room: Room, floor: number, accounts: Pick<Accounts, "winTower">) {
+// Tower mode: sets the room up for `floor`, with its opponent once the bot is seated. A win of seat 0 climbs, any other
+// result of the duel (loss, surrender) sends back to floor 1; a duel without result changes nothing.
+export function towerFloor(room: Room, floor: number, accounts: Pick<Accounts, "winTower" | "loseTower">) {
   const level = towerLevel(floor);
   const tower: NonNullable<Room["tower"]> = { floor };
   const opponent = TOWER[floor - 1];
@@ -53,7 +53,11 @@ export function towerFloor(room: Room, floor: number, accounts: Pick<Accounts, "
   }
   room.onWin = (winner) => {
     const player = room.players[0];
-    if (winner !== 0 || !player) return;
+    if (!player) return;
+    if (winner !== 0) {
+      tower.saved = accounts.loseTower(player.id, floor).catch((error: unknown) => console.error(error));
+      return;
+    }
     tower.saved = accounts.winTower(player.id, floor).then(
       (won) => send(room.players[0]?.socket, { type: "tower_won", ...won }),
       (error: unknown) => {

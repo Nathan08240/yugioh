@@ -20,7 +20,7 @@ import { type DuelResult, readResults, recordResult } from "./results.ts";
 import { dbSealedStore, type SealedStore } from "./sealed.ts";
 import { chooseStarter, type Starter } from "./starter.ts";
 import { completeDuel, completedDuels, completeRevenge, revengesWon, type StoryDuel } from "./story.ts";
-import { startTower, towerView, winTower, type TowerWin } from "./tower.ts";
+import { loseTower, startTower, towerView, winTower, type TowerWin } from "./tower.ts";
 import { dbTradeStore, type TradeStore } from "./trade.ts";
 import { finishTutorial } from "./tutorial.ts";
 import { dbWishStore, type WishStore } from "./wishlist.ts";
@@ -66,10 +66,11 @@ export type Accounts = DeckStore & WishStore & EconomyStore & WonderStore & Prof
   // Event of the week (event.ts): whether its booster was taken, and taking it (resolves to false when it already was).
   eventWon: (userId: string, eventId: string) => Promise<boolean>;
   claimEvent: (userId: string, eventId: string) => Promise<boolean>;
-  // Tower mode (tower.ts): progression, the floor of the next duel, the win of a floor.
+  // Tower mode (tower.ts): progression, the floor of the next duel, the win or the loss of a floor.
   towerView: (userId: string) => Promise<TowerView>;
   startTower: (userId: string) => Promise<number>;
   winTower: (userId: string, floor: number) => Promise<TowerWin>;
+  loseTower: (userId: string, floor: number) => Promise<void>;
 };
 
 export function dbAccounts(db: Db): Accounts {
@@ -106,6 +107,7 @@ export function dbAccounts(db: Db): Accounts {
     towerView: (userId) => towerView(db, userId),
     startTower: (userId) => startTower(db, userId),
     winTower: (userId, floor) => winTower(db, userId, floor),
+    loseTower: (userId, floor) => loseTower(db, userId, floor),
     ...dbDeckStore(db),
     ...dbWishStore(db),
     ...dbEconomyStore(db),

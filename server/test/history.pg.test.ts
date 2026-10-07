@@ -59,7 +59,7 @@ describe("duels à revoir sur Postgres jetable", () => {
     const stored = await readReplay(server, joey, id);
     expect(stored).toEqual({ seat: 0, opponent: "Bot", replay });
     expect(await readReplay(server, tea, id)).toBeUndefined();
-    const batches = await replayBatches(replay, 0);
+    const { batches } = await replayBatches(replay, 0);
     expect(batches.at(-1)?.[0]).toEqual({ type: OcgMessageType.WIN, player: 1, reason: 0 });
   });
 

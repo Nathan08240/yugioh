@@ -96,6 +96,7 @@ export function fakeAccounts(overrides: Partial<Accounts> = {}): Accounts {
     towerView: async () => ({ floors: [], floor: 0, best: 0, claimed: [] }),
     startTower: async () => 1,
     winTower: async (_userId, floor) => ({ floor, best: floor, boosters: 0 }),
+    loseTower: async () => undefined,
     ...noSealed,
     ...noDraft,
     ...noMissions,

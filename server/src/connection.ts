@@ -94,7 +94,7 @@ function enterDuel(conn: Connection, user: User, msg: ClientMessage): Reply {
   const { lobby } = conn;
   if (conn.seat || conn.watching) return "déjà dans une salle";
   if (lobby.waiting.has(user.id)) return "recherche d'un adversaire classé en cours";
-  // Before any side effect: a tower duel starts by resetting the floor, the ranked queue would wait for nothing.
+  // Before any side effect: the ranked queue would wait for nothing.
   if (lobby.draining && !RESUMING.has(msg.type)) return MAINTENANCE;
   switch (msg.type) {
     case "spectate":
