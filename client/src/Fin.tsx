@@ -31,6 +31,8 @@ type Props = {
   puzzle?: { title: string; booster?: boolean };
   // The tutorial, and once the server has recorded its win, whether it earned a booster (the first time only).
   tutoriel?: { booster?: boolean };
+  // A lesson, and once the server has recorded its win, the collection points it earned (0 after the first time).
+  lecon?: { title: string; points?: number };
   // A tower duel: its floor, and its win once the server has recorded it. The rematch starts the next floor.
   tower?: { floor: number; won?: TowerWon };
   // Online rematch state; against the bot, asking starts a new duel at once.
@@ -95,7 +97,7 @@ const defeat =
   };
 
 // Victory or defeat screen over the board, once the engine has named the winner.
-export function Fin({ board, seat, room, vsBot, ranked, opponent, story, eventBooster, onlineEarned, puzzle, tutoriel, tower, rematch, onRematch, report, leave, go, sealed, draft }: Readonly<Props>) {
+export function Fin({ board, seat, room, vsBot, ranked, opponent, story, eventBooster, onlineEarned, puzzle, tutoriel, lecon, tower, rematch, onRematch, report, leave, go, sealed, draft }: Readonly<Props>) {
   const limited = sealed ?? draft;
   const mode = draft ? "Draft" : "Scellé";
   const root = useRef<HTMLDivElement>(null);
@@ -113,12 +115,14 @@ export function Fin({ board, seat, room, vsBot, ranked, opponent, story, eventBo
   if (story) context = `${story.title ?? "Mode Histoire"}${story.easy ? " · Facile" : ""}${story.won && "revenge" in story.won ? " · Revanche" : ""}`;
   else if (puzzle) context = `Puzzle · ${puzzle.title}`;
   else if (tutoriel) context = "Tutoriel";
+  else if (lecon) context = `Leçon · ${lecon.title}`;
   else if (tower) context = `La Tour · Étage ${tower.floor} sur ${TOWER_FLOORS}`;
   else if (limited) context = `Mode ${mode} · ${limited.wins}/${SEALED_WINS} victoires · ${limited.losses}/${SEALED_LOSSES} défaites`;
   else if (vsBot) context = "Duel contre le bot";
   else if (ranked) context = "Duel classé";
   let back = backLabel(Boolean(story), Boolean(tower));
   if (puzzle) back = "Retour aux puzzles";
+  if (lecon) back = "Retour aux leçons";
   if (ranked) back = "Retour au mode classé";
   if (limited) back = limited.status === "playing" ? `Retour au ${mode}` : "Voir le bilan";
   const onBack = limited ? () => go(draft ? "draft" : "scelle") : leave;
@@ -127,6 +131,10 @@ export function Fin({ board, seat, room, vsBot, ranked, opponent, story, eventBo
   let boosters = (online ? Number(onlineEarned === true) : storyBoosters(story?.won)) + eventGain + (tower?.won?.boosters ?? 0);
   if (puzzle) boosters = won && puzzle.booster ? 1 : 0;
   if (tutoriel) boosters = won && tutoriel.booster ? 1 : 0;
+  if (lecon) boosters = 0;
+  let heading = title(won, lost);
+  if (puzzle) heading = puzzleTitle(won);
+  else if (lecon) heading = lessonTitle(won);
 
   return (
     <section className={won ? "ecran ecran--scene fin-duel" : "ecran ecran--scene fin-duel ecran--defaite"} aria-labelledby="fin-titre">
@@ -134,7 +142,7 @@ export function Fin({ board, seat, room, vsBot, ranked, opponent, story, eventBo
       <div ref={root} className="fin">
         <p className={won ? "surtitre surtitre--or" : "surtitre"}>{context}</p>
         <h1 id="fin-titre" className="fin__titre">
-          {puzzle ? puzzleTitle(won) : title(won, lost)}
+          {heading}
         </h1>
         <Score board={board} seat={seat} won={won} lost={lost} opponent={opponent} />
         {ranked && <p className="fin__score">{ranked.result ? ratingChange(ranked.result) : "Calcul du classement…"}</p>}
@@ -143,6 +151,7 @@ export function Fin({ board, seat, room, vsBot, ranked, opponent, story, eventBo
         {online && onlineEarned === false && <p className="texte-2">Plafond du jour atteint : {ONLINE_BOOSTERS_MAX} boosters gagnés en ligne.</p>}
         {won && puzzle?.booster === false && <p className="texte-2 fin__recit">Puzzle déjà réussi : la récompense a été obtenue.</p>}
         {won && tutoriel?.booster === false && <p className="texte-2 fin__recit">Tutoriel déjà terminé : la récompense a été obtenue.</p>}
+        {won && lecon && <LessonGain points={lecon.points} />}
         {(won || lost) && <Cause board={board} seat={seat} won={won} kingdom={story?.special?.includes("duelist-kingdom") ?? false} opponent={opponent} />}
         {lost && tower && <p className="texte-2 fin__note">Une défaite renvoie à l'étage 1 ; votre record est gardé.</p>}
         {lost && !story && !vsBot && <p className="texte-2 fin__note">Le vainqueur d'un duel en ligne reçoit un booster ({ONLINE_BOOSTERS_MAX} par jour au maximum). Retentez votre chance avec un deck ajusté.</p>}
@@ -161,8 +170,13 @@ export function Fin({ board, seat, room, vsBot, ranked, opponent, story, eventBo
               {back}
             </button>
           )}
-          {!limited && !ranked && <Rematch online={!vsBot} seat={seat} rematch={rematch} opponent={opponent} onRematch={onRematch} label={rematchLabel(Boolean(puzzle || tutoriel), tower, won)} />}
-          {lost && !puzzle && !limited && (
+          {won && tutoriel && (
+            <button type="button" className="btn btn--fantome" onClick={() => go("lecons")}>
+              Leçons avancées
+            </button>
+          )}
+          {!limited && !ranked && <Rematch online={!vsBot} seat={seat} rematch={rematch} opponent={opponent} onRematch={onRematch} label={rematchLabel(Boolean(puzzle || tutoriel || lecon), tower, won)} />}
+          {lost && !puzzle && !lecon && !limited && (
             <button type="button" className="btn btn--fantome" onClick={() => go("collection")}>
               Modifier mon deck
             </button>
@@ -238,6 +252,14 @@ function Rematch({ online, seat, rematch, opponent, onRematch, label }: RematchP
 }
 
 const puzzleTitle = (won: boolean) => (won ? "Puzzle réussi" : "Puzzle échoué");
+const lessonTitle = (won: boolean) => (won ? "Leçon réussie" : "Leçon échouée");
+
+// The points of a won lesson: recorded yet or not, and earned or already taken.
+function LessonGain({ points }: Readonly<{ points?: number }>) {
+  if (points === undefined) return <p className="texte-2 fin__recit">Enregistrement de la victoire…</p>;
+  if (points === 0) return <p className="texte-2 fin__recit">Leçon déjà réussie : la récompense a été obtenue.</p>;
+  return <p className="fin__recit">+{points} points de collection.</p>;
+}
 
 function backLabel(story: boolean, tower: boolean): string {
   if (story) return "Retour à l'histoire";

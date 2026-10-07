@@ -1,10 +1,12 @@
 import type { OcgResponse } from "@n1xx1/ocgcore-wasm";
 import { lazy, startTransition, Suspense, useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
-import type { ClientMessage, PuzzleView } from "../../server/src/protocol.ts";
+import type { ClientMessage, LessonView, PuzzleView } from "../../server/src/protocol.ts";
 import { Accueil, Salle } from "./Accueil.tsx";
 import { AlertesAmis, Amis } from "./Amis.tsx";
 import { DuelView, useCards } from "./cards.ts";
 import { brancher, contexte } from "./erreurs.ts";
+import { Lecons } from "./Lecons.tsx";
+import { parcoursDeLecon } from "./lecons.ts";
 import { duelLabel, duelLp, duelSpecial, initialLobby, inviteFromUrl, reduce, type Action, type LobbyState } from "./lobby.ts";
 import { puzzleRule, Puzzles } from "./Puzzles.tsx";
 import { useNotifications } from "./notifications.ts";
@@ -16,6 +18,7 @@ import { ApercuSalle } from "./SalleOptions.tsx";
 import { Shell, type Page } from "./Shell.tsx";
 import { supabase } from "./supabase.ts";
 import { Tour } from "./Tour.tsx";
+import { TUTORIEL, type Parcours } from "./tutoriel.ts";
 
 // Every other screen has its own chunk, fetched when the player heads for it: the home screen loads only what it shows.
 const ECRANS: Partial<Record<Page, () => Promise<unknown>>> = {
@@ -70,7 +73,7 @@ type Send = (msg: ClientMessage) => void;
 let invite = inviteFromUrl(location.href);
 
 // Messages that open a room outside the ranked queue.
-const NOT_RANKED: ReadonlySet<string> = new Set(["create", "join", "room_rules", "bot", "story_duel", "puzzle", "tower_duel", "sealed_duel", "draft_duel", "challenge", "challenge_reply"]);
+const NOT_RANKED: ReadonlySet<string> = new Set(["create", "join", "room_rules", "bot", "story_duel", "puzzle", "lesson", "tower_duel", "sealed_duel", "draft_duel", "challenge", "challenge_reply"]);
 
 export function Lobby() {
   const [state, dispatch] = useReducer(reduce, initialLobby);
@@ -83,10 +86,12 @@ export function Lobby() {
   const storyDuel = useRef<string>(undefined);
   const storyEasy = useRef(false);
   const puzzleId = useRef<string>(undefined);
+  const lessonId = useRef<string>(undefined);
   const sealedDuel = useRef(false);
   const draftDuel = useRef(false);
   // The next or current room comes from the ranked queue: no rematch, a rating change at the end.
   const ranked = useRef(false);
+  // The next or current duel is guided: the tutorial or a lesson.
   const tutorial = useRef(false);
   const cards = useCards();
   const view = useMemo(() => ({ cards, show: () => {}, seat: 0 }), [cards]);
@@ -143,15 +148,16 @@ export function Lobby() {
   }, [state.room]);
 
   const send: Send = (msg) => {
-    if (msg.type === "bot" || msg.type === "story_duel" || msg.type === "puzzle" || msg.type === "tower_duel" || msg.type === "sealed_duel" || msg.type === "draft_duel" || msg.type === "tutorial") {
+    if (msg.type === "bot" || msg.type === "story_duel" || msg.type === "puzzle" || msg.type === "tower_duel" || msg.type === "sealed_duel" || msg.type === "draft_duel" || msg.type === "tutorial" || msg.type === "lesson") {
       vsBot.current = true;
       sealedDuel.current = msg.type === "sealed_duel";
       draftDuel.current = msg.type === "draft_duel";
-      tutorial.current = msg.type === "tutorial";
+      tutorial.current = msg.type === "tutorial" || msg.type === "lesson";
     }
     // The tutorial is offered once, right after the starter.
     if (msg.type === "starter") setPage("tutoriel");
     if (msg.type === "puzzle") puzzleId.current = msg.id;
+    if (msg.type === "lesson") lessonId.current = msg.id;
     if (msg.type === "story_duel") {
       storyDuel.current = msg.duel;
       storyEasy.current = msg.level === "facile";
@@ -203,6 +209,8 @@ export function Lobby() {
   }, [state.replay, state.room, shown]);
   // A puzzle is only played from its screen.
   const puzzle = shown === "puzzles" ? state.puzzles?.find((candidate) => candidate.id === puzzleId.current) : undefined;
+  // A lesson likewise.
+  const lecon = shown === "lecons" ? state.lessons?.find((candidate) => candidate.id === lessonId.current) : undefined;
   return (
     <DuelView value={view}>
       {state.error && (
@@ -222,7 +230,7 @@ export function Lobby() {
         {state.replay && !state.room ? (
           <Revoir key={state.replay.id} replay={state.replay} pseudo={state.replay.self ?? state.pseudo ?? undefined} avatar={state.replay.self ? undefined : (state.profile?.avatar ?? undefined)} leave={() => dispatch({ type: "replay_closed" })} />
         ) : (
-          <Screen state={state} page={shown} send={send} reconnect={reconnect} leave={leave} respond={respond} go={go} vsBot={vsBot.current} ranked={ranked.current} storyDuel={storyDuel.current} easy={storyEasy.current} puzzle={puzzle} sealedDuel={sealedDuel.current} draftDuel={draftDuel.current} tutorial={tutorial.current} />
+          <Screen state={state} page={shown} send={send} reconnect={reconnect} leave={leave} respond={respond} go={go} vsBot={vsBot.current} ranked={ranked.current} storyDuel={storyDuel.current} easy={storyEasy.current} puzzle={puzzle} lecon={lecon} sealedDuel={sealedDuel.current} draftDuel={draftDuel.current} tutorial={tutorial.current} />
         )}
       </Suspense>
     </DuelView>
@@ -242,6 +250,7 @@ type ScreenProps = {
   storyDuel?: string;
   easy: boolean;
   puzzle?: PuzzleView;
+  lecon?: LessonView;
   sealedDuel: boolean;
   draftDuel: boolean;
   tutorial: boolean;
@@ -251,7 +260,13 @@ const signOut = () => {
   supabase.auth.signOut();
 };
 
-function Screen({ state, page, send, reconnect, leave, respond, go, vsBot, ranked, storyDuel, easy, puzzle, sealedDuel, draftDuel, tutorial }: Readonly<ScreenProps>) {
+// The instructions of the guided duel in progress: those of the lesson played from the lessons screen, else the tutorial's.
+function parcoursGuide(tutorial: boolean, lecon?: LessonView): Parcours | undefined {
+  if (lecon) return parcoursDeLecon(lecon.id);
+  return tutorial ? TUTORIEL : undefined;
+}
+
+function Screen({ state, page, send, reconnect, leave, respond, go, vsBot, ranked, storyDuel, easy, puzzle, lecon, sealedDuel, draftDuel, tutorial }: Readonly<ScreenProps>) {
   if (state.closed) {
     return (
       <Shell id="perdu">
@@ -293,17 +308,18 @@ function Screen({ state, page, send, reconnect, leave, respond, go, vsBot, ranke
       go(next);
     };
     const tower = state.floor === undefined ? undefined : { floor: state.floor, won: state.towerWon };
+    const exercice = puzzle ?? lecon;
     const report = { send: (message: string) => send({ type: "report", message: message || undefined }), sent: state.reported };
     // A spectator sees seat 0's side, and can neither answer, surrender, send an emote nor report.
     const watching = state.spectating;
     const me = watching ?? { name: state.pseudo, avatar: state.profile?.avatar ?? undefined };
     return (
       <>
-        <Duel board={state.board} seat={state.seat ?? 0} asked={state.question} respond={respond} leave={leave} surrender={() => send({ type: "surrender" })} emotes={state.emotes} sendEmote={watching ? undefined : (id) => send({ type: "emote", id })} report={watching ? undefined : report} answerBy={state.answerBy} away={state.away} feed={state.feed} lp={state.lp} opponentLp={state.opponentLp} pseudo={me.name} opponent={state.opponent} avatar={me.avatar} opponentAvatar={state.opponentAvatar} rules={puzzle ? puzzleRule(puzzle) : duelRules(special, state.options)} easy={state.storyOpen && easy} kingdom={special.includes("duelist-kingdom")} spectateur={watching !== undefined} spectators={state.spectators} tutoriel={tutorial} />
+        <Duel board={state.board} seat={state.seat ?? 0} asked={state.question} respond={respond} leave={leave} surrender={() => send({ type: "surrender" })} emotes={state.emotes} sendEmote={watching ? undefined : (id) => send({ type: "emote", id })} report={watching ? undefined : report} answerBy={state.answerBy} away={state.away} feed={state.feed} lp={state.lp} opponentLp={state.opponentLp} pseudo={me.name} opponent={state.opponent} avatar={me.avatar} opponentAvatar={state.opponentAvatar} rules={exercice ? puzzleRule(exercice) : duelRules(special, state.options)} easy={state.storyOpen && easy} kingdom={special.includes("duelist-kingdom")} spectateur={watching !== undefined} spectators={state.spectators} tutoriel={parcoursGuide(tutorial, lecon)} />
         {/* The end screen is drawn over the board: while it loads, the board stays. */}
         <Suspense fallback={null}>
           {watching && state.board.winner !== undefined && <FinSpectateur board={state.board} names={[watching.name ?? "Joueur 1", state.opponent ?? "Joueur 2"]} room={state.room} leave={leave} />}
-          {!watching && state.board.winner !== undefined && <Fin board={state.board} seat={state.seat ?? 0} room={state.room} vsBot={vsBot} ranked={ranked ? { result: state.rankedResult } : undefined} opponent={state.opponent} story={story} eventBooster={state.eventWon} onlineEarned={state.onlineEarned} puzzle={puzzle && { title: puzzle.title, booster: state.solved?.booster }} tutoriel={tutorial ? { booster: state.solved?.booster } : undefined} tower={tower} rematch={state.rematch} onRematch={(accept) => send({ type: "rematch", accept })} sealed={sealedDuel ? (state.sealed ?? undefined) : undefined} draft={draftDuel ? (state.draft ?? undefined) : undefined} report={report} leave={leave} go={leaveFor} />}
+          {!watching && state.board.winner !== undefined && <Fin board={state.board} seat={state.seat ?? 0} room={state.room} vsBot={vsBot} ranked={ranked ? { result: state.rankedResult } : undefined} opponent={state.opponent} story={story} eventBooster={state.eventWon} onlineEarned={state.onlineEarned} puzzle={puzzle && { title: puzzle.title, booster: state.solved?.booster }} lecon={lecon && { title: lecon.title, points: state.lessonWon?.points }} tutoriel={tutorial && !lecon ? { booster: state.solved?.booster } : undefined} tower={tower} rematch={state.rematch} onRematch={(accept) => send({ type: "rematch", accept })} sealed={sealedDuel ? (state.sealed ?? undefined) : undefined} draft={draftDuel ? (state.draft ?? undefined) : undefined} report={report} leave={leave} go={leaveFor} />}
         </Suspense>
       </>
     );
@@ -324,7 +340,8 @@ function Screen({ state, page, send, reconnect, leave, respond, go, vsBot, ranke
       {page === "histoire" && <Story arcs={state.story} send={send} />}
       {page === "puzzles" && <Puzzles puzzles={state.puzzles} send={send} />}
       {page === "tour" && <Tour tower={state.tower} send={send} />}
-      {page === "regles" && <Regles jouerTutoriel={() => send({ type: "tutorial" })} />}
+      {page === "lecons" && <Lecons lessons={state.lessons} send={send} />}
+      {page === "regles" && <Regles jouerTutoriel={() => send({ type: "tutorial" })} voirLecons={() => go("lecons")} />}
       {page === "tutoriel" && <OffreTutoriel send={send} go={go} />}
       {page === "profil" && <Profil state={state} send={send} />}
       {page === "amis" && <Amis state={state} send={send} />}

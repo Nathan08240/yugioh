@@ -9,6 +9,8 @@ export const SUMMONED_SKULL = 70781052;
 
 // `carte`: the card to play, highlighted in the hand. `faite`: the engine message that confirms the step.
 export type Etape = { titre: string; consigne: string; carte?: number; faite: (msg: Message, seat: number) => boolean };
+// The steps of a guided duel (the tutorial, a lesson of lecons.ts) and the words of its panel.
+export type Parcours = { nom: string; quitter: string; etapes: readonly Etape[] };
 
 export const ETAPES: readonly Etape[] = [
   {
@@ -58,11 +60,13 @@ export const ETAPES: readonly Etape[] = [
   },
 ];
 
-// The step after these messages: a message that completes the current step or a later one moves past it. ETAPES.length once won.
-export function avancer(etape: number, messages: readonly Message[], seat: number): number {
+export const TUTORIEL: Parcours = { nom: "Tutoriel", quitter: "Passer le tutoriel", etapes: ETAPES };
+
+// The step after these messages: a message that completes the current step or a later one moves past it. `etapes.length` once won.
+export function avancer(etape: number, messages: readonly Message[], seat: number, etapes: readonly Etape[] = ETAPES): number {
   let courante = etape;
   for (const msg of messages) {
-    const faite = ETAPES.findIndex((candidate, index) => index >= courante && candidate.faite(msg, seat));
+    const faite = etapes.findIndex((candidate, index) => index >= courante && candidate.faite(msg, seat));
     if (faite !== -1) courante = faite + 1;
   }
   return courante;

@@ -1,5 +1,5 @@
 import type { EmoteId } from "../../server/src/emotes.ts";
-import type { AdminError, AdminReport, ClientMessage, DeckResult, DraftRun, Friend, PuzzleView, RankedView, ReplaySummary, RoomOptions, SealedRun, Seat, ServerMessage, StoryArcView, TowerView, Wire } from "../../server/src/protocol.ts";
+import type { AdminError, AdminReport, ClientMessage, DeckResult, DraftRun, Friend, LessonView, PuzzleView, RankedView, ReplaySummary, RoomOptions, SealedRun, Seat, ServerMessage, StoryArcView, TowerView, Wire } from "../../server/src/protocol.ts";
 import { newBoard, playAll, type Board, type EngineMessage, type Message } from "./board.ts";
 
 export type DeckList = Extract<Wire<ServerMessage>, { type: "decks" }>;
@@ -17,6 +17,7 @@ export type Action =
 export type StoryWon = Extract<ServerMessage, { type: "story_won" }>;
 export type Wonder = Extract<Wire<ServerMessage>, { type: "wonder" }>;
 export type PuzzleWon = Extract<ServerMessage, { type: "puzzle_won" }>;
+export type LessonWon = Extract<ServerMessage, { type: "lesson_won" }>;
 export type TowerWon = Extract<ServerMessage, { type: "tower_won" }>;
 
 // `id` tells two successive questions apart, even identical ones.
@@ -89,6 +90,9 @@ export type LobbyState = {
   // Puzzles and their progression, and the last success the server recorded.
   puzzles?: PuzzleView[];
   solved?: PuzzleWon;
+  // Lessons and their progression, and the last win the server recorded.
+  lessons?: LessonView[];
+  lessonWon?: LessonWon;
   // Tower mode: the floors and progression, the floor of the duel in progress, its win once recorded.
   tower?: TowerView;
   floor?: number;
@@ -149,7 +153,7 @@ export function reduce(state: LobbyState, action: Action): LobbyState {
     case "closed":
       return { ...state, closed: true };
     case "left":
-      return { ...state, room: undefined, seat: undefined, board: undefined, started: false, question: undefined, error: undefined, won: undefined, rankedResult: undefined, solved: undefined, floor: undefined, towerWon: undefined, rematch: undefined, answerBy: undefined, away: undefined, emotes: {}, spectating: undefined, spectators: 0, special: undefined, options: undefined, preview: undefined, eventWon: undefined, onlineEarned: undefined };
+      return { ...state, room: undefined, seat: undefined, board: undefined, started: false, question: undefined, error: undefined, won: undefined, rankedResult: undefined, solved: undefined, lessonWon: undefined, floor: undefined, towerWon: undefined, rematch: undefined, answerBy: undefined, away: undefined, emotes: {}, spectating: undefined, spectators: 0, special: undefined, options: undefined, preview: undefined, eventWon: undefined, onlineEarned: undefined };
     case "profile":
       return { ...state, pseudo: action.pseudo, needsStarter: action.needsStarter, admin: action.admin, daily: action.daily || state.daily, error: undefined };
     case "joined":
@@ -176,6 +180,7 @@ export function reduce(state: LobbyState, action: Action): LobbyState {
         // An empty log is a new duel (the first, or a rematch): a reconnection replays the old one.
         won: action.log.length === 0 ? undefined : state.won,
         solved: action.log.length === 0 ? undefined : state.solved,
+        lessonWon: action.log.length === 0 ? undefined : state.lessonWon,
         towerWon: action.log.length === 0 ? undefined : state.towerWon,
         rematch: action.log.length === 0 ? undefined : state.rematch,
         eventWon: action.log.length === 0 ? undefined : state.eventWon,
@@ -246,6 +251,10 @@ export function reduce(state: LobbyState, action: Action): LobbyState {
       return { ...state, puzzles: action.puzzles };
     case "puzzle_won":
       return { ...state, solved: action };
+    case "lessons":
+      return { ...state, lessons: action.lessons };
+    case "lesson_won":
+      return { ...state, lessonWon: action };
     case "tower":
       return { ...state, tower: { floors: action.floors, floor: action.floor, best: action.best, claimed: action.claimed } };
     case "tower_won":

@@ -64,7 +64,8 @@ it("ajoute les mots-clés dans la fiche de la carte", () => {
 });
 
 it("rend la page des règles : les bases ouvertes, les arcs de l'Histoire repliés", () => {
-  const page = renderToStaticMarkup(<Regles jouerTutoriel={() => {}} />);
+  const page = renderToStaticMarkup(<Regles jouerTutoriel={() => {}} voirLecons={() => {}} />);
+  expect(page).toContain("Leçons avancées");
   for (const rule of allRules()) expect(page).toContain(rule.title);
   expect(page).toContain("4000 LP");
   expect(page).toContain("Règles du Royaume des Duellistes");

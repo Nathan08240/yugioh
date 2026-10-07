@@ -6,6 +6,7 @@ import { draftReply, isDraftMessage } from "./draft.ts";
 import { economyReply, isEconomyMessage } from "./economy.ts";
 import { eventOf } from "./event.ts";
 import { replayAllowed, replayMessage, REPLAYS_LIMITED } from "./history.ts";
+import { lessonView } from "./lessons.ts";
 import { joinFriends, progressMissions, type Connection, type Lobby, type User } from "./lobby.ts";
 import { profileReply, type ProfileMessage } from "./profile.ts";
 import type { ClientError, ClientMessage, ServerMessage } from "./protocol.ts";
@@ -171,6 +172,11 @@ export async function showEvent(conn: Connection, userId: string): Promise<undef
 
 export async function showPuzzles(conn: Connection, userId: string): Promise<undefined> {
   send(conn.socket, { type: "puzzles", puzzles: puzzleView(await conn.lobby.accounts.solvedPuzzles(userId)) });
+  return undefined;
+}
+
+export async function showLessons(conn: Connection, userId: string): Promise<undefined> {
+  send(conn.socket, { type: "lessons", lessons: lessonView(await conn.lobby.accounts.solvedLessons(userId)) });
   return undefined;
 }
 

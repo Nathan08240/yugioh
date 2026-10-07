@@ -69,7 +69,7 @@ export function rewardsDue({ missions, achievements }: MissionsView, day: string
   return [...due, ...achievements.filter(reached).map((achievement): [string, MissionReward] => [`succes:${achievement.id}`, achievement.reward])];
 }
 
-async function grant(sql: Sql, userId: string, { points, boosters }: MissionReward) {
+export async function grant(sql: Sql, userId: string, { points, boosters }: MissionReward) {
   if (points) await sql`update yugioh.profiles set collection_points = collection_points + ${points} where user_id = ${userId}`;
   if (boosters) await creditBoosters(sql, userId, boosters);
 }
