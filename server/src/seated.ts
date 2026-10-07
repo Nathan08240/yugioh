@@ -31,7 +31,7 @@ function restart(lobby: Lobby, room: Room) {
   start(room, lobby.newSeed()).catch((error: unknown) => console.error(error));
 }
 
-// After a tower duel: the next floor once its win is recorded, floor 1 after a loss.
+// After a tower duel: the next floor once its win is recorded, floor 1 once its loss is.
 async function climb(accounts: Accounts, room: Room, tower: NonNullable<Room["tower"]>) {
   await tower.saved;
   towerFloor(room, await accounts.startTower(room.players[0].id), accounts);

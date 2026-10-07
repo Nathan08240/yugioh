@@ -73,15 +73,17 @@ export async function towerView(db: Db, userId: string): Promise<TowerView> {
   return { floors: FLOORS, floor: row?.floor ?? 0, best: row?.best ?? 0, claimed };
 }
 
-// The floor of the next duel. The attempt is lost until winTower records the win: a loss, a surrender or a duel left
-// unfinished all send the player back to floor 1.
+// The floor of the next duel. A duel left without result (server stopped, crash, disconnection) keeps the floor: only
+// loseTower sends the player back to floor 1.
 export async function startTower(db: Db, userId: string): Promise<number> {
-  return db.begin(async (sql) => {
-    const [{ floor }] = await sql<{ floor: number }[]>`
-      select tower_floor as floor from yugioh.profiles where user_id = ${userId} for update`;
-    await sql`update yugioh.profiles set tower_floor = 0 where user_id = ${userId}`;
-    return floor + 1;
-  });
+  const [{ floor }] = await db<{ floor: number }[]>`select tower_floor as floor from yugioh.profiles where user_id = ${userId}`;
+  return floor + 1;
+}
+
+// Records the loss or surrender of `floor`, as returned by startTower: back to floor 1, best kept. The loss of a floor
+// already cleared since (a stale room) changes nothing.
+export async function loseTower(db: Db, userId: string, floor: number): Promise<void> {
+  await db`update yugioh.profiles set tower_floor = 0 where user_id = ${userId} and tower_floor < ${floor}`;
 }
 
 // Records the win of `floor`, as returned by startTower. The last floor ends the attempt; the first win of a reward floor

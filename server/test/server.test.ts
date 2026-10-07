@@ -125,6 +125,7 @@ const accounts: Accounts = {
   towerView: async () => ({ floors: [], floor: 0, best: 0, claimed: [] }),
   startTower: async () => 1,
   winTower: async (_userId, floor) => ({ floor, best: floor, boosters: 0 }),
+  loseTower: async () => undefined,
   ...noSealed,
   ...noDraft,
   ...noMissions,
@@ -803,24 +804,29 @@ describe("revanche", () => {
 });
 
 describe("mode Tour", () => {
-  it("prépare l'étage : adversaire, niveau, LP ; seule une victoire du joueur est enregistrée", async () => {
+  it("prépare l'étage : adversaire, niveau, LP ; une victoire monte, une défaite renvoie à l'étage 1, sans résultat rien ne change", async () => {
     const socket = { send: vi.fn() } as unknown as WebSocket;
     const winTower = vi.fn(async (_userId: string, floor: number) => ({ floor, best: floor, boosters: 2 }));
+    const loseTower = vi.fn(async () => undefined);
     const room: Room = { code: "TOUR", players: [{ id: "p0", socket, log: [], deck: [] }, { id: "bot", name: "Bot", log: [], deck: [], bot: {} as Bot }] };
 
-    towerFloor(room, 6, { winTower });
+    towerFloor(room, 6, { winTower, loseTower });
     expect(room.rules).toEqual({ lp: 4500, playerLp: 4000, hand: 5, cards: [] });
     expect(room.level).toBe("normal");
     expect(room.players[1]).toMatchObject({ name: "Machines de guerre", deck: expect.any(Array) });
     expect(room.players[1].deck).toHaveLength(40);
+    expect(loseTower).not.toHaveBeenCalled();
     room.onWin?.(1);
+    await room.tower?.saved;
     expect(winTower).not.toHaveBeenCalled();
+    expect(loseTower).toHaveBeenCalledWith("p0", 6);
     room.onWin?.(0);
     await room.tower?.saved;
     expect(winTower).toHaveBeenCalledWith("p0", 6);
+    expect(loseTower).toHaveBeenCalledTimes(1);
     expect(vi.mocked(socket.send)).toHaveBeenCalledWith(JSON.stringify({ type: "tower_won", floor: 6, best: 6, boosters: 2 }));
 
-    towerFloor(room, 3, { winTower });
+    towerFloor(room, 3, { winTower, loseTower });
     expect(room.rules?.lp).toBe(4000);
     expect(room.level).toBe("debutant");
   });
@@ -828,6 +834,7 @@ describe("mode Tour", () => {
   it("joue l'étage donné par le serveur ; après un abandon, la revanche repart de l'étage donné", { timeout: 30_000 }, async () => {
     const start = vi.spyOn(accounts, "startTower").mockResolvedValueOnce(8).mockResolvedValueOnce(1);
     const win = vi.spyOn(accounts, "winTower");
+    const lose = vi.spyOn(accounts, "loseTower");
     decks.set("tour-a", YUGI);
     const human = await connect("tour-a");
     const joins = () => human.received.filter((msg) => msg.type === "joined");
@@ -843,8 +850,10 @@ describe("mode Tour", () => {
     expect(joins().at(-1)).not.toHaveProperty("opponentLp");
     expect(start.mock.calls.filter(([id]) => id === "tour-a")).toHaveLength(2);
     expect(win.mock.calls.filter(([id]) => id === "tour-a")).toEqual([]);
+    expect(lose.mock.calls.filter(([id]) => id === "tour-a")).toEqual([["tour-a", 8]]);
     start.mockRestore();
     win.mockRestore();
+    lose.mockRestore();
   });
 
   it("refuse la Tour sans deck valide, sans toucher à la progression", async () => {
