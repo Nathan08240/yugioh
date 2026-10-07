@@ -11,6 +11,14 @@ Un seul conteneur (`Dockerfile` à la racine) : le serveur de jeu sert le client
 - **Mise en ligne sans couper les duels** : à chaque déploiement, Coolify démarre le nouveau conteneur (mise à jour progressive grâce au healthcheck sur `/`), puis envoie SIGTERM à l'ancien. Celui-ci refuse les nouveaux duels, affiche un bandeau et s'arrête dès que les duels en cours sont finis, au plus tard après `SHUTDOWN_MINUTES` (15 par défaut, duels restants interrompus sans victoire ni défaite). Docker le tue au bout de 30 s par défaut : régler **Advanced > Operations > Stop grace period** à `960` secondes (Coolify 4.1 ou plus récent, maximum 3600).
 - **Supabase Auth** : ajouter `https://yugioh.nbrcs.pro` aux URL de redirection autorisées (lien de confirmation d'email).
 
+## Tests et déploiement par GitHub Actions
+
+`.github/workflows/ci.yml` lance typecheck, tests, tests base (Docker), tests e2e et `docker build` à chaque push et pull request vers `main`. Sur `main` seulement, et seulement si tout est vert, un dernier job appelle l'API de déploiement de Coolify (`POST /api/v1/deploy?uuid=…`). Sans les secrets ci-dessous, ce job ne fait rien. À faire une fois :
+
+1. Coolify > Keys & Tokens > API tokens : créer un jeton avec la permission **deploy** seulement.
+2. GitHub > Settings > Secrets and variables > Actions : ajouter `COOLIFY_URL` (adresse du Coolify, sans `/api`), `COOLIFY_APP_UUID` (uuid de l'application yugioh : `zggduowuiuuoernjlfqv0lfv`) et `COOLIFY_TOKEN` (le jeton).
+3. Coolify > application > Advanced : désactiver **Auto Deploy** (sinon chaque push déploie sans attendre les tests).
+
 ## Base de données : tunnel WireGuard
 
 Supabase tourne sur le serveur Coolify `localhost` (93.127.158.88), le jeu sur `pulseheberg-applications` (93.127.158.53). Postgres n'est jamais publié sur une IP publique :

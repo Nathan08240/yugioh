@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      # La version de pnpm vient du champ packageManager de package.json.
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # Données du moteur (ignorées par git) : clones superficiels, mis en cache.
+      - uses: actions/cache@v6
+        with:
+          path: server/vendor
+          key: vendor-${{ hashFiles('server/scripts/vendor.ts') }}
+      - run: pnpm vendor
+      - run: pnpm typecheck
+      - run: pnpm test
+      # Postgres jetable lancé par les tests eux-mêmes via Docker.
+      - run: pnpm test:db
+      # Microsoft Edge est préinstallé sur ubuntu-latest (channel msedge).
+      - run: pnpm test:e2e
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: playwright-results
+          path: client/test-results/
+          if-no-files-found: ignore
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: docker build --build-arg VITE_SUPABASE_URL=http://supabase.invalid --build-arg VITE_SUPABASE_ANON_KEY=ci -t yugioh .
+
+  deploy:
+    needs: [test, docker]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    env:
+      COOLIFY_URL: ${{ secrets.COOLIFY_URL }}
+      COOLIFY_APP_UUID: ${{ secrets.COOLIFY_APP_UUID }}
+      COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+    steps:
+      - name: Déclencher le déploiement Coolify
+        run: |
+          if [ -z "$COOLIFY_URL" ] || [ -z "$COOLIFY_APP_UUID" ] || [ -z "$COOLIFY_TOKEN" ]; then
+            echo "Secrets Coolify absents : déploiement ignoré."
+            exit 0
+          fi
+          curl --fail-with-body -sS -X POST -H "Authorization: Bearer $COOLIFY_TOKEN" \
+            "${COOLIFY_URL%/}/api/v1/deploy?uuid=$COOLIFY_APP_UUID"
