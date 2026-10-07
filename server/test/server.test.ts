@@ -1,11 +1,16 @@
 import { once } from "node:events";
+import { mkdtempSync, rmSync, statSync } from "node:fs";
 import type { AddressInfo } from "node:net";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { OcgMessageType, OcgProcessResult, OcgResponseType, SelectIdleCMDAction, type OcgMessage, type OcgResponse } from "@n1xx1/ocgcore-wasm";
 import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
+import sharp from "sharp";
 import { WebSocket } from "ws";
 import type { Bot } from "../src/bot.ts";
 import { KAIBA, YUGI } from "../src/decks.ts";
 import { EMOTE_DELAY } from "../src/emotes.ts";
+import { artFile } from "../src/http.ts";
 import { POOL, SETS } from "../src/pool.ts";
 import { elo } from "../src/ranked.ts";
 import type { CardInfo, ClientMessage, ServerMessage, Wire, WonderView } from "../src/protocol.ts";
@@ -147,10 +152,16 @@ const accounts: Accounts = {
 };
 // "admin" peut s'ajouter des boosters.
 process.env.ADMIN_USER_IDS = "admin, autreadmin";
+// Thumbnails go to a throwaway folder, never next to the real artworks.
+const thumbsDir = mkdtempSync(join(tmpdir(), "vignettes-"));
+process.env.ART_THUMBS_DIR = thumbsDir;
 const wss = startServer(0, accounts, () => [1n, 2n, 3n, 4n]);
 await once(wss, "listening");
 const url = `ws://localhost:${(wss.address() as AddressInfo).port}`;
-afterAll(() => wss.close());
+afterAll(() => {
+  wss.close();
+  rmSync(thumbsDir, { recursive: true, force: true });
+});
 
 // A client logged in as `user` (if any) that records everything and answers its questions with `answer`
 // (undefined keeps the question pending).
@@ -287,6 +298,22 @@ describe("serveur de partie", () => {
     expect((await fetch(`${http}/api/art/1.jpg`)).status).toBe(404);
     expect((await fetch(`${http}/api/art/..%2F..%2Fpackage.json`)).status).toBe(404);
     expect((await fetch(`${http}/api/images/46986414.jpg`)).status).toBe(404);
+  });
+
+  it("sert les vignettes WebP des illustrations, en cache immuable, pour les largeurs prévues seulement", async () => {
+    const http = url.replace("ws:", "http:");
+    for (const width of [160, 320]) {
+      const thumb = await fetch(`${http}/api/art/46986414-${width}.webp`);
+      expect(thumb.status).toBe(200);
+      expect(thumb.headers.get("content-type")).toBe("image/webp");
+      expect(thumb.headers.get("cache-control")).toContain("immutable");
+      const bytes = Buffer.from(await thumb.arrayBuffer());
+      expect((await sharp(bytes).metadata()).width).toBe(width);
+      expect(bytes.byteLength).toBeLessThan(statSync(artFile(46986414)).size);
+    }
+    expect((await fetch(`${http}/api/art/46986414-200.webp`)).status).toBe(404);
+    expect((await fetch(`${http}/api/art/14558127-160.webp`)).status).toBe(404);
+    expect((await fetch(`${http}/api/art/..%2F46986414-160.webp`)).status).toBe(404);
   });
 
   it("sert les cartes de chaque set, une fois par passcode", async () => {

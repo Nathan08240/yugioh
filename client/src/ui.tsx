@@ -1,4 +1,5 @@
 import type { Rewards as Earned } from "../../server/src/protocol.ts";
+import { thumbSmall } from "./art.ts";
 import { CardView } from "./Card.tsx";
 import { cardName, ICONS, isDivine, rarityKey, rarityLabel, useDuelView } from "./cards.ts";
 import { bestRarity, type Copies } from "./collection.ts";
@@ -101,7 +102,7 @@ export function Avatar({ name, code, className = "" }: Readonly<{ name: string; 
   const art = code !== undefined && cards.get(code)?.image;
   return (
     <span className={`avatar ${className}`.trim()} aria-hidden="true">
-      {art ? <img className="avatar__art" src={`/api/art/${code}.jpg`} alt="" /> : name.charAt(0).toUpperCase()}
+      {art ? <img className="avatar__art" src={thumbSmall(code)} alt="" /> : name.charAt(0).toUpperCase()}
     </span>
   );
 }

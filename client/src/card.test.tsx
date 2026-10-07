@@ -35,9 +35,10 @@ const render = (element: ReactElement) => renderToStaticMarkup(<DuelView value={
 it("dessine la carte compacte : cadre du type, gemme d'attribut, niveau, nom et stats, illustration", () => {
   const compact = render(<CardView code={46986414} />);
   expect(compact).toContain('class="carte t-normal a-tenebres"');
-  for (const text of ["Magicien Sombre", "Magicien / Normal", "icons.svg#attr-tenebres", 'aria-label="Niveau 7"', "ATK<b>2500</b>", "DEF<b>2100</b>", 'src="/api/art/46986414.jpg"']) {
+  for (const text of ["Magicien Sombre", "Magicien / Normal", "icons.svg#attr-tenebres", 'aria-label="Niveau 7"', "ATK<b>2500</b>", "DEF<b>2100</b>", 'src="/api/art/46986414-320.webp"', "/api/art/46986414-160.webp 160w"]) {
     expect(compact).toContain(text);
   }
+  expect(compact).not.toContain("46986414.jpg");
   expect(compact).not.toContain("Mage suprême");
 });
 
@@ -60,6 +61,7 @@ it("montre dans la fiche les stats courantes avec leur couleur, et l'imprimé en
 it("ajoute le texte dans la version complète, en italique pour un monstre normal", () => {
   const full = render(<CardView code={46986414} full />);
   expect(full).toMatch(/^<article class="detail"><div class="carte /);
+  expect(full).toContain('src="/api/art/46986414.jpg"');
   for (const text of ["<h3>Magicien Sombre</h3>", "TÉNÈBRES · Niveau 7 · Magicien / Normal", 'class="detail__desc saveur"', "Mage suprême"]) {
     expect(full).toContain(text);
   }

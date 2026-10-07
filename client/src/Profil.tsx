@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ClientMessage, DeckResult, DuelMode, HistoryMode, ReplaySummary, StoryArcView } from "../../server/src/protocol.ts";
+import { thumbSmall } from "./art.ts";
 import { CardView } from "./Card.tsx";
 import { cardName, useDuelView } from "./cards.ts";
 import { filterCollection, noFilters, ownedCodes, setProgress, type Kind } from "./collection.ts";
@@ -150,7 +151,7 @@ function Selecteur({ title, collection, kind, artOnly, pick, close }: Readonly<P
         {list.map(([code]) => (
           <li key={code}>
             <button type="button" title={cardName(cards, code)} aria-label={cardName(cards, code)} onClick={() => pick(code)}>
-              {cards.get(code)?.image ? <img src={`/api/art/${code}.jpg`} alt="" loading="lazy" decoding="async" /> : <span>{cardName(cards, code)}</span>}
+              {cards.get(code)?.image ? <img src={thumbSmall(code)} alt="" loading="lazy" decoding="async" /> : <span>{cardName(cards, code)}</span>}
             </button>
           </li>
         ))}

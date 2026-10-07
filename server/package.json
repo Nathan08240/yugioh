@@ -29,6 +29,7 @@
   "dependencies": {
     "@n1xx1/ocgcore-wasm": "jsr:^0.1.4",
     "postgres": "^3.4.9",
+    "sharp": "^0.35.5",
     "ws": "^8.22.0"
   }
 }

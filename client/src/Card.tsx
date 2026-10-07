@@ -1,6 +1,7 @@
 import { OcgLocation, OcgPosition, OcgType } from "@n1xx1/ocgcore-wasm";
 import { memo, type PointerEvent } from "react";
 import type { CardInfo } from "../../server/src/protocol.ts";
+import { thumbSet } from "./art.ts";
 import { attributeKey, frame, has, ICONS, rarityKey, rarityLabel, stat, statChange, useDuelView } from "./cards.ts";
 import { bestRarity, type Copies } from "./collection.ts";
 import { prefersReduced } from "./motion.ts";
@@ -56,7 +57,7 @@ function Carte({ code, position = 0, location = 0, full = false, rarity, classNa
         </svg>
         {info?.image && (
           <img
-            src={`/api/art/${code}.jpg`}
+            {...(full ? { src: `/api/art/${code}.jpg` } : thumbSet(code))}
             alt=""
             loading="lazy"
             decoding="async"

@@ -47,7 +47,7 @@ it("affiche le bilan total et par mode, avec le bot par niveau", () => {
 
 it("montre l'illustration de l'avatar et la carte favorite, sinon l'initiale et une invitation", () => {
   const html = render(state);
-  expect(html).toContain('src="/api/art/100.jpg"');
+  expect(html).toContain('src="/api/art/100-160.webp"');
   expect(html).toContain("Dragon Blanc");
   const bare = render({ ...state, profile: { avatar: null, favorite: null }, collection: undefined, results: undefined });
   expect(bare).toContain(">Y</span>");
