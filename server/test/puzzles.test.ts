@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { Bot } from "../src/bot.ts";
 import { lpOf, runDuel, type Player } from "../src/duel.ts";
+import { PUZZLE_DIFFICULTIES } from "../src/protocol.ts";
 import { PUZZLE_TURNS, PUZZLES, puzzleField, puzzleRules, validatePuzzles, type Puzzle } from "../src/puzzles.ts";
-import { ACTIONS, pass, solver } from "./solver.ts";
+import { ACTIONS, pass, rush, solver } from "./solver.ts";
 
 // Against the Normal bot, as on the server.
 function solve(puzzle: Puzzle, player: Player) {
@@ -12,9 +13,10 @@ function solve(puzzle: Puzzle, player: Player) {
 }
 
 describe("puzzles", () => {
-  it("valident leurs données : 8 puzzles, cartes du pool, solutions aux actions connues", () => {
+  it("valident leurs données : 28 puzzles de trois niveaux, cartes du pool, solutions aux actions connues", () => {
     expect(validatePuzzles(PUZZLES)).toEqual([]);
-    expect(PUZZLES).toHaveLength(8);
+    expect(PUZZLES).toHaveLength(28);
+    expect(PUZZLE_DIFFICULTIES.map((level) => PUZZLES.filter((puzzle) => puzzle.difficulty === level).length)).toEqual([10, 10, 8]);
     for (const puzzle of PUZZLES) for (const [action] of puzzle.solution) expect(ACTIONS).toContain(action);
   });
 
@@ -46,5 +48,12 @@ describe("puzzles", () => {
     const state = await solve(puzzle, pass);
     expect(state.winner).toBeNull();
     expect(state.lp[1]).toBe(puzzle.opponent.lp);
+  });
+
+  // A puzzle won by the order of the attacks alone (no card played) is meant to be won by attacking.
+  const COMBAT = new Set(["battle", "attack", "select"]);
+  const playsCards = (puzzle: Puzzle) => puzzle.solution.some(([action]) => !COMBAT.has(action));
+  it.each(PUZZLES.filter(playsCards).map((puzzle) => [puzzle.id, puzzle] as const))("%s : attaquer sans rien jouer ne gagne pas", async (_id, puzzle) => {
+    expect((await solve(puzzle, rush)).winner).not.toBe(0);
   });
 });

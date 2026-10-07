@@ -6,11 +6,11 @@ import { readCard } from "./cards.ts";
 import type { Db } from "./db.ts";
 import type { Placed, Rules } from "./duel.ts";
 import { isAllowed } from "./pool.ts";
-import type { PuzzleView } from "./protocol.ts";
+import { PUZZLE_DIFFICULTIES, type PuzzleDifficulty, type PuzzleView } from "./protocol.ts";
 import { unlock } from "./story.ts";
 
 type MonsterPosition = "attack" | "defense" | "set";
-// One side of a puzzle. Monsters and set Spells or Traps fill their zones from 0, in order; `deck` lists its top card first.
+// One side of a puzzle. Monsters and set Spells or Traps fill their zones from 0, in order; `deck` lists its top card first, `extra` is its Extra Deck.
 export type PuzzleSide = {
   lp: number;
   hand?: number[];
@@ -18,11 +18,12 @@ export type PuzzleSide = {
   spells?: number[];
   grave?: number[];
   deck?: number[];
+  extra?: number[];
 };
 // A step of the solution: an action of the player and the passcodes it picks (0 for a card they cannot see), replayed by the tests.
 export type Step = [action: string, ...codes: number[]];
 // Format of data/puzzles.json: situations written by us, cards of the pool only, won in the player's first turn.
-export type Puzzle = { id: string; title: string; goal: string; player: PuzzleSide; opponent: PuzzleSide; solution: Step[] };
+export type Puzzle = { id: string; difficulty: PuzzleDifficulty; title: string; goal: string; player: PuzzleSide; opponent: PuzzleSide; solution: Step[] };
 // Both sides of a duel state set up by hand (a puzzle, the tutorial).
 type Sides = Pick<Puzzle, "player" | "opponent">;
 
@@ -56,7 +57,7 @@ export function checkSide(side: PuzzleSide, name: string): string[] {
   for (const [, position] of monsters) if (!POSITIONS.has(position)) errors.push(`${name} : position inconnue ${position}`);
   const cards: [number, string][] = [
     ...(side.hand ?? []).map((code) => [code, "main"] as [number, string]),
-    ...monsters.map(([code]) => [code, "monstres"] as [number, string]),
+    ...[...monsters.map(([code]) => code), ...(side.extra ?? [])].map((code) => [code, "monstres"] as [number, string]),
     ...spells.map((code) => [code, "magies"] as [number, string]),
     ...[...(side.grave ?? []), ...(side.deck ?? [])].map((code) => [code, "pile"] as [number, string]),
   ];
@@ -71,6 +72,7 @@ export function validatePuzzles(puzzles: Puzzle[]): string[] {
   for (const puzzle of puzzles) {
     const problems = [...checkSide(puzzle.player, "joueur"), ...checkSide(puzzle.opponent, "adversaire")];
     for (const text of [puzzle.title, puzzle.goal]) if (typeof text !== "string" || !text.trim() || text.length > MAX_TEXT) problems.push(`texte vide ou de plus de ${MAX_TEXT} caractères`);
+    if (!PUZZLE_DIFFICULTIES.includes(puzzle.difficulty)) problems.push(`difficulté inconnue ${puzzle.difficulty}`);
     if (puzzle.solution.length === 0) problems.push("solution absente");
     errors.push(...problems.map((problem) => `${puzzle.id} : ${problem}`));
   }
@@ -95,12 +97,13 @@ function sideField(side: PuzzleSide, controller: 0 | 1): Placed[] {
     ...(side.grave ?? []).map(at(OcgLocation.GRAVE, OcgPosition.FACEUP_ATTACK)),
     // Each card goes on top of the deck: the last one placed is the first listed.
     ...(side.deck ?? []).toReversed().map((code) => at(OcgLocation.DECK, OcgPosition.FACEDOWN_DEFENSE)(code, 0)),
+    ...(side.extra ?? []).map((code) => at(OcgLocation.EXTRA, OcgPosition.FACEDOWN_DEFENSE)(code, 0)),
   ];
 }
 
 export const puzzleField = (puzzle: Sides): Placed[] => [...sideField(puzzle.player, 0), ...sideField(puzzle.opponent, 1)];
 
-export const puzzleView = (done: ReadonlySet<string>): PuzzleView[] => PUZZLES.map(({ id, title, goal }) => ({ id, title, goal, done: done.has(id) }));
+export const puzzleView = (done: ReadonlySet<string>): PuzzleView[] => PUZZLES.map(({ id, title, goal, difficulty }) => ({ id, title, goal, difficulty, done: done.has(id) }));
 
 const UNLOCK = "puzzle:";
 

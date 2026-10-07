@@ -98,7 +98,7 @@ describe("puzzles sur le serveur", () => {
     const list = client.received.at(-1) as Extract<Received, { type: "puzzles" }>;
     expect(list.puzzles).toHaveLength(PUZZLES.length);
     expect(list.puzzles.filter((view) => view.done).map((view) => view.id)).toEqual(["grand-final"]);
-    expect(list.puzzles[0]).toEqual({ id: PUZZLES[0].id, title: PUZZLES[0].title, goal: PUZZLES[0].goal, done: false });
+    expect(list.puzzles[0]).toEqual({ id: PUZZLES[0].id, title: PUZZLES[0].title, goal: PUZZLES[0].goal, difficulty: PUZZLES[0].difficulty, done: false });
     client.socket.close();
   });
 
