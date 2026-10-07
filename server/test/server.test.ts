@@ -814,10 +814,13 @@ describe("revanche", () => {
     await vi.waitFor(() => expect(joins(b)).toHaveLength(first[1] + 1));
     expect(joins(a).at(-1)).toMatchObject({ room: joined(a.received)?.room, seat: 0, decks: [40, 45], log: [] });
     expect(joins(b).at(-1)).toMatchObject({ seat: 1, decks: [40, 45], log: [] });
+    // The surrender can come before the new duel is open: the players' automatic answers then finish it, so its winner varies.
     a.send({ type: "surrender" });
-    await vi.waitFor(() => expect(a.messages().filter((msg) => msg.type === OcgMessageType.WIN)).toHaveLength(2));
+    const wins = () => a.messages().filter((msg) => msg.type === OcgMessageType.WIN);
+    await vi.waitFor(() => expect(wins()).toHaveLength(2), { timeout: 20_000 });
+    const second = wins()[1] as unknown as { player: number };
     const rewards = vi.mocked(accounts.creditBoosters).mock.calls.filter(([id]) => id.startsWith("rev-"));
-    expect(rewards).toEqual([["rev-b", 1], ["rev-b", 1]]);
+    expect(rewards).toEqual([["rev-b", 1], [second.player === 0 ? "rev-a" : "rev-b", 1]]);
   });
 
   it("en ligne, un refus ou un départ donne « revanche refusée » et aucun nouveau duel", { timeout: 30_000 }, async () => {
