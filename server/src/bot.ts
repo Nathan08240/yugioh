@@ -186,6 +186,9 @@ export class Bot {
         return { type: OcgResponseType.SELECT_CARD, indicies: target === undefined ? this.best(q.selects, Math.max(q.min, 1)) : [attackTarget(q, target)] };
       case OcgMessageType.SELECT_UNSELECT_CARD:
         return { type: OcgResponseType.SELECT_UNSELECT_CARD, index: this.unselect(q) };
+      // A trigger that sets up its own cost again and again (two Manticore of Darkness) never ends: stop after MAX_ACTIVATIONS in a turn.
+      case OcgMessageType.SELECT_EFFECTYN:
+        return { type: OcgResponseType.SELECT_EFFECTYN, yes: this.activations++ < MAX_ACTIVATIONS };
       case OcgMessageType.SELECT_TRIBUTE:
         return { type: OcgResponseType.SELECT_TRIBUTE, indicies: cheapestTributes(q) };
       case OcgMessageType.SELECT_POSITION:
@@ -312,7 +315,9 @@ export class Bot {
   }
 
   private battle(q: OcgMessageSelectBattleCMD): OcgResponse {
-    const plan = this.attackPlan(q.attacks);
+    // A monster that must attack (Berserk Gorilla) leaves neither Main Phase 2 nor the End Phase: attack with the first one.
+    const forced = q.to_m2 || q.to_ep || q.attacks.length === 0 ? undefined : { index: 0, target: null };
+    const plan = this.attackPlan(q.attacks) ?? forced;
     if (plan) {
       this.target = plan.target;
       return { type: OcgResponseType.SELECT_BATTLECMD, action: SelectBattleCMDAction.SELECT_BATTLE, index: plan.index };
