@@ -12,6 +12,8 @@ const dist = join(root, "dist");
 mkdirSync(join(dist, "assets"), { recursive: true });
 writeFileSync(join(dist, "index.html"), "<html>index</html>");
 writeFileSync(join(dist, "assets", "app.js"), "console.log(1)");
+writeFileSync(join(dist, "sw.js"), "self");
+writeFileSync(join(dist, "manifest.webmanifest"), "{}");
 writeFileSync(join(root, "secret.txt"), "secret");
 
 const server = createServer((req, res) => {
@@ -29,6 +31,12 @@ describe("serveClient", () => {
     const res = await fetch(`${base}/assets/app.js`);
     expect(res.headers.get("content-type")).toBe("text/javascript");
     expect(await res.text()).toBe("console.log(1)");
+  });
+
+  it("ne garde en cache longtemps que les fichiers hachés : le service worker et le manifeste sont revalidés", async () => {
+    expect((await fetch(`${base}/assets/app.js`)).headers.get("cache-control")).toBe("max-age=31536000, immutable");
+    for (const path of ["/sw.js", "/manifest.webmanifest", "/"]) expect((await fetch(`${base}${path}`)).headers.get("cache-control")).toBe("no-cache");
+    expect((await fetch(`${base}/manifest.webmanifest`)).headers.get("content-type")).toBe("application/manifest+json");
   });
 
   it("renvoie index.html pour les routes du client", async () => {

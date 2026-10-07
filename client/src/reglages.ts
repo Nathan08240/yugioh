@@ -8,11 +8,11 @@ export type Son = "actif" | "coupe";
 // Auto asks to chain only when a card can answer; Jamais passes every optional chain prompt.
 export type Chaines = "auto" | "jamais";
 // `volume`: 0 to 100.
-export type Reglages = { vitesse: Vitesse; mouvement: Mouvement; qualite: Qualite; son: Son; chaines: Chaines; emotes: "oui" | "non"; volume: number };
+export type Reglages = { vitesse: Vitesse; mouvement: Mouvement; qualite: Qualite; son: Son; chaines: Chaines; emotes: "oui" | "non"; notifications: "oui" | "non"; volume: number };
 // The settings picked among a few values (the volume is a number).
 export type Choisi = Exclude<keyof Reglages, "volume">;
 
-export const DEFAUTS: Reglages = { vitesse: "normale", mouvement: "auto", qualite: "haute", son: "actif", chaines: "auto", emotes: "oui", volume: 60 };
+export const DEFAUTS: Reglages = { vitesse: "normale", mouvement: "auto", qualite: "haute", son: "actif", chaines: "auto", emotes: "oui", notifications: "non", volume: 60 };
 const VALEURS: { [K in Choisi]: readonly Reglages[K][] } = {
   vitesse: ["normale", "rapide", "instantanee"],
   mouvement: ["auto", "toujours", "jamais"],
@@ -20,6 +20,7 @@ const VALEURS: { [K in Choisi]: readonly Reglages[K][] } = {
   son: ["actif", "coupe"],
   chaines: ["auto", "jamais"],
   emotes: ["oui", "non"],
+  notifications: ["oui", "non"],
 };
 // Divisor of the animation durations; Infinity plays everything at once.
 export const FACTEUR: Record<Vitesse, number> = { normale: 1, rapide: 2, instantanee: Infinity };
@@ -46,6 +47,7 @@ export function lire(): Reglages {
     son: valide("son", saisi.son),
     chaines: valide("chaines", saisi.chaines),
     emotes: valide("emotes", saisi.emotes),
+    notifications: valide("notifications", saisi.notifications),
     volume: volume(saisi.volume),
   };
 }
