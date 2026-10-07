@@ -5,7 +5,6 @@ import { createServer } from "node:http";
 import { join } from "node:path";
 import { WebSocketServer, type WebSocket } from "ws";
 import { dbAccounts, type Accounts } from "./accounts.ts";
-import { WIN_BOOSTER_REWARD } from "./boosters.ts";
 import { Bot } from "./bot.ts";
 import { deckReply, isDeckMessage, poolCard, type DeckMessage } from "./collection.ts";
 import { ROOM_LIMITS, roomRules } from "./custom.ts";
@@ -20,7 +19,7 @@ import { friendHub, isFriendMessage } from "./friends.ts";
 import { historyEntry, replayAllowed, replayMessage, REPLAYS_LIMITED } from "./history.ts";
 import { artFile, SERVED, serveHttp } from "./http.ts";
 import { GOAT } from "./limits.ts";
-import { duelGains, fusionOnField, newTally, type MissionProgress } from "./missions.ts";
+import type { MissionProgress } from "./missions.ts";
 import { isAllowed } from "./pool.ts";
 import { isProfileMessage, profileReply, type ProfileMessage } from "./profile.ts";
 import { REPORT_MAX, SPECTATORS_MAX, type BotLevel, type ClientMessage, type RevengeResult, type RoomOptions, type Seat, type ServerMessage, type StoryLevel, type StoryResult } from "./protocol.ts";
@@ -28,51 +27,19 @@ import { PUZZLE_IDS, PUZZLE_TURNS, puzzleField, puzzleRules, puzzleView } from "
 import { pairUp, type Waiting } from "./ranked.ts";
 import { REPORT_BYTES } from "./report.ts";
 import { draftReply, isDraftMessage, type DraftMessage } from "./draft.ts";
-import {
-  advance,
-  ANSWERS,
-  answer,
-  ask,
-  away,
-  back,
-  CONNECTION_LOST,
-  DECISION_TIME,
-  deckSizes,
-  declineRematch,
-  emote,
-  endDuel,
-  extraSizes,
-  fail,
-  finish,
-  newCode,
-  online,
-  randomSeed,
-  RECONNECT_TIME,
-  rematchMessage,
-  reportOf,
-  rulesOf,
-  sendAll,
-  sendJoined,
-  sendSpectators,
-  sendWatching,
-  start,
-  surrender,
-  SURRENDER,
-  TIME_LIMIT,
-  type Player,
-  type Room,
-} from "./room.ts";
+import { creditWinner, missionProgress, towerFloor } from "./rewards.ts";
+import { advance, ANSWERS, answer, ask, away, back, CONNECTION_LOST, DECISION_TIME, deckSizes, declineRematch, emote, endDuel, extraSizes, fail, finish, newCode, online, randomSeed, RECONNECT_TIME, rematchMessage, reportOf, rulesOf, sendAll, sendJoined, sendSpectators, sendWatching, start, surrender, type Player, type Room } from "./room.ts";
 import { botDeck, isSealedMessage, sealedReply, type SealedMessage } from "./sealed.ts";
 import type { Starter } from "./starter.ts";
 import { isUnlocked, playerDeck, STORY, STORY_DUELS, STORY_REVENGES, storyDeck, storyExtra, storyRules, storyStars, storyView, type StoryDuel } from "./story.ts";
-import { TOWER, towerLevel, towerRules } from "./tower.ts";
+import { TOWER } from "./tower.ts";
 import { isTradeMessage, tradeReply } from "./trade.ts";
 import { TUTORIAL_FIELD, TUTORIAL_RULES } from "./tutorial.ts";
 import { isWishMessage, wishReply, type WishMessage } from "./wishlist.ts";
 import { isWonderMessage, wonderReply, type WonderMessage } from "./wonder.ts";
 import { parse, send } from "./wire.ts";
 
-export { advance, ANSWERS, dbAccounts, DECISION_TIME, randomSeed, RECONNECT_TIME, type Accounts, type Room };
+export { advance, ANSWERS, creditWinner, dbAccounts, DECISION_TIME, missionProgress, randomSeed, RECONNECT_TIME, towerFloor, type Accounts, type Room };
 
 const PSEUDO = /^[A-Za-z0-9_-]{3,20}$/;
 // An empty room is kept this long so a player can come back to it.
@@ -85,62 +52,6 @@ const BOT_GREETING_DELAY = 1500;
 // Comma-separated Supabase user ids allowed to use the admin commands.
 const adminIds = (value = "") => new Set(value.split(",").map((id) => id.trim()).filter(Boolean));
 const dailyFlag = (daily: boolean) => (daily ? { daily: true as const } : {});
-
-// Credits the winner of an online duel between two players with a booster; a duel against the bot earns nothing.
-export function creditWinner(room: Room, seat: Seat, accounts: Pick<Accounts, "creditBoosters">) {
-  const winnerId = room.players[seat]?.id;
-  if (winnerId && !room.players.some((player) => player.bot)) {
-    accounts.creditBoosters(winnerId, WIN_BOOSTER_REWARD).catch((error: unknown) => console.error(error));
-  }
-}
-
-const FORFEITS: ReadonlySet<number> = new Set([SURRENDER, TIME_LIMIT, CONNECTION_LOST]);
-
-// What a finished duel brings to the missions of `seat`, while the duel is still open. An online duel outside ranked and
-// events counts once a day per opponent.
-export function missionProgress(room: Room, seat: Seat, winner: Seat, reason: number): MissionProgress {
-  const tally = room.tally ?? newTally();
-  const gains = duelGains({
-    won: seat === winner,
-    forfeit: FORFEITS.has(reason),
-    story: room.mode?.mode === "story",
-    ranked: room.ranked === true,
-    summons: tally.summons[seat],
-    damage: tally.damage[seat],
-    fusion: room.duel !== undefined && fusionOnField(room.duel, seat),
-  });
-  const casual = room.mode?.mode === "online" && !room.ranked && !room.event;
-  return casual ? { gains, opponent: room.players[1 - seat]?.id } : { gains };
-}
-
-// Tower mode: sets the room up for `floor`, with its opponent once the bot is seated. Only a win of seat 0 is recorded:
-// startTower already counted anything else as a loss.
-export function towerFloor(room: Room, floor: number, accounts: Pick<Accounts, "winTower">) {
-  const level = towerLevel(floor);
-  const tower: NonNullable<Room["tower"]> = { floor };
-  const opponent = TOWER[floor - 1];
-  room.rules = towerRules(floor);
-  room.level = level;
-  room.mode = { mode: "bot", level };
-  room.tower = tower;
-  const bot = room.players[1];
-  if (bot) {
-    bot.name = opponent.name;
-    bot.deck = opponent.main;
-    bot.extra = opponent.extra;
-  }
-  room.onWin = (winner) => {
-    const player = room.players[0];
-    if (winner !== 0 || !player) return;
-    tower.saved = accounts.winTower(player.id, floor).then(
-      (won) => send(room.players[0]?.socket, { type: "tower_won", ...won }),
-      (error: unknown) => {
-        console.error(error);
-        send(room.players[0]?.socket, { type: "error", error: "victoire non enregistrée, l'étage est à rejouer" });
-      },
-    );
-  };
-}
 
 // The custom rules of a room: its options and the duel rules built from them, nothing for a standard room.
 const customRoom = (options?: RoomOptions): Pick<Room, "options" | "rules"> => (options ? { options, rules: roomRules(options) } : {});
