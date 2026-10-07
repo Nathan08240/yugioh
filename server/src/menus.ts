@@ -30,7 +30,7 @@ export async function identify(conn: Connection, token: string): Promise<string 
   const user: User = { id, pseudo: profile?.pseudo, avatar: cards?.avatar ?? undefined };
   conn.user = user;
   if (user.pseudo) joinFriends(conn, user.id, user.pseudo);
-  send(conn.socket, { type: "profile", pseudo: user.pseudo ?? null, needsStarter: profile !== undefined && profile.activeDeckId === null, ...adminFlag(conn.lobby, id), ...dailyFlag(daily) });
+  send(conn.socket, { type: "profile", pseudo: user.pseudo ?? null, needsStarter: profile?.activeDeckId === null, ...adminFlag(conn.lobby, id), ...dailyFlag(daily) });
   return undefined;
 }
 

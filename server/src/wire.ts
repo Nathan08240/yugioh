@@ -74,13 +74,14 @@ const CHECKS: ReadonlyMap<unknown, Check> = new Map<ClientMessage["type"], Check
 ]);
 
 export function parse(data: string): ClientMessage | undefined {
-  let msg: Record<string, unknown>;
+  let parsed: unknown;
   try {
-    msg = JSON.parse(data);
+    parsed = JSON.parse(data);
   } catch {
     return undefined;
   }
-  if (typeof msg !== "object" || msg === null) return undefined;
+  if (typeof parsed !== "object" || parsed === null) return undefined;
+  const msg = parsed as Record<string, unknown>;
   const valid =
     (CHECKS.get(msg.type) ?? unknownType)(msg) ||
     validDeckMessage(msg) ||

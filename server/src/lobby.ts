@@ -91,8 +91,8 @@ export async function duelDeck(accounts: Accounts, userId: string, where?: strin
   const deck = await accounts.activeDeck(userId);
   if (!deck) return "deck actif requis";
   if (!validDeck(deck)) return "deck actif invalide";
-  const over = where && limitError([...deck.main, ...deck.extra], poolCard, GOAT, where);
-  return over || deck;
+  if (!where) return deck;
+  return limitError([...deck.main, ...deck.extra], poolCard, GOAT, where) ?? deck;
 }
 
 // Once per duel (the end of a duel is reported once): both ratings change, each player gets theirs.
