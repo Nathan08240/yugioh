@@ -26,7 +26,7 @@ test("l'admin lit les signalements, rejoue un duel de l'un des deux côtés, le 
 
   await ligne.getByRole("button", { name: "Revoir côté 2" }).click();
   await expect.poll(() => envoyes.find((msg) => msg.type === "admin_report_replay")).toEqual({ type: "admin_report_replay", id: 7, seat: 1 });
-  envoyer({ type: "replay", id: 7, seat: 1, lp: recorded.lp, decks: recorded.decks, extras: [0, 0], opponent: "Siège 1", self: "Siège 2", batches });
+  envoyer({ type: "replay", id: 7, seat: 1, lp: recorded.lp, decks: recorded.decks, extras: [0, 0], opponent: "Siège 1", self: "Siège 2", batches, emotes: [] });
   await expect(page.locator(".plaque--adverse")).toContainText("Siège 1");
   await expect(page.getByRole("button", { name: "Pause" })).toBeVisible();
   await page.getByRole("button", { name: "Quitter le rejeu" }).click();

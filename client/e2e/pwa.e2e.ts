@@ -26,9 +26,12 @@ test("hors connexion, un écran clair remplace la page blanche et le jeu revient
   await expect(page.getByRole("heading", { name: "Connexion nécessaire pour jouer" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Réessayer" })).toBeVisible();
 
+  // The offline screen reloads itself on "online", which the emulation does not always send in time: reload until the game is back.
   await context.setOffline(false);
-  await page.goto("/");
-  await expect(page.getByRole("navigation", { name: "Menu principal" })).toBeVisible();
+  await expect(async () => {
+    await page.reload().catch(() => undefined);
+    await expect(page.getByRole("navigation", { name: "Menu principal" })).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 15_000 });
 });
 
 test("les notifications ne sont demandées qu'au choix « Activées » dans les Paramètres", async ({ page, context }) => {

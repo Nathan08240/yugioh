@@ -1,8 +1,8 @@
 import { once } from "node:events";
-import { mkdtempSync, rmSync, statSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, statSync } from "node:fs";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { OcgMessageType, OcgProcessResult, OcgResponseType, SelectIdleCMDAction, type OcgMessage, type OcgResponse } from "@n1xx1/ocgcore-wasm";
 import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
 import sharp from "sharp";
@@ -157,12 +157,20 @@ process.env.ADMIN_USER_IDS = "admin, autreadmin";
 // Thumbnails go to a throwaway folder, never next to the real artworks.
 const thumbsDir = mkdtempSync(join(tmpdir(), "vignettes-"));
 process.env.ART_THUMBS_DIR = thumbsDir;
+// Artworks are downloaded apart (pnpm images), so absent on CI: a stand-in for the one read here, removed afterwards.
+const darkMagicianArt = artFile(46986414);
+const madeArt = !existsSync(darkMagicianArt);
+if (madeArt) {
+  mkdirSync(dirname(darkMagicianArt), { recursive: true });
+  await sharp({ create: { width: 624, height: 456, channels: 3, background: "#4b2a7a" } }).jpeg().toFile(darkMagicianArt);
+}
 const wss = startServer(0, accounts, () => [1n, 2n, 3n, 4n]);
 await once(wss, "listening");
 const url = `ws://localhost:${(wss.address() as AddressInfo).port}`;
 afterAll(() => {
   wss.close();
   rmSync(thumbsDir, { recursive: true, force: true });
+  if (madeArt) rmSync(darkMagicianArt);
 });
 
 // A client logged in as `user` (if any) that records everything and answers its questions with `answer`
