@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import type { AdminError, AdminReport, ClientMessage } from "../../server/src/protocol.ts";
+import type { AdminError, AdminReport, ClientMessage, PublicDeck } from "../../server/src/protocol.ts";
+import { Retirer } from "./DecksPublics.tsx";
 import type { LobbyState } from "./lobby.ts";
 import "./styles/admin.css";
 
@@ -98,17 +99,57 @@ export function Erreurs({ errors }: Readonly<{ errors?: AdminError[] }>) {
   );
 }
 
+// The published decks, newest first, each one withdrawable (the server lets an admin withdraw any of them).
+export function DecksPublicsAdmin({ decks, send }: Readonly<{ decks?: PublicDeck[]; send: Send }>) {
+  if (!decks) return <p className="texte-2">Chargement des decks publics…</p>;
+  if (decks.length === 0) return <p className="texte-2">Aucun deck public.</p>;
+  return (
+    <table className="admin__table">
+      <thead>
+        <tr>
+          <th scope="col">Date</th>
+          <th scope="col">Auteur</th>
+          <th scope="col">Deck</th>
+          <th scope="col">Copies</th>
+          <th scope="col">
+            <span className="sr">Actions</span>
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        {decks.map(({ code, name, description, author, date, copies }) => (
+          <tr key={code}>
+            <td>{DATE.format(new Date(date))}</td>
+            <td>{author}</td>
+            <td className="admin__message">
+              <b>{name}</b>
+              <br />
+              {description || "—"}
+            </td>
+            <td className="chiffres">{copies}</td>
+            <td>
+              <Retirer code={code} send={send} />
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
 // The admin page: the server answers only to the accounts it lists, whatever this screen shows.
 export function Admin({ state, send }: Readonly<{ state: LobbyState; send: Send }>) {
-  const [onglet, setOnglet] = useState<"signalements" | "erreurs">("signalements");
+  const [onglet, setOnglet] = useState<"signalements" | "erreurs" | "decks">("signalements");
   // Once per visit: `send` changes on every render of the lobby.
   useEffect(() => {
     send({ type: "admin_reports" });
     send({ type: "admin_errors" });
+    send({ type: "public_decks", sort: "recent" });
   }, []);
   const choix: [typeof onglet, string][] = [
     ["signalements", "Signalements"],
     ["erreurs", "Erreurs du navigateur"],
+    ["decks", "Decks publics"],
   ];
   return (
     <div className="admin">
@@ -124,7 +165,9 @@ export function Admin({ state, send }: Readonly<{ state: LobbyState; send: Send 
         ))}
       </div>
       <section className="panneau admin__bloc" data-entree>
-        {onglet === "signalements" ? <Signalements reports={state.adminReports} send={send} /> : <Erreurs errors={state.adminErrors} />}
+        {onglet === "signalements" && <Signalements reports={state.adminReports} send={send} />}
+        {onglet === "erreurs" && <Erreurs errors={state.adminErrors} />}
+        {onglet === "decks" && <DecksPublicsAdmin decks={state.publicDecks} send={send} />}
       </section>
     </div>
   );

@@ -8,6 +8,7 @@ import { EMOTE_IDS } from "./emotes.ts";
 import { validFriendMessage } from "./friends.ts";
 import { validProfileMessage } from "./profile.ts";
 import type { BotLevel, ClientMessage, ServerMessage, StoryLevel } from "./protocol.ts";
+import { validPublicDeckMessage } from "./public-decks.ts";
 import { validSealedMessage } from "./sealed.ts";
 import { validTradeMessage } from "./trade.ts";
 import { validWishMessage } from "./wishlist.ts";
@@ -98,6 +99,7 @@ export function parse(data: string): ClientMessage | undefined {
     validDraftMessage(msg) ||
     validFriendMessage(msg) ||
     validTradeMessage(msg) ||
-    validAdminMessage(msg);
+    validAdminMessage(msg) ||
+    validPublicDeckMessage(msg);
   return valid ? (msg as ClientMessage) : undefined;
 }

@@ -7,9 +7,10 @@ import { DuelView, useCards } from "./cards.ts";
 import { brancher, contexte } from "./erreurs.ts";
 import { Lecons } from "./Lecons.tsx";
 import { parcoursDeLecon } from "./lecons.ts";
-import { duelLabel, duelLp, duelSpecial, initialLobby, inviteFromUrl, reduce, type Action, type LobbyState } from "./lobby.ts";
+import { deckFromUrl, duelLabel, duelLp, duelSpecial, initialLobby, inviteFromUrl, reduce, type Action, type LobbyState } from "./lobby.ts";
 import { puzzleRule, Puzzles } from "./Puzzles.tsx";
 import { useNotifications } from "./notifications.ts";
+import { CodeDeck } from "./PartageDeck.tsx";
 import { BandeauMiseAJour } from "./Pwa.tsx";
 import { autoAnswer } from "./question.ts";
 import { reglages } from "./reglages.ts";
@@ -32,6 +33,7 @@ const ECRANS: Partial<Record<Page, () => Promise<unknown>>> = {
   draft: () => import("./Draft.tsx"),
   tutoriel: () => import("./Depart.tsx"),
   admin: () => import("./Admin.tsx"),
+  decks: () => import("./DecksPublics.tsx"),
 };
 const Classe = lazy(() => import("./Classe.tsx").then((m) => ({ default: m.Classe })));
 const Collection = lazy(() => import("./Collection.tsx").then((m) => ({ default: m.Collection })));
@@ -42,6 +44,7 @@ const Parametres = lazy(() => import("./Parametres.tsx").then((m) => ({ default:
 const Scelle = lazy(() => import("./Scelle.tsx").then((m) => ({ default: m.Scelle })));
 const Draft = lazy(() => import("./Draft.tsx").then((m) => ({ default: m.Draft })));
 const Admin = lazy(() => import("./Admin.tsx").then((m) => ({ default: m.Admin })));
+const DecksPublics = lazy(() => import("./DecksPublics.tsx").then((m) => ({ default: m.DecksPublics })));
 const PseudoForm = lazy(() => import("./Depart.tsx").then((m) => ({ default: m.PseudoForm })));
 const StarterChoice = lazy(() => import("./Depart.tsx").then((m) => ({ default: m.StarterChoice })));
 const OffreTutoriel = lazy(() => import("./Depart.tsx").then((m) => ({ default: m.OffreTutoriel })));
@@ -71,6 +74,8 @@ type Send = (msg: ClientMessage) => void;
 
 // Room of an invitation link (to play or to watch), kept until the player can join (after login, pseudo and starter).
 let invite = inviteFromUrl(location.href);
+// Deck of a sharing link (?deck=ABCD2345), opened on the public decks screen at the same moment.
+let sharedLink = deckFromUrl(location.href);
 
 // Messages that open a room outside the ranked queue.
 const NOT_RANKED: ReadonlySet<string> = new Set(["create", "join", "room_rules", "bot", "story_duel", "puzzle", "lesson", "tower_duel", "sealed_duel", "draft_duel", "challenge", "challenge_reply", "quick_queue"]);
@@ -128,6 +133,13 @@ export function Lobby() {
     // A room to play in shows its custom rules first (see room_rules).
     socket.current?.send(JSON.stringify(invite.type === "join" ? ({ type: "room_rules", room: invite.room } satisfies ClientMessage) : invite));
     invite = undefined;
+    history.replaceState(null, "", location.pathname);
+  }, [ready]);
+  useEffect(() => {
+    if (!ready || !sharedLink) return;
+    socket.current?.send(JSON.stringify({ type: "deck_view", code: sharedLink } satisfies ClientMessage));
+    sharedLink = undefined;
+    setPage("decks");
     history.replaceState(null, "", location.pathname);
   }, [ready]);
   // The avatar is shown on the plate of the duel, whatever screen the player came from. The trade offers are the baseline of the notifications.
@@ -226,11 +238,12 @@ export function Lobby() {
       <AlertesAmis state={state} send={send} />
       {!state.room && <BandeauMiseAJour />}
       <ApercuSalle preview={state.preview} send={send} close={() => dispatch({ type: "preview_close" })} />
+      <CodeDeck shared={state.deckCode} close={() => dispatch({ type: "deck_code_closed" })} />
       <Suspense fallback={CHARGEMENT}>
         {state.replay && !state.room ? (
           <Revoir key={state.replay.id} replay={state.replay} pseudo={state.replay.self ?? state.pseudo ?? undefined} avatar={state.replay.self ? undefined : (state.profile?.avatar ?? undefined)} leave={() => dispatch({ type: "replay_closed" })} />
         ) : (
-          <Screen state={state} page={shown} send={send} reconnect={reconnect} leave={leave} respond={respond} go={go} vsBot={vsBot.current} ranked={ranked.current} storyDuel={storyDuel.current} easy={storyEasy.current} puzzle={puzzle} lecon={lecon} sealedDuel={sealedDuel.current} draftDuel={draftDuel.current} tutorial={tutorial.current} />
+          <Screen state={state} page={shown} send={send} reconnect={reconnect} leave={leave} respond={respond} go={go} closeDeck={() => dispatch({ type: "deck_view_closed" })} vsBot={vsBot.current} ranked={ranked.current} storyDuel={storyDuel.current} easy={storyEasy.current} puzzle={puzzle} lecon={lecon} sealedDuel={sealedDuel.current} draftDuel={draftDuel.current} tutorial={tutorial.current} />
         )}
       </Suspense>
     </DuelView>
@@ -245,6 +258,7 @@ type ScreenProps = {
   leave: () => void;
   respond: (response: OcgResponse) => void;
   go: (page: Page) => void;
+  closeDeck: () => void;
   vsBot: boolean;
   ranked: boolean;
   storyDuel?: string;
@@ -266,7 +280,7 @@ function parcoursGuide(tutorial: boolean, lecon?: LessonView): Parcours | undefi
   return tutorial ? TUTORIEL : undefined;
 }
 
-function Screen({ state, page, send, reconnect, leave, respond, go, vsBot, ranked, storyDuel, easy, puzzle, lecon, sealedDuel, draftDuel, tutorial }: Readonly<ScreenProps>) {
+function Screen({ state, page, send, reconnect, leave, respond, go, closeDeck, vsBot, ranked, storyDuel, easy, puzzle, lecon, sealedDuel, draftDuel, tutorial }: Readonly<ScreenProps>) {
   if (state.closed) {
     return (
       <Shell id="perdu">
@@ -336,6 +350,7 @@ function Screen({ state, page, send, reconnect, leave, respond, go, vsBot, ranke
       {page === "accueil" && <Accueil state={state} send={send} go={go} />}
       {page === "classe" && <Classe state={state} send={send} go={go} />}
       {page === "collection" && <Collection collection={state.collection} rarities={state.rarities} decks={state.decks} results={state.results} wishlist={state.wishlist} points={state.points} conversion={state.conversion} send={send} />}
+      {page === "decks" && <DecksPublics state={state} send={send} close={closeDeck} />}
       {page === "boosters" && <Boosters state={state} send={send} go={go} />}
       {page === "histoire" && <Story arcs={state.story} send={send} />}
       {page === "puzzles" && <Puzzles puzzles={state.puzzles} send={send} />}

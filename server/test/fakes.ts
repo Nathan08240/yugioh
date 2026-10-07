@@ -3,6 +3,7 @@ import { GOAT } from "../src/limits.ts";
 import type { AdminStore } from "../src/admin.ts";
 import type { DraftStore } from "../src/draft.ts";
 import type { MissionStore } from "../src/missions.ts";
+import type { PublicDeckStore } from "../src/public-decks.ts";
 import type { SealedStore } from "../src/sealed.ts";
 import type { Accounts } from "../src/server.ts";
 import type { TradeStore } from "../src/trade.ts";
@@ -47,6 +48,16 @@ export const noAdmin: AdminStore = {
   markReport: async () => false,
   saveClientError: async () => {},
   clientErrors: async () => [],
+};
+
+// No shared nor published deck.
+export const noPublicDecks: PublicDeckStore = {
+  shareDeck: async () => ({ error: "deck introuvable" }),
+  publishDeck: async () => ({ error: "deck introuvable" }),
+  sharedDeck: async () => undefined,
+  copySharedDeck: async () => ({ error: "deck introuvable" }),
+  publicDecks: async () => [],
+  removePublicDeck: async () => false,
 };
 
 // A player without any trade offer nor friend to trade with.
@@ -113,6 +124,7 @@ export function fakeAccounts(overrides: Partial<Accounts> = {}): Accounts {
     ...noDraft,
     ...noMissions,
     ...noAdmin,
+    ...noPublicDecks,
     friendList: async () => [],
     requestFriend: async () => "joueur introuvable",
     acceptFriend: async () => undefined,

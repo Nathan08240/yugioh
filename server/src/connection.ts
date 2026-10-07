@@ -24,7 +24,7 @@ function handle(conn: Connection, msg: ClientMessage): Reply {
   if (!user) return "non authentifié";
   if (msg.type === "pseudo") return choosePseudo(conn, user, msg.pseudo);
   if (!user.pseudo) return "pseudo à choisir d'abord";
-  const stored = storeReply(lobby.accounts, user.id, msg);
+  const stored = storeReply(lobby.accounts, user.id, msg, lobby.admins.has(user.id));
   if (stored) return sendReply(socket, stored);
   if (msg.type === "client_error") return reportClientError(conn, user.id, msg);
   if (isAdminMessage(msg)) return adminReply(conn, user, msg);

@@ -69,6 +69,17 @@ export type ClientMessage =
   | { type: "save_deck"; deck: DeckDraft }
   | { type: "delete_deck"; id: number }
   | { type: "active_deck"; id: number }
+  // Shared and public decks (public-decks.ts). `deck_share` gives a code for a saved deck, `deck_publish` publishes one under a name and
+  // a description (both answered with `deck_shared`, PUBLIC_DECKS_MAX published per player). `deck_view` reads the deck of a code, answered
+  // with `shared_deck`; `deck_copy` saves it in the player's decks without the cards they lack, answered with `deck_copied`.
+  // `public_decks` lists the published decks (the most copied first without `sort`), answered with `public_decks`; `deck_unpublish`
+  // withdraws one (its author, or an admin), answered with `public_deck_removed`.
+  | { type: "deck_share"; id: number }
+  | { type: "deck_publish"; id: number; name: string; description: string }
+  | { type: "deck_view"; code: string }
+  | { type: "deck_copy"; code: string }
+  | { type: "public_decks"; sort?: PublicSort; goat?: boolean; card?: number }
+  | { type: "deck_unpublish"; code: string }
   // Wishlist (wishlist.ts): each message is answered with `wishlist`. `wish_add` fails for a card out of the pool or past WISH_MAX.
   | { type: "wishlist" }
   | { type: "wish_add"; code: number }
@@ -183,6 +194,18 @@ export type DeckResult = { deck: number | null; mode: DuelMode; level?: string; 
 
 export type Deck = { id: number; name: string; main: number[]; extra: number[] };
 
+// Published decks per player, longest description, shared codes kept per player (the oldest go first), published decks listed.
+export const PUBLIC_DECKS_MAX = 10;
+export const DESCRIPTION_MAX = 200;
+export const SHARES_MAX = 50;
+export const PUBLIC_LISTED = 50;
+export type PublicSort = "copies" | "recent";
+// A deck of a code: `description` is empty for a deck shared without being published, `copies` counts the players who copied a
+// published one, `goat` whether it follows the Goat list, `mine` whether the viewer is its author.
+type SharedInfo = { code: string; name: string; description: string; author: string; date: string; copies: number; goat: boolean; mine: boolean };
+export type PublicDeck = SharedInfo & { main: number; extra: number };
+export type SharedDeck = SharedInfo & { public: boolean; main: number[]; extra: number[]; missing: [number, number][] };
+
 // Current ATK and DEF of Monster Zones 0-4 of each player, null for an empty zone or a monster the player may not see.
 // `code`: only for a face-down monster of the player, which a shuffle of Set cards (MSG_SHUFFLE_SET_CARD, whose new places the
 // engine leaves empty) moves without a trace in the messages.
@@ -233,6 +256,13 @@ export type ServerMessage =
   // `saved` is the deck a `save_deck` just stored.
   | { type: "decks"; decks: Deck[]; active: number | null; saved?: number }
   | { type: "duel_error"; error: string }
+  // The code of a deck shared or published. `shared_deck`: the deck of a code, `missing` as [passcode, copies] the viewer lacks.
+  // `deck_copied`: the deck saved from a code and the cards left out, as [passcode, copies].
+  | { type: "deck_shared"; code: string; published: boolean }
+  | { type: "shared_deck"; deck: SharedDeck }
+  | { type: "deck_copied"; id: number; name: string; missing: [number, number][] }
+  | { type: "public_decks"; decks: PublicDeck[] }
+  | { type: "public_deck_removed"; code: string }
   // The server stops for an update: no new duel, those in progress go on until their end. Sent to every client.
   | { type: "maintenance" }
   // Avatar and favorite card of the player, null until chosen.

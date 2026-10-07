@@ -14,6 +14,7 @@ import { solvedLessons, solveLesson } from "./lessons.ts";
 import { dbMissionStore, type MissionStore } from "./missions.ts";
 import type { Printing } from "./pool.ts";
 import { dbProfileStore, type ProfileStore } from "./profile.ts";
+import { dbPublicDeckStore, type PublicDeckStore } from "./public-decks.ts";
 import type { DeckResult, ReplaySummary, RevengeResult, StoryResult, TowerView } from "./protocol.ts";
 import { solvedPuzzles, solvePuzzle } from "./puzzles.ts";
 import { dbRankedStore, type RankedStore } from "./ranked.ts";
@@ -29,7 +30,7 @@ import { dbWishStore, type WishStore } from "./wishlist.ts";
 import { dbWonderStore, type WonderStore } from "./wonder.ts";
 
 // Identity, profile, deck, booster and Story mode storage, faked in tests.
-export type Accounts = DeckStore & WishStore & EconomyStore & WonderStore & ProfileStore & SealedStore & DraftStore & FriendStore & TradeStore & RankedStore & MissionStore & AdminStore & {
+export type Accounts = DeckStore & WishStore & EconomyStore & WonderStore & ProfileStore & SealedStore & DraftStore & FriendStore & TradeStore & RankedStore & MissionStore & AdminStore & PublicDeckStore & {
   verify: (token: string) => Promise<string | null>;
   findProfile: (userId: string) => Promise<Profile | undefined>;
   // Resolves to undefined when the pseudo is already taken.
@@ -127,5 +128,6 @@ export function dbAccounts(db: Db): Accounts {
     ...dbRankedStore(db),
     ...dbMissionStore(db),
     ...dbAdminStore(db),
+    ...dbPublicDeckStore(db),
   };
 }
